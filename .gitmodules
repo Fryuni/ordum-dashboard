@@ -1,0 +1,8 @@
+[submodule "bitcraft-bindings/global"]
+	path = bitcraft-bindings/global
+	url = https://github.com/BitCraftToolBox/BitCraft_Bindings.git
+	branch = ts-global
+[submodule "bitcraft-bindings/region"]
+	path = bitcraft-bindings/region
+	url = https://github.com/BitCraftToolBox/BitCraft_Bindings.git
+	branch = ts-region
