@@ -18,7 +18,7 @@ const REPO_OWNER = "ResuBaka";
 const REPO_NAME = "bitcraft-hub";
 const API_SRC_PATH = "rust/api-server/api/src";
 const DEFAULT_BRANCH = "main";
-const DEFAULT_OUTPUT = path.join(__dirname, "src", "bitcraft-api-client.ts");
+const DEFAULT_OUTPUT = path.join(import.meta.dirname, '..', "src", "bitcraft-api-client.ts");
 
 // Modules that only contain internal/websocket/event logic, not HTTP routes
 const SKIP_MODULES = new Set([
