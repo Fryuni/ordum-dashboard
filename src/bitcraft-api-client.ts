@@ -4,7 +4,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════
  *
  * Source: https://github.com/ResuBaka/bitcraft-hub/tree/main/rust/api-server/api/src
- * Generated: 2026-03-08T00:16:11.243Z
+ * Generated: 2026-03-08T00:23:43.860Z
  *
  * Re-generate with:
  *   bun run generate-api-client.ts
@@ -68,6 +68,7 @@ export interface Location { x: number; y: number; z: number; }
 export type ItemType = "Item" | "Cargo";
 export interface VaultStateCollectibleWithDesc { [key: string]: unknown; }
 export interface ApiResponse { id: number; name: string; description: string; count: number; [key: string]: unknown; }
+export interface ActionStateModel { owner_entity_id: number; entity_id: number; [key: string]: unknown; }
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -81,6 +82,125 @@ export interface MarketOrdersResponse {
   sell_orders: Record<string, AuctionListingState[]>;
   [key: string]: unknown;
 }
+
+export interface LeaderboardSkill {
+  player_id: number;
+  player_name?: string | null;
+  experience: number;
+  level: number;
+  rank: number;
+  [key: string]: unknown;
+}
+
+export interface LeaderboardLevel {
+  player_id: number;
+  player_name?: string | null;
+  level: number;
+  rank: number;
+  [key: string]: unknown;
+}
+
+export interface LeaderboardExperiencePerHour {
+  player_id: number;
+  player_name?: string | null;
+  experience: number;
+  rank: number;
+  [key: string]: unknown;
+}
+
+export interface LeaderboardExperience {
+  player_id: number;
+  player_name?: string | null;
+  experience: number;
+  experience_per_hour: number;
+  rank: number;
+  [key: string]: unknown;
+}
+
+export interface LeaderboardTime {
+  player_id: number;
+  player_name?: string | null;
+  time_played: number;
+  rank: number;
+  [key: string]: unknown;
+}
+
+export interface GetTop100Response {
+  player_map: Record<number, PlayerStateModel>;
+  leaderboard: Record<string, RankType[]>;
+  [key: string]: unknown;
+}
+
+export type RankType = LeaderboardExperience | LeaderboardExperiencePerHour | LeaderboardLevel | LeaderboardSkill | LeaderboardTime;
+
+export interface PlayerUsernameStateResponse {
+  username_state: Record<string, string>;
+  [key: string]: unknown;
+}
+
+export interface PlayersResponse {
+  players: PlayerStateMerged[];
+  perPage: number;
+  total: number;
+  page: number;
+  [key: string]: unknown;
+}
+
+export interface FindPlayerByIdResponse {
+  teleport_location: TeleportLocation;
+  entity_id: number;
+  time_played: number;
+  session_start_timestamp: number;
+  time_signed_in: number;
+  sign_in_timestamp: number;
+  signed_in: boolean;
+  traveler_tasks_expiration: number;
+  traveler_tasks: Record<number, TravelerTaskStateModel[]>;
+  username: string;
+  deployables: VaultStateCollectibleWithDesc[];
+  claim_id?: number | null;
+  claims: ClaimStateModel[];
+  player_location?: MobileEntityStateModel | null;
+  player_action_state?: string | null;
+  player_action_state2?: PlayerActionStateModel | null;
+  current_action_state?: PlayerActionStateModel | null;
+  [key: string]: unknown;
+}
+
+export interface ExtractionRecipeResponse {
+  id: number;
+  resource_id: number;
+  tool_requirements: ToolRequirement[];
+  allow_use_hands: boolean;
+  time_requirement: number;
+  stamina_requirement: number;
+  [key: string]: unknown;
+}
+
+export interface ItemsAndCargoResponse {
+  items: ItemCargo[];
+  tags: string[];
+  tiers: number[];
+  per_page: number;
+  total: number;
+  page: number;
+  pages: number;
+  [key: string]: unknown;
+}
+
+export interface MetaResponse {
+  tags: string[];
+  tiers: number[];
+  [key: string]: unknown;
+}
+
+export interface ItemsAndCargollResponse {
+  cargo_desc: Record<number, CargoDescModel>;
+  item_desc: Record<number, ItemDescModel>;
+  [key: string]: unknown;
+}
+
+export type ItemCargo = { type: "Item" } | { type: "Cargo" };
 
 export interface PermissionEntry {
   allowed_entity_id: number;
@@ -120,13 +240,17 @@ export interface HouseInventoriesResponse {
   [key: string]: unknown;
 }
 
-export interface ExtractionRecipeResponse {
-  id: number;
-  resource_id: number;
-  tool_requirements: ToolRequirement[];
-  allow_use_hands: boolean;
-  time_requirement: number;
-  stamina_requirement: number;
+export interface InventorysResponse {
+  inventorys: ResolvedInventory[];
+  total: number;
+  page: number;
+  perPage: number;
+  [key: string]: unknown;
+}
+
+export interface AllInventoryStatsResponse {
+  items: ([number, ItemDescModel | null])[];
+  cargo: ([number, CargoDescModel | null])[];
   [key: string]: unknown;
 }
 
@@ -275,94 +399,13 @@ export type InventoryOwnerType = "Player" | "Building" | "Unknown";
 
 export type OnlineState = "Online" | "Offline";
 
-export interface ItemsAndCargoResponse {
-  items: ItemCargo[];
-  tags: string[];
-  tiers: number[];
-  per_page: number;
-  total: number;
-  page: number;
-  pages: number;
-  [key: string]: unknown;
-}
-
-export interface MetaResponse {
-  tags: string[];
-  tiers: number[];
-  [key: string]: unknown;
-}
-
-export interface ItemsAndCargollResponse {
+export interface RecipesAllResponse {
+  recipes: Record<number, CraftingRecipeModel>;
   cargo_desc: Record<number, CargoDescModel>;
   item_desc: Record<number, ItemDescModel>;
+  item_list_desc: Record<number, ItemListDescModel>;
   [key: string]: unknown;
 }
-
-export type ItemCargo = { type: "Item" } | { type: "Cargo" };
-
-export interface InventorysResponse {
-  inventorys: ResolvedInventory[];
-  total: number;
-  page: number;
-  perPage: number;
-  [key: string]: unknown;
-}
-
-export interface AllInventoryStatsResponse {
-  items: ([number, ItemDescModel | null])[];
-  cargo: ([number, CargoDescModel | null])[];
-  [key: string]: unknown;
-}
-
-export interface LeaderboardSkill {
-  player_id: number;
-  player_name?: string | null;
-  experience: number;
-  level: number;
-  rank: number;
-  [key: string]: unknown;
-}
-
-export interface LeaderboardLevel {
-  player_id: number;
-  player_name?: string | null;
-  level: number;
-  rank: number;
-  [key: string]: unknown;
-}
-
-export interface LeaderboardExperiencePerHour {
-  player_id: number;
-  player_name?: string | null;
-  experience: number;
-  rank: number;
-  [key: string]: unknown;
-}
-
-export interface LeaderboardExperience {
-  player_id: number;
-  player_name?: string | null;
-  experience: number;
-  experience_per_hour: number;
-  rank: number;
-  [key: string]: unknown;
-}
-
-export interface LeaderboardTime {
-  player_id: number;
-  player_name?: string | null;
-  time_played: number;
-  rank: number;
-  [key: string]: unknown;
-}
-
-export interface GetTop100Response {
-  player_map: Record<number, PlayerStateModel>;
-  leaderboard: Record<string, RankType[]>;
-  [key: string]: unknown;
-}
-
-export type RankType = LeaderboardExperience | LeaderboardExperiencePerHour | LeaderboardLevel | LeaderboardSkill | LeaderboardTime;
 
 export interface TradeOrdersWithExpendedRefrence {
   entity_id: number;
@@ -385,48 +428,6 @@ export interface TradeOrdersResponse {
   [key: string]: unknown;
 }
 
-export interface RecipesAllResponse {
-  recipes: Record<number, CraftingRecipeModel>;
-  cargo_desc: Record<number, CargoDescModel>;
-  item_desc: Record<number, ItemDescModel>;
-  item_list_desc: Record<number, ItemListDescModel>;
-  [key: string]: unknown;
-}
-
-export interface PlayerUsernameStateResponse {
-  username_state: Record<string, string>;
-  [key: string]: unknown;
-}
-
-export interface PlayersResponse {
-  players: PlayerStateMerged[];
-  perPage: number;
-  total: number;
-  page: number;
-  [key: string]: unknown;
-}
-
-export interface FindPlayerByIdResponse {
-  teleport_location: TeleportLocation;
-  entity_id: number;
-  time_played: number;
-  session_start_timestamp: number;
-  time_signed_in: number;
-  sign_in_timestamp: number;
-  signed_in: boolean;
-  traveler_tasks_expiration: number;
-  traveler_tasks: Record<number, TravelerTaskStateModel[]>;
-  username: string;
-  deployables: VaultStateCollectibleWithDesc[];
-  claim_id?: number | null;
-  claims: ClaimStateModel[];
-  player_location?: MobileEntityStateModel | null;
-  player_action_state?: string | null;
-  player_action_state2?: PlayerActionStateModel | null;
-  current_action_state?: PlayerActionStateModel | null;
-  [key: string]: unknown;
-}
-
 
 // ─── Query Parameter Types ────────────────────────────────────────────────────
 
@@ -436,10 +437,32 @@ export interface Params {
   search?: string;
 }
 
+export interface ListPlayersParams {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  online?: boolean;
+}
+
+export interface ItemsAndCargoParams {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  tier?: number;
+  tag?: string;
+  no_item_list?: boolean;
+}
+
 export interface FindHousesQuery {
   page?: number;
   per_page?: number;
   owner?: string;
+}
+
+export interface InventoryChangesParams {
+  item_id?: number;
+  item_type?: ItemType;
+  user_id?: number;
 }
 
 export interface BuildingStatesParams {
@@ -456,28 +479,6 @@ export interface ListClaimsParams {
   search?: string;
   research?: number;
   running_upgrade?: boolean;
-}
-
-export interface ItemsAndCargoParams {
-  page?: number;
-  per_page?: number;
-  search?: string;
-  tier?: number;
-  tag?: string;
-  no_item_list?: boolean;
-}
-
-export interface InventoryChangesParams {
-  item_id?: number;
-  item_type?: ItemType;
-  user_id?: number;
-}
-
-export interface ListPlayersParams {
-  page?: number;
-  per_page?: number;
-  search?: string;
-  online?: boolean;
 }
 
 
@@ -607,6 +608,76 @@ export class BitcraftApiClient {
   }
 
   /**
+   * `GET /leaderboard`
+   */
+  async getTop100(): Promise<GetTop100Response> {
+    return this.request<GetTop100Response>("/leaderboard");
+  }
+
+  /**
+   * `GET /experience/{player_id}`
+   */
+  async playerLeaderboard(player_id: number): Promise<PlayerLeaderboardResponse> {
+    return this.request<PlayerLeaderboardResponse>(`/experience/${player_id}`);
+  }
+
+  /**
+   * `GET /api/bitcraft/leaderboard/claims/{claim_id}`
+   */
+  async getClaimLeaderboard(claim_id: number): Promise<GetTop100Response> {
+    return this.request<GetTop100Response>(`/api/bitcraft/leaderboard/claims/${claim_id}`);
+  }
+
+  /**
+   * `GET /players`
+   */
+  async listPlayers(params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    online?: boolean;
+  }): Promise<PlayersResponse> {
+    const query = params ? this.buildQuery(params) : "";
+    return this.request<PlayersResponse>("/players" + query);
+  }
+
+  /**
+   * `GET /players/{id}`
+   */
+  async findPlayerById(id: number): Promise<FindPlayerByIdResponse> {
+    return this.request<FindPlayerByIdResponse>(`/players/${id}`);
+  }
+
+  /**
+   * `GET /api/bitcraft/extractionRecipes/all`
+   */
+  async getExtractionRecipes(): Promise<ExtractionRecipeResponse[]> {
+    return this.request<ExtractionRecipeResponse[]>("/api/bitcraft/extractionRecipes/all");
+  }
+
+  /**
+   * `GET /api/bitcraft/itemsAndCargo`
+   */
+  async listItemsAndCargo(params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    tier?: number;
+    tag?: string;
+    no_item_list?: boolean;
+  }): Promise<ItemsAndCargoResponse> {
+    const query = params ? this.buildQuery(params) : "";
+    return this.request<ItemsAndCargoResponse>("/api/bitcraft/itemsAndCargo" + query);
+  }
+
+  /**
+   * `GET /api/bitcraft/itemsAndCargo/all`
+   */
+  async getItemsAndCargo(): Promise<ItemsAndCargollResponse> {
+    return this.request<ItemsAndCargollResponse>("/api/bitcraft/itemsAndCargo/all");
+  }
+
+  /**
    * `GET /houses`
    */
   async findHouses(params?: {
@@ -637,6 +708,39 @@ export class BitcraftApiClient {
    */
   async findHouseInventories(id: number): Promise<HouseInventoriesResponse> {
     return this.request<HouseInventoriesResponse>(`/houses/${id}/inventories`);
+  }
+
+  /**
+   * `GET /inventorys/changes/{id}`
+   */
+  async readInventoryChanges(id: number, params?: {
+    item_id?: number;
+    item_type?: ItemType;
+    user_id?: number;
+  }): Promise<InventoryChangelogModel[]> {
+    const query = params ? this.buildQuery(params) : "";
+    return this.request<InventoryChangelogModel[]>(`/inventorys/changes/${id}` + query);
+  }
+
+  /**
+   * `GET /api/bitcraft/inventorys/owner_entity_id/{id}`
+   */
+  async findInventoryByOwnerEntityId(id: number): Promise<InventorysResponse> {
+    return this.request<InventorysResponse>(`/api/bitcraft/inventorys/owner_entity_id/${id}`);
+  }
+
+  /**
+   * `GET /inventory/{id}`
+   */
+  async findInventoryById(id: number): Promise<InventoryModel> {
+    return this.request<InventoryModel>(`/inventory/${id}`);
+  }
+
+  /**
+   * `GET /inventory/all_inventory_stats`
+   */
+  async allInventoryStats(): Promise<AllInventoryStatsResponse> {
+    return this.request<AllInventoryStatsResponse>("/inventory/all_inventory_stats");
   }
 
   /**
@@ -696,86 +800,10 @@ export class BitcraftApiClient {
   }
 
   /**
-   * `GET /api/bitcraft/itemsAndCargo`
+   * `GET /recipes/get_all`
    */
-  async listItemsAndCargo(params?: {
-    page?: number;
-    per_page?: number;
-    search?: string;
-    tier?: number;
-    tag?: string;
-    no_item_list?: boolean;
-  }): Promise<ItemsAndCargoResponse> {
-    const query = params ? this.buildQuery(params) : "";
-    return this.request<ItemsAndCargoResponse>("/api/bitcraft/itemsAndCargo" + query);
-  }
-
-  /**
-   * `GET /api/bitcraft/itemsAndCargo/all`
-   */
-  async getItemsAndCargo(): Promise<ItemsAndCargollResponse> {
-    return this.request<ItemsAndCargollResponse>("/api/bitcraft/itemsAndCargo/all");
-  }
-
-  /**
-   * `GET /inventorys/changes/{id}`
-   */
-  async readInventoryChanges(id: number, params?: {
-    item_id?: number;
-    item_type?: ItemType;
-    user_id?: number;
-  }): Promise<InventoryChangelogModel[]> {
-    const query = params ? this.buildQuery(params) : "";
-    return this.request<InventoryChangelogModel[]>(`/inventorys/changes/${id}` + query);
-  }
-
-  /**
-   * `GET /api/bitcraft/inventorys/owner_entity_id/{id}`
-   */
-  async findInventoryByOwnerEntityId(id: number): Promise<InventorysResponse> {
-    return this.request<InventorysResponse>(`/api/bitcraft/inventorys/owner_entity_id/${id}`);
-  }
-
-  /**
-   * `GET /inventory/{id}`
-   */
-  async findInventoryById(id: number): Promise<InventoryModel> {
-    return this.request<InventoryModel>(`/inventory/${id}`);
-  }
-
-  /**
-   * `GET /inventory/all_inventory_stats`
-   */
-  async allInventoryStats(): Promise<AllInventoryStatsResponse> {
-    return this.request<AllInventoryStatsResponse>("/inventory/all_inventory_stats");
-  }
-
-  /**
-   * `GET /leaderboard`
-   */
-  async getTop100(): Promise<GetTop100Response> {
-    return this.request<GetTop100Response>("/leaderboard");
-  }
-
-  /**
-   * `GET /experience/{player_id}`
-   */
-  async playerLeaderboard(player_id: number): Promise<PlayerLeaderboardResponse> {
-    return this.request<PlayerLeaderboardResponse>(`/experience/${player_id}`);
-  }
-
-  /**
-   * `GET /api/bitcraft/leaderboard/claims/{claim_id}`
-   */
-  async getClaimLeaderboard(claim_id: number): Promise<GetTop100Response> {
-    return this.request<GetTop100Response>(`/api/bitcraft/leaderboard/claims/${claim_id}`);
-  }
-
-  /**
-   * `GET /api/bitcraft/trade_orders/get_trade_orders`
-   */
-  async getTradeOrders(): Promise<TradeOrdersResponse> {
-    return this.request<TradeOrdersResponse>("/api/bitcraft/trade_orders/get_trade_orders");
+  async getRecipes(): Promise<RecipesAllResponse> {
+    return this.request<RecipesAllResponse>("/recipes/get_all");
   }
 
   /**
@@ -793,30 +821,10 @@ export class BitcraftApiClient {
   }
 
   /**
-   * `GET /recipes/get_all`
+   * `GET /api/bitcraft/trade_orders/get_trade_orders`
    */
-  async getRecipes(): Promise<RecipesAllResponse> {
-    return this.request<RecipesAllResponse>("/recipes/get_all");
-  }
-
-  /**
-   * `GET /players`
-   */
-  async listPlayers(params?: {
-    page?: number;
-    per_page?: number;
-    search?: string;
-    online?: boolean;
-  }): Promise<PlayersResponse> {
-    const query = params ? this.buildQuery(params) : "";
-    return this.request<PlayersResponse>("/players" + query);
-  }
-
-  /**
-   * `GET /players/{id}`
-   */
-  async findPlayerById(id: number): Promise<FindPlayerByIdResponse> {
-    return this.request<FindPlayerByIdResponse>(`/players/${id}`);
+  async getTradeOrders(): Promise<TradeOrdersResponse> {
+    return this.request<TradeOrdersResponse>("/api/bitcraft/trade_orders/get_trade_orders");
   }
 
   /**
@@ -827,18 +835,367 @@ export class BitcraftApiClient {
   }
 
   /**
-   * `GET /api/bitcraft/extractionRecipes/all`
-   */
-  async getExtractionRecipes(): Promise<ExtractionRecipeResponse[]> {
-    return this.request<ExtractionRecipeResponse[]>("/api/bitcraft/extractionRecipes/all");
-  }
-
-  /**
    * `GET /api/bitcraft/itemsAndCargo/meta`
    */
   async getItemsAndCargoMeta(): Promise<MetaResponse> {
     return this.request<MetaResponse>("/api/bitcraft/itemsAndCargo/meta");
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WebSocket Message Types (parsed from Rust WebSocketMessages enum)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface WsMsgExperience {
+  experience: number;
+  level: number;
+  rank: number;
+  skill_name: string;
+  user_id: number;
+}
+
+export interface WsMsgTotalExperience {
+  user_id: number;
+  experience: number;
+  experience_per_hour: number;
+  rank: number;
+}
+
+export interface WsMsgTimePlayed {
+  user_id: number;
+  time: number;
+  rank: number;
+}
+
+export interface WsMsgTimeSignedIn {
+  user_id: number;
+  time: number;
+  rank: number;
+}
+
+export interface WsMsgMovedOutOfClaim {
+  user_id: number;
+  chunk_index: number;
+  claim_id: number;
+}
+
+export interface WsMsgMovedIntoClaim {
+  user_id: number;
+  chunk_index: number;
+  claim_id: number;
+}
+
+export interface WsMsgPlayerMovedIntoClaim {
+  user_id: number;
+  chunk_index: number;
+  claim_id: number;
+}
+
+export interface WsMsgPlayerMovedOutOfClaim {
+  user_id: number;
+  chunk_index: number;
+  claim_id: number;
+}
+
+export interface WsMsgLevel {
+  level: number;
+  user_id: number;
+  skill_name: string;
+}
+
+export interface WsMsgInventoryUpdate {
+  resolved_inventory: ResolvedInventory;
+}
+
+export interface WsMsgInventoryRemove {
+  resolved_inventory: ResolvedInventory;
+}
+
+export interface WsMsgInventoryInsert {
+  resolved_inventory: ResolvedInventory;
+  player_owner_id: number;
+}
+
+export type WebSocketMessage =
+  | { t: "MobileEntityState"; c: MobileEntityStateModel }
+  | { t: "Experience"; c: WsMsgExperience }
+  | { t: "TotalExperience"; c: WsMsgTotalExperience }
+  | { t: "TimePlayed"; c: WsMsgTimePlayed }
+  | { t: "TimeSignedIn"; c: WsMsgTimeSignedIn }
+  | { t: "MovedOutOfClaim"; c: WsMsgMovedOutOfClaim }
+  | { t: "MovedIntoClaim"; c: WsMsgMovedIntoClaim }
+  | { t: "PlayerMovedIntoClaim"; c: WsMsgPlayerMovedIntoClaim }
+  | { t: "PlayerMovedOutOfClaim"; c: WsMsgPlayerMovedOutOfClaim }
+  | { t: "PlayerActionState"; c: PlayerActionStateModel }
+  | { t: "PlayerActionStateChangeName"; c: [string, number] }
+  | { t: "Level"; c: WsMsgLevel }
+  | { t: "PlayerState"; c: PlayerStateModel }
+  | { t: "TravelerTaskState"; c: TravelerTaskStateModel }
+  | { t: "TravelerTaskStateDelete"; c: TravelerTaskStateModel }
+  | { t: "ClaimLocalState"; c: ClaimLocalStateModel }
+  | { t: "ActionState"; c: ActionStateModel }
+  | { t: "InsertSellOrder"; c: AuctionListingState }
+  | { t: "UpdateSellOrder"; c: AuctionListingState }
+  | { t: "RemoveSellOrder"; c: AuctionListingState }
+  | { t: "InsertBuyOrder"; c: AuctionListingState }
+  | { t: "UpdateBuyOrder"; c: AuctionListingState }
+  | { t: "RemoveBuyOrder"; c: AuctionListingState }
+  | { t: "InventoryUpdate"; c: WsMsgInventoryUpdate }
+  | { t: "InventoryRemove"; c: WsMsgInventoryRemove }
+  | { t: "InventoryInsert"; c: WsMsgInventoryInsert };
+
+export type WebSocketMessageType = WebSocketMessage["t"];
+
+export type WebSocketMessageContent<T extends WebSocketMessageType> =
+  Extract<WebSocketMessage, { t: T }>["c"];
+
+/** Known WebSocket topic names. Use with subscribe(). */
+export type WebSocketTopic =
+  "mobile_entity_state" | "experience:{skill_name}" | "experience" | "moved_out_of_claim" | "moved_into_claim" | "player_moved_into_claim" | "player_moved_out_of_claim" | "player_action_state" | "player_action_state_change_name" | "level:{skill_name}" | "level" | "traveler_task_state" | "traveler_task_state:player" | "claim_local_state" | "action_state" | "insert_sell_order" | "insert_sell_order:item_id" | "update_sell_order" | "update_sell_order:item_id" | "remove_sell_order" | "remove_sell_order:item_id" | "update_buy_order" | "update_buy_order:item_id" | "remove_buy_order" | "remove_buy_order:item_id" | "inventory_update" | "inventory_remove" | "inventory_remove_owner" | "inventory_insert" | "inventory_insert_owner" | "inventory_insert_player_owner";
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Live Data Client (WebSocket)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface BitcraftLiveClientOptions {
+  /** Base URL (http/https). Will be converted to ws/wss automatically. */
+  baseUrl: string;
+  /** Encoding to request from the server. Default: "Json". */
+  encoding?: "Json" | "Toml" | "Yaml" | "MessagePack";
+  /** Auto-reconnect on disconnect. Default: true. */
+  autoReconnect?: boolean;
+  /** Reconnect delay in ms. Default: 5000. */
+  reconnectDelay?: number;
+  /** Max reconnect attempts. Default: 10. 0 = infinite. */
+  maxReconnectAttempts?: number;
+}
+
+type MessageHandler<T extends WebSocketMessageType = WebSocketMessageType> =
+  (content: WebSocketMessageContent<T>) => void;
+
+export class BitcraftLiveClient {
+  private ws: WebSocket | null = null;
+  private readonly wsUrl: string;
+  private readonly encoding: string;
+  private readonly autoReconnect: boolean;
+  private readonly reconnectDelay: number;
+  private readonly maxReconnectAttempts: number;
+  private reconnectAttempts = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private intentionallyClosed = false;
+
+  private handlers = new Map<string, Map<string, MessageHandler<any>>>();
+  private subscribedTopics = new Set<string>();
+
+  /** Fires on connection open. */
+  onOpen: (() => void) | null = null;
+  /** Fires on connection close. */
+  onClose: ((event: CloseEvent) => void) | null = null;
+  /** Fires on connection error. */
+  onError: ((event: Event) => void) | null = null;
+  /** Fires on every raw message (before dispatch). */
+  onRawMessage: ((message: WebSocketMessage) => void) | null = null;
+
+  constructor(options: BitcraftLiveClientOptions) {
+    const base = options.baseUrl.replace(/\/+$/, "");
+    const wsBase = base.replace(/^http/, "ws");
+    this.encoding = options.encoding ?? "Json";
+    this.wsUrl = `${wsBase}/websocket?encoding=${this.encoding}`;
+    this.autoReconnect = options.autoReconnect ?? true;
+    this.reconnectDelay = options.reconnectDelay ?? 5000;
+    this.maxReconnectAttempts = options.maxReconnectAttempts ?? 10;
+  }
+
+  /** Current connection state. */
+  get readyState(): number {
+    return this.ws?.readyState ?? WebSocket.CLOSED;
+  }
+
+  get isConnected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  /** Open the WebSocket connection. */
+  connect(): void {
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+    this.intentionallyClosed = false;
+    this.ws = new WebSocket(this.wsUrl);
+
+    this.ws.onopen = () => {
+      this.reconnectAttempts = 0;
+      // Re-subscribe to all previously subscribed topics
+      if (this.subscribedTopics.size > 0) {
+        this.send({ t: "Subscribe", c: { topics: [...this.subscribedTopics] } });
+      }
+      this.onOpen?.();
+    };
+
+    this.ws.onclose = (event) => {
+      this.onClose?.(event);
+      if (!this.intentionallyClosed && this.autoReconnect) {
+        this.scheduleReconnect();
+      }
+    };
+
+    this.ws.onerror = (event) => {
+      this.onError?.(event);
+    };
+
+    this.ws.onmessage = (event) => {
+      this.handleMessage(event);
+    };
+  }
+
+  /** Close the connection. */
+  disconnect(): void {
+    this.intentionallyClosed = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.ws?.close();
+    this.ws = null;
+  }
+
+  /**
+   * Subscribe to a topic and register a typed handler for a message type.
+   *
+   * @param messageType  The WebSocket message type to listen for (e.g. "PlayerState")
+   * @param topics       Topic string(s) to subscribe to (e.g. "player_state.12345")
+   * @param handler      Callback receiving the typed message content
+   * @param handlerId    Unique ID for this handler (for later removal)
+   */
+  subscribe<T extends WebSocketMessageType>(
+    messageType: T,
+    topics: string | string[],
+    handler: (content: WebSocketMessageContent<T>) => void,
+    handlerId: string,
+  ): void {
+    // Register handler
+    if (!this.handlers.has(messageType)) {
+      this.handlers.set(messageType, new Map());
+    }
+    this.handlers.get(messageType)!.set(handlerId, handler as MessageHandler<any>);
+
+    // Track and send subscription
+    const topicList = typeof topics === "string" ? [topics] : topics;
+    const newTopics: string[] = [];
+    for (const t of topicList) {
+      if (!this.subscribedTopics.has(t)) {
+        this.subscribedTopics.add(t);
+        newTopics.push(t);
+      }
+    }
+    if (newTopics.length > 0 && this.isConnected) {
+      this.send({ t: "Subscribe", c: { topics: newTopics } });
+    }
+  }
+
+  /**
+   * Unsubscribe from topics and remove a handler.
+   */
+  unsubscribe<T extends WebSocketMessageType>(
+    messageType: T,
+    topics: string | string[],
+    handlerId: string,
+  ): void {
+    const handlerMap = this.handlers.get(messageType);
+    if (handlerMap) {
+      handlerMap.delete(handlerId);
+      if (handlerMap.size === 0) this.handlers.delete(messageType);
+    }
+
+    const topicList = typeof topics === "string" ? [topics] : topics;
+    for (const topic of topicList) {
+      this.subscribedTopics.delete(topic);
+      if (this.isConnected) {
+        this.send({ t: "Unsubscribe", c: { topic } });
+      }
+    }
+  }
+
+  /**
+   * Register a handler for a message type without subscribing to any topic.
+   * Useful for messages that arrive on already-subscribed topics.
+   */
+  on<T extends WebSocketMessageType>(
+    messageType: T,
+    handler: (content: WebSocketMessageContent<T>) => void,
+    handlerId: string,
+  ): void {
+    if (!this.handlers.has(messageType)) {
+      this.handlers.set(messageType, new Map());
+    }
+    this.handlers.get(messageType)!.set(handlerId, handler as MessageHandler<any>);
+  }
+
+  /** Remove a specific handler by type and ID. */
+  off(messageType: WebSocketMessageType, handlerId: string): void {
+    const handlerMap = this.handlers.get(messageType);
+    if (handlerMap) {
+      handlerMap.delete(handlerId);
+      if (handlerMap.size === 0) this.handlers.delete(messageType);
+    }
+  }
+
+  /** List currently subscribed topic strings. */
+  getSubscribedTopics(): string[] {
+    return [...this.subscribedTopics];
+  }
+
+  /** Request the server to list our subscribed topics. */
+  listServerTopics(): void {
+    if (this.isConnected) {
+      this.send({ t: "ListSubscribedTopics" });
+    }
+  }
+
+  // ─── Internals ───────────────────────────────────────────────
+
+  private send(msg: Record<string, unknown>): void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(msg));
+    }
+  }
+
+  private handleMessage(event: MessageEvent): void {
+    let message: WebSocketMessage | undefined;
+    try {
+      if (typeof event.data === "string") {
+        message = JSON.parse(event.data) as WebSocketMessage;
+      }
+      // For MessagePack/binary, users should bring their own decoder
+      // and set onRawMessage or override handleMessage.
+    } catch {
+      return;
+    }
+    if (!message || !message.t) return;
+
+    this.onRawMessage?.(message);
+
+    const handlerMap = this.handlers.get(message.t);
+    if (handlerMap) {
+      const content = "c" in message ? (message as any).c : undefined;
+      for (const handler of handlerMap.values()) {
+        try { handler(content); } catch { /* user handler error */ }
+      }
+    }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.maxReconnectAttempts > 0 && this.reconnectAttempts >= this.maxReconnectAttempts) {
+      return;
+    }
+    this.reconnectAttempts++;
+    this.reconnectTimer = setTimeout(() => {
+      this.connect();
+    }, this.reconnectDelay);
+  }
+}
+
 
 export default BitcraftApiClient;

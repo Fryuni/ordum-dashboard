@@ -772,6 +772,415 @@ ${body}
   }`;
 }
 
+// ─── WebSocket Message Parser ─────────────────────────────────────────────────
+
+interface WsVariant {
+  /** Variant name, e.g. "PlayerState" */
+  name: string;
+  /** TypeScript type of the content payload, or null if no payload */
+  contentType: string | null;
+  /** Topic strings this variant publishes to (from topics() match arm) */
+  topics: string[];
+}
+
+function parseWebSocketMessages(src: string): WsVariant[] {
+  // Find the WebSocketMessages enum body
+  const enumMatch = /enum\s+WebSocketMessages\s*\{/g.exec(src);
+  if (!enumMatch) return [];
+
+  const bodyStart = enumMatch.index + enumMatch[0].length - 1;
+  const body = extractBracedBody(src, bodyStart);
+  if (!body) return [];
+
+  const variants: WsVariant[] = [];
+  // Match variants like:
+  //   PlayerState(entity::player_state::Model),
+  //   Experience { experience: u64, level: u64, ... },
+  //   ListSubscribedTopics,
+  const lines = body.split("\n");
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i].trim();
+    // Skip comments, attributes, empty lines
+    if (!line || line.startsWith("//") || line.startsWith("#")) { i++; continue; }
+
+    // Tuple variant: Name(Type) or Name(Type1, Type2),
+    const tupleMatch = /^(\w+)\(([^)]+)\)\s*,?/.exec(line);
+    if (tupleMatch) {
+      const name = tupleMatch[1];
+      const rawInner = tupleMatch[2].trim();
+      // Multi-field tuples like (String, u64) → wrap as a Rust tuple type
+      const parts = splitTopLevel(rawInner);
+      const rustType = parts.length > 1 ? `(${rawInner})` : rawInner;
+      // Skip control-flow variants
+      if (!["Subscribe", "Unsubscribe", "ListSubscribedTopics", "SubscribedTopics", "Message"].includes(name)) {
+        variants.push({ name, contentType: rustType, topics: [] });
+      }
+      i++; continue;
+    }
+
+    // Struct variant: Name { field: Type, ... },
+    const structMatch = /^(\w+)\s*\{/.exec(line);
+    if (structMatch) {
+      const name = structMatch[1];
+      // Collect lines until closing }
+      let braceContent = "";
+      let depth = 0;
+      for (let j = i; j < lines.length; j++) {
+        for (const ch of lines[j]) {
+          if (ch === "{") depth++;
+          if (ch === "}") depth--;
+        }
+        braceContent += lines[j] + "\n";
+        if (depth <= 0) { i = j + 1; break; }
+      }
+      if (!["Subscribe", "Unsubscribe", "ListSubscribedTopics", "SubscribedTopics", "Message"].includes(name)) {
+        // Parse fields from the brace content
+        const fields: { name: string; type: string }[] = [];
+        const fieldRe = /(\w+)\s*:\s*([^,\n}]+)/g;
+        let fm: RegExpExecArray | null;
+        while ((fm = fieldRe.exec(braceContent)) !== null) {
+          if (!["pub", "fn", "let"].includes(fm[1])) {
+            fields.push({ name: fm[1], type: fm[2].trim() });
+          }
+        }
+        variants.push({ name, contentType: `{struct:${name}}`, topics: [] });
+        // Store the fields for later TS emission
+        (variants[variants.length - 1] as any)._fields = fields;
+      }
+      continue;
+    }
+
+    // Simple variant: Name,
+    const simpleMatch = /^(\w+)\s*,?$/.exec(line);
+    if (simpleMatch) {
+      const name = simpleMatch[1];
+      if (!["Subscribe", "Unsubscribe", "ListSubscribedTopics", "SubscribedTopics", "Message"].includes(name)) {
+        variants.push({ name, contentType: null, topics: [] });
+      }
+    }
+    i++;
+  }
+
+  // Now parse the topics() method to associate topic strings with variants
+  const topicsMatch = /fn\s+topics\s*\(\s*&self\s*\)\s*->\s*Option<Vec<\(String,\s*Option<i64>\)>>\s*\{/g.exec(src);
+  if (topicsMatch) {
+    const topicsBodyStart = src.indexOf("{", topicsMatch.index + topicsMatch[0].length - 1);
+    const topicsBody = extractBracedBody(src, topicsBodyStart);
+    if (topicsBody) {
+      // For each variant, find the match arm and extract topic strings
+      for (const v of variants) {
+        // Match: WebSocketMessages::VariantName(... | { ... }) => Some(vec![("topic_name", ...)])
+        const armRe = new RegExp(`WebSocketMessages::${v.name}[^=]*=>\\s*Some\\(vec!\\[([^\\]]+)\\]`, "s");
+        const armMatch = armRe.exec(topicsBody);
+        if (armMatch) {
+          const topicStrs = armMatch[1].matchAll(/"([^"]+)"/g);
+          for (const tm of topicStrs) {
+            if (!v.topics.includes(tm[1])) v.topics.push(tm[1]);
+          }
+        }
+      }
+    }
+  }
+
+  return variants;
+}
+
+function emitWebSocketTypes(variants: WsVariant[], knownStructs: Set<string>): string {
+  const lines: string[] = [];
+
+  // Emit inline struct types for struct variants
+  for (const v of variants) {
+    if (v.contentType?.startsWith("{struct:")) {
+      const fields: { name: string; type: string }[] = (v as any)._fields || [];
+      const tsFields = fields
+        .map((f) => `  ${f.name}: ${rustTypeToTs(f.type, knownStructs)};`)
+        .join("\n");
+      lines.push(`export interface WsMsg${v.name} {\n${tsFields}\n}\n`);
+    }
+  }
+
+  // Emit the discriminated union
+  const unionMembers = variants.map((v) => {
+    let contentType: string;
+    if (!v.contentType) {
+      contentType = "undefined";
+    } else if (v.contentType.startsWith("{struct:")) {
+      contentType = `WsMsg${v.name}`;
+    } else {
+      contentType = rustTypeToTs(v.contentType, knownStructs);
+    }
+    return `  | { t: "${v.name}"; c: ${contentType} }`;
+  });
+  lines.push(`export type WebSocketMessage =\n${unionMembers.join("\n")};\n`);
+
+  // Emit the message type string literal
+  lines.push(`export type WebSocketMessageType = WebSocketMessage["t"];\n`);
+
+  // Emit a helper to extract the content type for a given message type
+  lines.push(`export type WebSocketMessageContent<T extends WebSocketMessageType> =`);
+  lines.push(`  Extract<WebSocketMessage, { t: T }>["c"];\n`);
+
+  // Emit known topic names
+  const allTopics = new Set<string>();
+  for (const v of variants) {
+    for (const t of v.topics) allTopics.add(t);
+  }
+  if (allTopics.size > 0) {
+    lines.push(`/** Known WebSocket topic names. Use with subscribe(). */`);
+    lines.push(`export type WebSocketTopic =`);
+    lines.push(`  ${[...allTopics].map((t) => `"${t}"`).join(" | ")};\n`);
+  }
+
+  return lines.join("\n");
+}
+
+function emitLiveClient(): string {
+  return `
+// ═══════════════════════════════════════════════════════════════════════════════
+// Live Data Client (WebSocket)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface BitcraftLiveClientOptions {
+  /** Base URL (http/https). Will be converted to ws/wss automatically. */
+  baseUrl: string;
+  /** Encoding to request from the server. Default: "Json". */
+  encoding?: "Json" | "Toml" | "Yaml" | "MessagePack";
+  /** Auto-reconnect on disconnect. Default: true. */
+  autoReconnect?: boolean;
+  /** Reconnect delay in ms. Default: 5000. */
+  reconnectDelay?: number;
+  /** Max reconnect attempts. Default: 10. 0 = infinite. */
+  maxReconnectAttempts?: number;
+}
+
+type MessageHandler<T extends WebSocketMessageType = WebSocketMessageType> =
+  (content: WebSocketMessageContent<T>) => void;
+
+export class BitcraftLiveClient {
+  private ws: WebSocket | null = null;
+  private readonly wsUrl: string;
+  private readonly encoding: string;
+  private readonly autoReconnect: boolean;
+  private readonly reconnectDelay: number;
+  private readonly maxReconnectAttempts: number;
+  private reconnectAttempts = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private intentionallyClosed = false;
+
+  private handlers = new Map<string, Map<string, MessageHandler<any>>>();
+  private subscribedTopics = new Set<string>();
+
+  /** Fires on connection open. */
+  onOpen: (() => void) | null = null;
+  /** Fires on connection close. */
+  onClose: ((event: CloseEvent) => void) | null = null;
+  /** Fires on connection error. */
+  onError: ((event: Event) => void) | null = null;
+  /** Fires on every raw message (before dispatch). */
+  onRawMessage: ((message: WebSocketMessage) => void) | null = null;
+
+  constructor(options: BitcraftLiveClientOptions) {
+    const base = options.baseUrl.replace(/\\/+$/, "");
+    const wsBase = base.replace(/^http/, "ws");
+    this.encoding = options.encoding ?? "Json";
+    this.wsUrl = \`\${wsBase}/websocket?encoding=\${this.encoding}\`;
+    this.autoReconnect = options.autoReconnect ?? true;
+    this.reconnectDelay = options.reconnectDelay ?? 5000;
+    this.maxReconnectAttempts = options.maxReconnectAttempts ?? 10;
+  }
+
+  /** Current connection state. */
+  get readyState(): number {
+    return this.ws?.readyState ?? WebSocket.CLOSED;
+  }
+
+  get isConnected(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
+  }
+
+  /** Open the WebSocket connection. */
+  connect(): void {
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+    this.intentionallyClosed = false;
+    this.ws = new WebSocket(this.wsUrl);
+
+    this.ws.onopen = () => {
+      this.reconnectAttempts = 0;
+      // Re-subscribe to all previously subscribed topics
+      if (this.subscribedTopics.size > 0) {
+        this.send({ t: "Subscribe", c: { topics: [...this.subscribedTopics] } });
+      }
+      this.onOpen?.();
+    };
+
+    this.ws.onclose = (event) => {
+      this.onClose?.(event);
+      if (!this.intentionallyClosed && this.autoReconnect) {
+        this.scheduleReconnect();
+      }
+    };
+
+    this.ws.onerror = (event) => {
+      this.onError?.(event);
+    };
+
+    this.ws.onmessage = (event) => {
+      this.handleMessage(event);
+    };
+  }
+
+  /** Close the connection. */
+  disconnect(): void {
+    this.intentionallyClosed = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    this.ws?.close();
+    this.ws = null;
+  }
+
+  /**
+   * Subscribe to a topic and register a typed handler for a message type.
+   *
+   * @param messageType  The WebSocket message type to listen for (e.g. "PlayerState")
+   * @param topics       Topic string(s) to subscribe to (e.g. "player_state.12345")
+   * @param handler      Callback receiving the typed message content
+   * @param handlerId    Unique ID for this handler (for later removal)
+   */
+  subscribe<T extends WebSocketMessageType>(
+    messageType: T,
+    topics: string | string[],
+    handler: (content: WebSocketMessageContent<T>) => void,
+    handlerId: string,
+  ): void {
+    // Register handler
+    if (!this.handlers.has(messageType)) {
+      this.handlers.set(messageType, new Map());
+    }
+    this.handlers.get(messageType)!.set(handlerId, handler as MessageHandler<any>);
+
+    // Track and send subscription
+    const topicList = typeof topics === "string" ? [topics] : topics;
+    const newTopics: string[] = [];
+    for (const t of topicList) {
+      if (!this.subscribedTopics.has(t)) {
+        this.subscribedTopics.add(t);
+        newTopics.push(t);
+      }
+    }
+    if (newTopics.length > 0 && this.isConnected) {
+      this.send({ t: "Subscribe", c: { topics: newTopics } });
+    }
+  }
+
+  /**
+   * Unsubscribe from topics and remove a handler.
+   */
+  unsubscribe<T extends WebSocketMessageType>(
+    messageType: T,
+    topics: string | string[],
+    handlerId: string,
+  ): void {
+    const handlerMap = this.handlers.get(messageType);
+    if (handlerMap) {
+      handlerMap.delete(handlerId);
+      if (handlerMap.size === 0) this.handlers.delete(messageType);
+    }
+
+    const topicList = typeof topics === "string" ? [topics] : topics;
+    for (const topic of topicList) {
+      this.subscribedTopics.delete(topic);
+      if (this.isConnected) {
+        this.send({ t: "Unsubscribe", c: { topic } });
+      }
+    }
+  }
+
+  /**
+   * Register a handler for a message type without subscribing to any topic.
+   * Useful for messages that arrive on already-subscribed topics.
+   */
+  on<T extends WebSocketMessageType>(
+    messageType: T,
+    handler: (content: WebSocketMessageContent<T>) => void,
+    handlerId: string,
+  ): void {
+    if (!this.handlers.has(messageType)) {
+      this.handlers.set(messageType, new Map());
+    }
+    this.handlers.get(messageType)!.set(handlerId, handler as MessageHandler<any>);
+  }
+
+  /** Remove a specific handler by type and ID. */
+  off(messageType: WebSocketMessageType, handlerId: string): void {
+    const handlerMap = this.handlers.get(messageType);
+    if (handlerMap) {
+      handlerMap.delete(handlerId);
+      if (handlerMap.size === 0) this.handlers.delete(messageType);
+    }
+  }
+
+  /** List currently subscribed topic strings. */
+  getSubscribedTopics(): string[] {
+    return [...this.subscribedTopics];
+  }
+
+  /** Request the server to list our subscribed topics. */
+  listServerTopics(): void {
+    if (this.isConnected) {
+      this.send({ t: "ListSubscribedTopics" });
+    }
+  }
+
+  // ─── Internals ───────────────────────────────────────────────
+
+  private send(msg: Record<string, unknown>): void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(msg));
+    }
+  }
+
+  private handleMessage(event: MessageEvent): void {
+    let message: WebSocketMessage | undefined;
+    try {
+      if (typeof event.data === "string") {
+        message = JSON.parse(event.data) as WebSocketMessage;
+      }
+      // For MessagePack/binary, users should bring their own decoder
+      // and set onRawMessage or override handleMessage.
+    } catch {
+      return;
+    }
+    if (!message || !message.t) return;
+
+    this.onRawMessage?.(message);
+
+    const handlerMap = this.handlers.get(message.t);
+    if (handlerMap) {
+      const content = "c" in message ? (message as any).c : undefined;
+      for (const handler of handlerMap.values()) {
+        try { handler(content); } catch { /* user handler error */ }
+      }
+    }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.maxReconnectAttempts > 0 && this.reconnectAttempts >= this.maxReconnectAttempts) {
+      return;
+    }
+    this.reconnectAttempts++;
+    this.reconnectTimer = setTimeout(() => {
+      this.connect();
+    }, this.reconnectDelay);
+  }
+}
+`;
+}
+
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -830,6 +1239,7 @@ async function main() {
     "PermissionStateModel", "PortalStateModel", "LocationStateModel",
     "ExtractionRecipeDescModel", "VaultStateCollectiblesModel",
     "TravelerTaskStateModel",
+    "ActionStateModel",
   ];
   for (const t of entityModelTypes) knownStructNames.add(t);
 
@@ -928,8 +1338,13 @@ async function main() {
   console.log(`  Parsed ${endpoints.length} unique endpoints`);
   console.log(`  Parsed ${dedupedStructs.length} type definitions`);
 
-  // 7. Generate output
-  const code = emitClient(endpoints, dedupedStructs, dedupedQS, knownStructNames, branch);
+  // 7. Parse WebSocket message types from the websocket module and lib.rs
+  const wsSrc = moduleSources.get("websocket") || "";
+  const wsVariants = parseWebSocketMessages(libSrc + "\n" + wsSrc);
+  console.log(`  Parsed ${wsVariants.length} WebSocket message types`);
+
+  // 8. Generate output
+  const code = emitClient(endpoints, dedupedStructs, dedupedQS, knownStructNames, branch, wsVariants);
   const dir = path.dirname(output);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(output, code, "utf-8");
@@ -943,7 +1358,8 @@ function emitClient(
   structs: ParsedStruct[],
   queryStructs: ParsedQueryStruct[],
   knownStructs: Set<string>,
-  branch: string
+  branch: string,
+  wsVariants: WsVariant[] = [],
 ): string {
   // Emit entity Model type aliases as opaque interfaces
   const modelAliases = `
@@ -992,6 +1408,7 @@ export interface Location { x: number; y: number; z: number; }
 export type ItemType = "Item" | "Cargo";
 export interface VaultStateCollectibleWithDesc { [key: string]: unknown; }
 export interface ApiResponse { id: number; name: string; description: string; count: number; [key: string]: unknown; }
+export interface ActionStateModel { owner_entity_id: number; entity_id: number; [key: string]: unknown; }
 `;
 
   // Query param structs use `?:` (optional) instead of `| null`, so emit them
@@ -1133,6 +1550,14 @@ export class BitcraftApiClient {
   // ─── API Methods (${endpoints.length} endpoints) ─────────────────────────────
 ${methodsSection}
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// WebSocket Message Types (parsed from Rust WebSocketMessages enum)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+${wsVariants.length > 0 ? emitWebSocketTypes(wsVariants, knownStructs) : "// No WebSocket messages found"}
+
+${emitLiveClient()}
 
 export default BitcraftApiClient;
 `;
