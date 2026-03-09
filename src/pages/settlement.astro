@@ -1,0 +1,332 @@
+---
+import { loadGameData } from "../lib/gamedata";
+import { buildSettlementPlan } from "../lib/settlement-planner";
+import { API_BASE_URL, ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
+import TierPlan from "../components/TierPlan.astro";
+
+// Load game data
+const gd = loadGameData();
+
+// Fetch live claim data
+const resp = await fetch(`${API_BASE_URL}/api/bitcraft/claims/${ORDUM_MAIN_CLAIM_ID}`, {
+  headers: { Accept: "application/json" },
+});
+const claim = await resp.json();
+
+const currentTier = claim.tier ?? 1;
+const supplies = claim.supplies ?? 0;
+const learnedIds = new Set<number>(claim.learned_upgrades ?? []);
+const claimName = claim.name ?? "Unknown Claim";
+
+// Build inventory map from building storage
+const inventory = new Map<string, number>();
+const buildingInv = (claim.inventorys as any)?.buildings ?? [];
+for (const item of buildingInv) {
+  const key = `${item.item_type ?? "Item"}:${item.item_id}`;
+  inventory.set(key, (inventory.get(key) ?? 0) + (item.quantity ?? 0));
+}
+// Also include from inventory_locations buildings for more detail
+const buildingLocs = (claim.inventory_locations as any)?.buildings ?? [];
+for (const loc of buildingLocs) {
+  const key = `${loc.item_type ?? "Item"}:${loc.item_id}`;
+  if (!inventory.has(key)) {
+    const total = (loc.locations ?? []).reduce((s: number, l: any) => s + (l.quantity ?? 0), 0);
+    inventory.set(key, total);
+  }
+}
+
+// Also add player inventories (they can deposit items)
+for (const section of ["players", "players_offline"]) {
+  const playerInv = (claim.inventorys as any)?.[section] ?? [];
+  for (const item of playerInv) {
+    const key = `${item.item_type ?? "Item"}:${item.item_id}`;
+    inventory.set(key, (inventory.get(key) ?? 0) + (item.quantity ?? 0));
+  }
+}
+
+// Build plan
+const plans = buildSettlementPlan(gd, currentTier, learnedIds, supplies, inventory);
+const nextTierPlan = plans[0];
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Settlement Planner — {claimName}</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --bg: #0f1117;
+        --surface: #1a1d27;
+        --surface-2: #242836;
+        --border: #2e3347;
+        --text: #e1e4ed;
+        --text-dim: #8b90a5;
+        --accent: #6c8cff;
+        --accent-2: #ff8c6c;
+        --accent-3: #6cffb8;
+        --accent-4: #ffd06c;
+        --green: #4ade80;
+        --red: #f87171;
+      }
+
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.5;
+        min-height: 100vh;
+      }
+
+      .dashboard {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      /* Nav */
+      .nav {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+        align-items: center;
+      }
+      .nav a {
+        color: var(--text-dim);
+        text-decoration: none;
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+      }
+      .nav a:hover { color: var(--text); background: var(--surface); }
+      .nav a.active { color: var(--accent); background: var(--surface); }
+
+      /* Header */
+      .header {
+        text-align: center;
+        padding: 24px 0;
+        margin-bottom: 24px;
+      }
+      .header h1 {
+        font-size: 1.8rem;
+        font-weight: 700;
+        background: linear-gradient(135deg, var(--accent), var(--accent-4));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .header .subtitle { color: var(--text-dim); margin-top: 4px; font-size: 0.9rem; }
+
+      /* Claim Status Bar */
+      .status-bar {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px 24px;
+        margin-bottom: 32px;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        flex-wrap: wrap;
+      }
+      .status-bar .claim-name { font-size: 1.2rem; font-weight: 600; }
+      .status-bar .meta { color: var(--text-dim); font-size: 0.85rem; }
+      .status-bar .meta span { margin-right: 16px; }
+
+      /* Tier Plans */
+      .tier-plan {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 24px;
+      }
+      .tier-plan.next-tier { border-color: var(--accent); }
+      .tier-plan.completed { opacity: 0.6; }
+
+      .tier-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+      .tier-header h3 { font-size: 1.3rem; display: flex; align-items: center; gap: 8px; }
+      .done-badge {
+        background: var(--green);
+        color: #000;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      .supplies-indicator { font-size: 0.85rem; }
+      .supplies-indicator.ok { color: var(--green); }
+      .supplies-indicator.deficit { color: var(--red); }
+      .deficit-text { font-weight: 600; }
+
+      /* Research Cards */
+      .research-card {
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 16px;
+        margin-bottom: 12px;
+      }
+      .research-card.done { opacity: 0.5; }
+      .research-card.pending { border-left: 3px solid var(--accent-4); }
+
+      .research-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .research-status { font-size: 1.1rem; }
+      .research-type {
+        background: var(--surface);
+        color: var(--text-dim);
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+      }
+      .supplies-cost { margin-left: auto; color: var(--text-dim); font-size: 0.8rem; }
+
+      .research-items { margin-top: 12px; }
+
+      .item-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 6px 0;
+        font-size: 0.85rem;
+        border-bottom: 1px solid var(--border);
+      }
+      .item-row:last-child { border-bottom: none; }
+      .item-row .item-name { flex: 1; }
+      .item-row .item-qty { font-family: monospace; }
+      .item-row .item-status { font-size: 0.8rem; }
+
+      .have-enough { color: var(--green); font-weight: 600; }
+      .not-enough { color: var(--red); font-weight: 600; }
+
+      /* Researches Grid */
+      .researches-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+        gap: 12px;
+      }
+      .research-card.compact { margin-bottom: 0; }
+
+      /* Items Summary */
+      .items-summary {
+        margin-top: 20px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 20px;
+      }
+      .items-summary h4 {
+        margin-bottom: 16px;
+        font-size: 1rem;
+      }
+      .summary-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 8px 0;
+        font-size: 0.85rem;
+        border-bottom: 1px solid var(--border);
+      }
+      .summary-row:last-child { border-bottom: none; }
+      .summary-row .item-name { flex: 1; font-weight: 500; }
+      .summary-row .summary-qty { font-family: monospace; min-width: 120px; text-align: right; }
+      .deficit-label { color: var(--red); font-weight: 600; font-size: 0.8rem; }
+      .ok-label { color: var(--green); }
+
+      /* Tier badges */
+      .tier { padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+      .tier-1 { background: #374151; color: #d1d5db; }
+      .tier-2 { background: #1e3a2f; color: #6ee7b7; }
+      .tier-3 { background: #1e2d4a; color: #93c5fd; }
+      .tier-4 { background: #2d1f4e; color: #c4b5fd; }
+      .tier-5 { background: #3d2c0f; color: #fcd34d; }
+      .tier--1, .tier-0 { background: #2d2d2d; color: #9ca3af; }
+
+      /* Tier nav */
+      .tier-nav {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 24px;
+        flex-wrap: wrap;
+      }
+      .tier-nav a {
+        padding: 8px 16px;
+        border-radius: 8px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        color: var(--text-dim);
+        text-decoration: none;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+      }
+      .tier-nav a:hover { border-color: var(--accent); color: var(--text); }
+      .tier-nav a.current { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
+      @media (max-width: 768px) {
+        .dashboard { padding: 12px; }
+        .researches-grid { grid-template-columns: 1fr; }
+        .status-bar { flex-direction: column; align-items: flex-start; gap: 8px; }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="dashboard">
+      <nav class="nav">
+        <a href="/">📊 Dashboard</a>
+        <a href="/settlement" class="active">🏰 Settlement Planner</a>
+        <a href="/craft">⚒️ Craft Planner</a>
+      </nav>
+
+      <div class="header">
+        <h1>🏰 Settlement Planner</h1>
+        <p class="subtitle">Track research requirements and item availability for settlement upgrades</p>
+      </div>
+
+      <div class="status-bar">
+        <span class="claim-name">👑 {claimName}</span>
+        <div class="meta">
+          <span>⭐ Current Tier: <strong>{currentTier}</strong></span>
+          <span>📦 Supplies: <strong>{supplies.toLocaleString()}</strong></span>
+          <span>🔬 Researched: <strong>{learnedIds.size}</strong> / {gd.claimTechs.length}</span>
+        </div>
+      </div>
+
+      <div class="tier-nav">
+        {plans.map((p, i) => (
+          <a
+            href={`#tier-${p.tier}`}
+            class={i === 0 ? 'current' : ''}
+          >
+            Tier {p.tier}
+            {p.researches.every(r => r.already_researched) && p.tier_upgrade?.already_researched ? ' ✅' : ''}
+          </a>
+        ))}
+      </div>
+
+      {plans.map((plan, i) => (
+        <TierPlan plan={plan} isNextTier={i === 0} />
+      ))}
+    </div>
+  </body>
+</html>

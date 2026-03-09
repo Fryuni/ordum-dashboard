@@ -1,33 +1,46 @@
 # Ordum Dashboard — Project Roadmap
 
 ## Purpose
-Dashboard/tooling project for Bitcraft game data, built around a generated TypeScript API client that talks to the [bitcraft-hub](https://github.com/ResuBaka/bitcraft-hub) Rust API server at `https://craft-api.resubaka.dev`.
+Dashboard for the Ordum empire in Bitcraft, built with Astro + the generated TypeScript API client talking to the [bitcraft-hub](https://github.com/ResuBaka/bitcraft-hub) Rust API server at `https://craft-api.resubaka.dev`.
 
 ## Current State
-- **Full API client complete**: `generate-api-client.ts` fetches Rust source from GitHub, parses routes/structs/enums, and emits `src/bitcraft-api-client.ts`:
-  - 33 REST endpoints with typed params and responses
-  - 26 WebSocket message types as a typed discriminated union
-  - `BitcraftApiClient` (REST) and `BitcraftLiveClient` (WebSocket) classes
-  - Zero TypeScript strict-mode errors
-- **Tested against production**: Both REST and WebSocket verified against live server.
+- **Full API client**: `src/bitcraft-api-client.ts` — 33 REST endpoints, 26 WebSocket message types
+- **Game data**: 14 static JSON files in `gamedata/` from BitCraftToolBox/BitCraft_GameData (7K items, 7K recipes, 146 claim techs)
+- **Three working pages**:
+  1. **Dashboard** (`/`) — empire resource overview: buildings, player inventories, tools, members with skills
+  2. **Settlement Planner** (`/settlement`) — shows all researches needed per tier, items required vs available in claim storage
+  3. **Craft Planner** (`/craft`) — item search + full recursive crafting tree from raw materials, player inventory-aware
+- **API routes**: `/api/search-items`, `/api/craft-plan` for client-side interactivity
+- **Astro server mode** with `@astrojs/node` adapter
 
-## Key Decisions Made
-- Generator fetches live from GitHub (not hard-coded) — run `bun run generate-api-client.ts` to re-generate
-- Bracket-aware Rust parser handles nested generics, module-path types, cross-module handler resolution
-- Entity `Model` types emitted as typed interfaces (e.g. `PlayerStateModel`, `ActionStateModel`)
-- Deduplication keeps shortest path when multiple routes alias the same handler; colliding handler names disambiguated via path
-- WebSocket client uses typed `subscribe<T>()` with discriminated union for compile-time safety
-- Auto-reconnect with topic re-subscription on reconnect
-- Bun as runtime
+## Key Files
+```
+scripts/update-gamedata.sh       — downloads game data from GitHub
+src/bitcraft-api-client.ts       — auto-generated API client (REST + WebSocket)
+src/lib/gamedata.ts              — game data parser/indexer
+src/lib/ordum-data.ts            — live API data fetcher for Ordum claims
+src/lib/settlement-planner.ts    — settlement upgrade requirement calculator
+src/lib/craft-planner.ts         — recursive recipe resolver (handles cycles)
+src/pages/index.astro            — main dashboard
+src/pages/settlement.astro       — settlement planner page
+src/pages/craft.astro            — craft planner page
+src/pages/api/                   — API routes for craft planner
+src/components/                  — ResourceTable, MembersTable, StatCard, TierPlan
+```
+
+## Key Decisions
+- Entity IDs use **string form** in API URLs (exceed `Number.MAX_SAFE_INTEGER`)
+- Skip "Package"/"Unpack" recipes in craft planner to avoid cycles
+- Max recipe resolution depth: 15
+- Ordum City claim ID: `"1224979098661645606"` — empire claims configurable in `EMPIRE_CLAIM_IDS`
+- Bun as runtime, Astro 6 beta
 
 ## Milestones
-- [x] REST API client generator (33 endpoints, 46 types)
-- [x] WebSocket live-data client (26 message types, typed subscribe/unsubscribe)
-- [x] TypeScript strict-mode clean
-- [x] Tested against production
-- [ ] Full dashboard UI
-
-## Architecture
-- `generate-api-client.ts` → parses GitHub source → emits `src/bitcraft-api-client.ts`
-- `test-api-client.ts` → smoke test (needs `BITCRAFT_API_URL` env var)
-- API server: `https://craft-api.resubaka.dev`
+- [x] REST API client generator
+- [x] WebSocket live-data client
+- [x] Empire resource dashboard
+- [x] Game data download + update script
+- [x] Settlement planner
+- [x] Craft planner with recursive recipe resolution
+- [ ] Add other empire claims (need claim IDs from user)
+- [ ] Live updates via WebSocket

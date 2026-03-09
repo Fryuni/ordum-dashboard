@@ -1,0 +1,495 @@
+---
+import { loadGameData } from "../lib/gamedata";
+import { API_BASE_URL, ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
+
+// Load game data for server-side item lookup
+const gd = loadGameData();
+
+// Get claim members for player dropdown
+let members: { entity_id: number; user_name: string }[] = [];
+try {
+  const resp = await fetch(`${API_BASE_URL}/api/bitcraft/claims/${ORDUM_MAIN_CLAIM_ID}`, {
+    headers: { Accept: "application/json" },
+  });
+  const claim = await resp.json();
+  members = Object.values(claim.members ?? {})
+    .map((m: any) => ({ entity_id: m.entity_id, user_name: m.user_name }))
+    .sort((a: any, b: any) => a.user_name.localeCompare(b.user_name));
+} catch (e) {
+  // Continue without members
+}
+
+// Pre-serialize items for client-side search (only id, name, type, tier, tag)
+const itemIndex: { id: number; t: "Item" | "Cargo"; n: string; tier: number; tag: string }[] = [];
+for (const [id, item] of gd.items) {
+  if (item.name && item.tier >= 0) {
+    itemIndex.push({ id, t: "Item", n: item.name, tier: item.tier, tag: item.tag });
+  }
+}
+for (const [id, c] of gd.cargo) {
+  if (c.name) {
+    itemIndex.push({ id, t: "Cargo", n: c.name, tier: c.tier, tag: c.tag });
+  }
+}
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Craft Planner — Ordum</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+      :root {
+        --bg: #0f1117;
+        --surface: #1a1d27;
+        --surface-2: #242836;
+        --border: #2e3347;
+        --text: #e1e4ed;
+        --text-dim: #8b90a5;
+        --accent: #6c8cff;
+        --accent-2: #ff8c6c;
+        --accent-3: #6cffb8;
+        --accent-4: #ffd06c;
+        --green: #4ade80;
+        --red: #f87171;
+      }
+
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.5;
+        min-height: 100vh;
+      }
+
+      .dashboard { max-width: 1400px; margin: 0 auto; padding: 24px; }
+
+      .nav {
+        display: flex; gap: 16px; margin-bottom: 24px;
+        padding-bottom: 16px; border-bottom: 1px solid var(--border); align-items: center;
+      }
+      .nav a {
+        color: var(--text-dim); text-decoration: none; padding: 6px 14px;
+        border-radius: 8px; font-size: 0.9rem; transition: all 0.2s;
+      }
+      .nav a:hover { color: var(--text); background: var(--surface); }
+      .nav a.active { color: var(--accent); background: var(--surface); }
+
+      .header { text-align: center; padding: 24px 0; margin-bottom: 24px; }
+      .header h1 {
+        font-size: 1.8rem; font-weight: 700;
+        background: linear-gradient(135deg, var(--accent-2), var(--accent-4));
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      }
+      .header .subtitle { color: var(--text-dim); margin-top: 4px; font-size: 0.9rem; }
+
+      /* Input Form */
+      .planner-form {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: 12px; padding: 24px; margin-bottom: 24px;
+      }
+      .form-row { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; align-items: flex-end; }
+
+      label { display: block; font-size: 0.8rem; color: var(--text-dim); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+      select, input[type="text"], input[type="number"] {
+        background: var(--surface-2); border: 1px solid var(--border);
+        border-radius: 8px; padding: 10px 14px; color: var(--text);
+        font-size: 0.9rem; outline: none; transition: border-color 0.2s;
+      }
+      select:focus, input:focus { border-color: var(--accent); }
+
+      .player-select { min-width: 200px; }
+
+      /* Item search */
+      .item-search-container { position: relative; flex: 1; min-width: 280px; }
+      .item-search { width: 100%; }
+      .search-dropdown {
+        position: absolute; top: 100%; left: 0; right: 0; z-index: 100;
+        background: var(--surface-2); border: 1px solid var(--border);
+        border-radius: 0 0 8px 8px; max-height: 300px; overflow-y: auto;
+        display: none;
+      }
+      .search-dropdown.show { display: block; }
+      .search-option {
+        padding: 8px 14px; cursor: pointer; font-size: 0.85rem;
+        display: flex; align-items: center; gap: 8px;
+        border-bottom: 1px solid var(--border);
+      }
+      .search-option:hover { background: var(--surface); }
+      .search-option .tier-badge {
+        padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; font-weight: 600;
+      }
+
+      .qty-input { width: 80px; }
+
+      .btn {
+        background: var(--accent); color: #fff; border: none;
+        border-radius: 8px; padding: 10px 20px; cursor: pointer;
+        font-size: 0.9rem; font-weight: 600; transition: opacity 0.2s;
+      }
+      .btn:hover { opacity: 0.8; }
+      .btn-secondary { background: var(--surface-2); border: 1px solid var(--border); color: var(--text); }
+      .btn-danger { background: transparent; border: 1px solid var(--red); color: var(--red); }
+      .btn-sm { padding: 6px 12px; font-size: 0.8rem; }
+
+      /* Target Items List */
+      .target-items { margin-top: 16px; }
+      .target-item {
+        display: flex; align-items: center; gap: 12px;
+        background: var(--surface-2); border: 1px solid var(--border);
+        border-radius: 8px; padding: 10px 16px; margin-bottom: 8px;
+        font-size: 0.9rem;
+      }
+      .target-item .name { flex: 1; font-weight: 500; }
+      .target-item .qty { color: var(--accent-4); font-weight: 600; }
+      .target-item .remove { cursor: pointer; color: var(--red); background: none; border: none; font-size: 1rem; }
+
+      /* Results */
+      .results { margin-top: 24px; }
+      .loading { text-align: center; padding: 40px; color: var(--text-dim); font-size: 1.1rem; }
+
+      /* Craft Plan */
+      .craft-plan {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: 12px; padding: 24px; margin-bottom: 24px;
+      }
+      .plan-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+      .plan-header h3 { font-size: 1.2rem; }
+
+      /* Raw Materials */
+      .raw-materials {
+        background: var(--surface-2); border: 1px solid var(--border);
+        border-radius: 10px; padding: 20px; margin-bottom: 20px;
+      }
+      .raw-materials h4 { margin-bottom: 12px; font-size: 1rem; }
+      .raw-row {
+        display: flex; align-items: center; gap: 12px;
+        padding: 6px 0; font-size: 0.85rem; border-bottom: 1px solid var(--border);
+      }
+      .raw-row:last-child { border-bottom: none; }
+      .raw-row .name { flex: 1; }
+      .raw-row .qty { font-family: monospace; color: var(--accent-4); font-weight: 600; }
+      .raw-row .source { color: var(--text-dim); font-size: 0.8rem; }
+
+      /* Craft Steps */
+      .steps-list { margin-top: 16px; }
+      .craft-step {
+        background: var(--surface-2); border: 1px solid var(--border);
+        border-radius: 10px; padding: 16px; margin-bottom: 12px;
+        border-left: 3px solid var(--accent);
+      }
+      .step-header {
+        display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+        margin-bottom: 10px;
+      }
+      .step-depth {
+        background: var(--surface); color: var(--text-dim);
+        padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 600;
+      }
+      .step-output { font-weight: 600; font-size: 0.95rem; }
+      .step-count { color: var(--accent-4); font-size: 0.85rem; }
+      .step-meta {
+        display: flex; gap: 16px; margin-bottom: 10px; font-size: 0.8rem; color: var(--text-dim);
+      }
+      .step-inputs { margin-top: 8px; }
+      .input-row {
+        display: flex; align-items: center; gap: 8px;
+        padding: 4px 0; font-size: 0.83rem;
+      }
+      .input-row .name { flex: 1; }
+      .input-row .qty { font-family: monospace; }
+      .input-row.is-raw .name { color: var(--accent-3); }
+
+      .have-enough { color: var(--green); }
+      .not-enough { color: var(--red); }
+
+      .tier { padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+      .tier-1 { background: #374151; color: #d1d5db; }
+      .tier-2 { background: #1e3a2f; color: #6ee7b7; }
+      .tier-3 { background: #1e2d4a; color: #93c5fd; }
+      .tier-4 { background: #2d1f4e; color: #c4b5fd; }
+      .tier-5 { background: #3d2c0f; color: #fcd34d; }
+      .tier--1, .tier-0 { background: #2d2d2d; color: #9ca3af; }
+
+      @media (max-width: 768px) {
+        .dashboard { padding: 12px; }
+        .form-row { flex-direction: column; }
+        .item-search-container { min-width: unset; }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="dashboard">
+      <nav class="nav">
+        <a href="/">📊 Dashboard</a>
+        <a href="/settlement">🏰 Settlement Planner</a>
+        <a href="/craft" class="active">⚒️ Craft Planner</a>
+      </nav>
+
+      <div class="header">
+        <h1>⚒️ Craft Planner</h1>
+        <p class="subtitle">Calculate full crafting trees from raw materials, accounting for your inventory</p>
+      </div>
+
+      <div class="planner-form">
+        <div class="form-row">
+          <div>
+            <label>Player (optional)</label>
+            <select class="player-select" id="player-select">
+              <option value="">— No player —</option>
+              {members.map(m => (
+                <option value={m.user_name}>{m.user_name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="item-search-container">
+            <label>Search Items</label>
+            <input type="text" class="item-search" id="item-search" placeholder="Type to search items..." autocomplete="off" />
+            <div class="search-dropdown" id="search-dropdown"></div>
+          </div>
+          <div>
+            <label>Quantity</label>
+            <input type="number" class="qty-input" id="qty-input" value="1" min="1" />
+          </div>
+          <div>
+            <button class="btn" id="add-item-btn" disabled>Add Item</button>
+          </div>
+        </div>
+
+        <div class="target-items" id="target-items"></div>
+
+        <div class="form-row" style="margin-top: 16px;">
+          <button class="btn" id="calculate-btn" disabled>🔍 Calculate Craft Plan</button>
+          <button class="btn btn-secondary" id="clear-btn">Clear All</button>
+        </div>
+      </div>
+
+      <div class="results" id="results"></div>
+    </div>
+
+    <script define:vars={{ itemIndex }}>
+      // ─── State ────────────────────────────────────────────────────
+      const targets = [];
+      let selectedItem = null;
+
+      const searchInput = document.getElementById('item-search');
+      const dropdown = document.getElementById('search-dropdown');
+      const qtyInput = document.getElementById('qty-input');
+      const addBtn = document.getElementById('add-item-btn');
+      const calcBtn = document.getElementById('calculate-btn');
+      const clearBtn = document.getElementById('clear-btn');
+      const targetsList = document.getElementById('target-items');
+      const resultsDiv = document.getElementById('results');
+      const playerSelect = document.getElementById('player-select');
+
+      // ─── Item Search ─────────────────────────────────────────────
+      searchInput.addEventListener('input', () => {
+        const q = searchInput.value.toLowerCase().trim();
+        if (q.length < 2) {
+          dropdown.classList.remove('show');
+          return;
+        }
+
+        const results = itemIndex
+          .filter(i => i.n.toLowerCase().includes(q))
+          .sort((a, b) => {
+            const aExact = a.n.toLowerCase() === q ? 0 : 1;
+            const bExact = b.n.toLowerCase() === q ? 0 : 1;
+            if (aExact !== bExact) return aExact - bExact;
+            const aStarts = a.n.toLowerCase().startsWith(q) ? 0 : 1;
+            const bStarts = b.n.toLowerCase().startsWith(q) ? 0 : 1;
+            if (aStarts !== bStarts) return aStarts - bStarts;
+            return a.n.localeCompare(b.n);
+          })
+          .slice(0, 15);
+
+        dropdown.innerHTML = results.map(r =>
+          `<div class="search-option" data-id="${r.id}" data-type="${r.t}" data-name="${r.n.replace(/"/g, '&quot;')}">
+            <span class="tier-badge tier-${r.tier}">T${r.tier}</span>
+            <span>${r.n}</span>
+            <span style="color: var(--text-dim); font-size: 0.75rem; margin-left: auto;">${r.t}${r.tag ? ' · ' + r.tag : ''}</span>
+          </div>`
+        ).join('');
+
+        dropdown.classList.add('show');
+      });
+
+      dropdown.addEventListener('click', (e) => {
+        const opt = e.target.closest('.search-option');
+        if (!opt) return;
+        selectedItem = {
+          id: parseInt(opt.dataset.id),
+          type: opt.dataset.type,
+          name: opt.dataset.name,
+        };
+        searchInput.value = selectedItem.name;
+        dropdown.classList.remove('show');
+        addBtn.disabled = false;
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!e.target.closest('.item-search-container')) {
+          dropdown.classList.remove('show');
+        }
+      });
+
+      // ─── Add Item ─────────────────────────────────────────────────
+      addBtn.addEventListener('click', () => {
+        if (!selectedItem) return;
+        const qty = parseInt(qtyInput.value) || 1;
+        targets.push({ ...selectedItem, quantity: qty });
+        selectedItem = null;
+        searchInput.value = '';
+        addBtn.disabled = true;
+        qtyInput.value = '1';
+        renderTargets();
+      });
+
+      clearBtn.addEventListener('click', () => {
+        targets.length = 0;
+        resultsDiv.innerHTML = '';
+        renderTargets();
+      });
+
+      function renderTargets() {
+        calcBtn.disabled = targets.length === 0;
+        targetsList.innerHTML = targets.map((t, i) =>
+          `<div class="target-item">
+            <span class="name">${t.name}</span>
+            <span class="qty">×${t.quantity}</span>
+            <span style="color: var(--text-dim); font-size: 0.8rem;">${t.type}</span>
+            <button class="remove" data-index="${i}">✕</button>
+          </div>`
+        ).join('');
+
+        targetsList.querySelectorAll('.remove').forEach(btn => {
+          btn.addEventListener('click', () => {
+            targets.splice(parseInt(btn.dataset.index), 1);
+            renderTargets();
+          });
+        });
+      }
+
+      // ─── Calculate ────────────────────────────────────────────────
+      calcBtn.addEventListener('click', async () => {
+        const player = playerSelect.value;
+        const itemsParam = targets.map(t => `${t.type}:${t.id}:${t.quantity}`).join(',');
+        const url = `/api/craft-plan?player=${encodeURIComponent(player)}&items=${encodeURIComponent(itemsParam)}`;
+
+        resultsDiv.innerHTML = '<div class="loading">⏳ Calculating craft plan...</div>';
+
+        try {
+          const resp = await fetch(url);
+          const data = await resp.json();
+
+          if (data.error) {
+            resultsDiv.innerHTML = `<div class="loading" style="color: var(--red);">❌ ${data.error}</div>`;
+            return;
+          }
+
+          renderResults(data);
+        } catch (e) {
+          resultsDiv.innerHTML = `<div class="loading" style="color: var(--red);">❌ Failed to calculate: ${e.message}</div>`;
+        }
+      });
+
+      function renderResults(data) {
+        let html = '';
+
+        if (data.player) {
+          html += `<div style="margin-bottom: 16px; color: var(--text-dim); font-size: 0.9rem;">
+            👤 Player: <strong style="color: var(--text);">${data.player.username}</strong>
+            ${data.player.signed_in ? '<span style="color: var(--green);">● Online</span>' : '<span style="color: var(--text-dim);">○ Offline</span>'}
+            · ${data.inventory_size} item types in inventory
+          </div>`;
+        }
+
+        for (const plan of data.plans) {
+          html += `<div class="craft-plan">`;
+          html += `<div class="plan-header">
+            <h3>⚒️ ${plan.target_name} ×${plan.target.quantity}</h3>
+          </div>`;
+
+          // Raw materials
+          if (plan.raw_materials.length > 0) {
+            html += `<div class="raw-materials">
+              <h4>🌿 Raw Materials Needed</h4>`;
+            for (const r of plan.raw_materials) {
+              html += `<div class="raw-row">
+                <span class="tier tier-${r.tier}">T${r.tier}</span>
+                <span class="name">${r.name}</span>
+                <span class="qty">×${r.total_needed.toLocaleString()}</span>
+                <span class="source">${r.source}</span>
+              </div>`;
+            }
+            html += `</div>`;
+          }
+
+          // Already have
+          if (plan.already_have.length > 0) {
+            html += `<div style="margin-bottom: 16px; padding: 12px; background: var(--surface-2); border-radius: 8px; border: 1px solid var(--border);">
+              <h4 style="margin-bottom: 8px; font-size: 0.9rem;">✅ Already Have (skipped)</h4>`;
+            for (const item of plan.already_have) {
+              html += `<span style="display: inline-block; background: var(--surface); padding: 2px 10px; border-radius: 4px; margin: 2px 4px; font-size: 0.8rem;">
+                ${item.name} ×${item.quantity}
+              </span>`;
+            }
+            html += `</div>`;
+          }
+
+          // Craft Steps
+          if (plan.steps.length > 0) {
+            html += `<div class="steps-list">
+              <h4 style="margin-bottom: 12px;">📋 Crafting Steps (${plan.steps.length} steps, deepest first)</h4>`;
+
+            for (const step of plan.steps) {
+              html += `<div class="craft-step">
+                <div class="step-header">
+                  <span class="step-depth">Step ${step.depth + 1}</span>
+                  <span class="step-output">${step.output_name}</span>
+                  <span class="step-count">×${step.craft_count} craft${step.craft_count > 1 ? 's' : ''} → ${step.total_output} total</span>
+                </div>
+                <div class="step-meta">
+                  <span>🏠 ${step.building_type} T${step.building_tier}</span>
+                  ${step.skill_requirements.map(s => `<span>📖 ${s.skill} Lv${s.level}</span>`).join('')}
+                  ${step.tool_requirements.map(t => `<span>🔧 ${t.tool} Lv${t.level}</span>`).join('')}
+                </div>
+                <div class="step-inputs">`;
+
+              for (const inp of step.inputs) {
+                const cls = inp.is_raw ? 'input-row is-raw' : 'input-row';
+                html += `<div class="${cls}">
+                  <span>${inp.is_raw ? '🌿' : '📦'}</span>
+                  <span class="name">${inp.name}</span>
+                  <span class="qty">×${inp.total_needed.toLocaleString()}</span>
+                  ${inp.available > 0 ? `<span class="have-enough">(have ${inp.available})</span>` : ''}
+                  ${inp.deficit > 0 ? `<span class="not-enough">(need ${inp.deficit})</span>` : ''}
+                </div>`;
+              }
+
+              html += `</div></div>`;
+            }
+
+            html += `</div>`;
+          } else {
+            html += `<div style="padding: 20px; text-align: center; color: var(--green);">
+              ✅ You already have all the materials for this item!
+            </div>`;
+          }
+
+          html += `</div>`;
+        }
+
+        resultsDiv.innerHTML = html;
+      }
+    </script>
+  </body>
+</html>

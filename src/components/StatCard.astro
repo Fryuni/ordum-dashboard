@@ -1,0 +1,16 @@
+---
+interface Props {
+  label: string;
+  value: string | number;
+  icon?: string;
+  accent?: string;
+}
+
+const { label, value, icon = "📦", accent = "var(--accent)" } = Astro.props;
+---
+
+<div class="stat-card" style={`--card-accent: ${accent}`}>
+  <div class="stat-icon">{icon}</div>
+  <div class="stat-value">{typeof value === 'number' ? value.toLocaleString() : value}</div>
+  <div class="stat-label">{label}</div>
+</div>

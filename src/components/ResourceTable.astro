@@ -1,0 +1,89 @@
+---
+import type { ResourceItem, ResourceWithLocations } from "../lib/ordum-data";
+
+interface Props {
+  title: string;
+  resources: (ResourceItem | ResourceWithLocations)[];
+  showLocations?: boolean;
+  id: string;
+}
+
+const { title, resources, showLocations = false, id } = Astro.props;
+
+// Group by tag for filtering
+const allTags = [...new Set(resources.map((r) => r.tag).filter(Boolean))].sort();
+const allTiers = [...new Set(resources.map((r) => r.tier))].sort((a, b) => a - b);
+---
+
+<div class="resource-section" id={id}>
+  <div class="section-header">
+    <h3>{title}</h3>
+    <span class="badge">{resources.length} types · {resources.reduce((s, r) => s + r.quantity, 0).toLocaleString()} total</span>
+  </div>
+
+  <div class="filters">
+    <input type="text" class="search-input" placeholder="Search resources..." data-table={id} />
+    <select class="tier-filter" data-table={id}>
+      <option value="">All Tiers</option>
+      {allTiers.map((t) => <option value={String(t)}>Tier {t}</option>)}
+    </select>
+    <select class="tag-filter" data-table={id}>
+      <option value="">All Tags</option>
+      {allTags.map((t) => <option value={t}>{t}</option>)}
+    </select>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="resource-table" data-id={id}>
+      <thead>
+        <tr>
+          <th class="sortable" data-sort="name">Name ↕</th>
+          <th class="sortable num" data-sort="quantity">Qty ↕</th>
+          <th class="sortable num" data-sort="tier">Tier ↕</th>
+          <th>Tag</th>
+          <th>Rarity</th>
+          {showLocations && <th>Locations</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {resources.map((r) => {
+          const locs = 'locations' in r ? (r as ResourceWithLocations).locations : [];
+          return (
+            <tr data-name={r.name.toLowerCase()} data-tier={r.tier} data-tag={r.tag}>
+              <td class="item-name">
+                <span class={`rarity-dot rarity-${(r.rarity ?? 'Common').toLowerCase()}`} />
+                {r.name}
+              </td>
+              <td class="num">{r.quantity.toLocaleString()}</td>
+              <td class="num tier-cell">
+                <span class={`tier tier-${r.tier}`}>T{r.tier}</span>
+              </td>
+              <td class="tag-cell">{r.tag}</td>
+              <td class="rarity-cell">{r.rarity ?? '—'}</td>
+              {showLocations && (
+                <td class="locations-cell">
+                  {locs.length > 0 && (
+                    <details>
+                      <summary>{locs.length} location{locs.length > 1 ? 's' : ''}</summary>
+                      <ul class="location-list">
+                        {locs.map((l) => (
+                          <li>
+                            <span class={`loc-type loc-${l.owner_type.toLowerCase()}`}>
+                              {l.owner_type === 'Building' ? '🏠' : '👤'}
+                            </span>
+                            {l.building_name ?? l.owner_name ?? l.owner_type}
+                            <span class="loc-qty">×{l.quantity}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </td>
+              )}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+</div>

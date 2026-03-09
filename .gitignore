@@ -2,5 +2,6 @@
 /dist
 /node_modules
 .env
+/gamedata
 
 .memory/branches/*/log.md

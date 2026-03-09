@@ -1,0 +1,113 @@
+---
+import type { TierPlan } from "../lib/settlement-planner";
+
+interface Props {
+  plan: TierPlan;
+  isNextTier: boolean;
+}
+
+const { plan, isNextTier } = Astro.props;
+const suppliesOk = plan.supplies_available >= plan.total_supplies_needed;
+const allDone = plan.researches.every(r => r.already_researched) && plan.tier_upgrade?.already_researched;
+---
+
+<div class={`tier-plan ${isNextTier ? 'next-tier' : ''} ${allDone ? 'completed' : ''}`} id={`tier-${plan.tier}`}>
+  <div class="tier-header">
+    <h3>
+      {allDone ? '✅' : isNextTier ? '🎯' : '🔒'} Tier {plan.tier}
+      {allDone && <span class="done-badge">Complete</span>}
+    </h3>
+    <div class="tier-meta">
+      <span class={`supplies-indicator ${suppliesOk ? 'ok' : 'deficit'}`}>
+        📦 {plan.total_supplies_needed.toLocaleString()} supplies needed
+        {!suppliesOk && <span class="deficit-text"> (need {(plan.total_supplies_needed - plan.supplies_available).toLocaleString()} more)</span>}
+      </span>
+    </div>
+  </div>
+
+  {/* Tier Upgrade */}
+  {plan.tier_upgrade && (
+    <div class={`research-card ${plan.tier_upgrade.already_researched ? 'done' : 'pending'}`}>
+      <div class="research-header">
+        <span class="research-status">{plan.tier_upgrade.already_researched ? '✅' : '⬜'}</span>
+        <strong>{plan.tier_upgrade.tech.name}</strong>
+        <span class="research-type">Tier Upgrade</span>
+        <span class="supplies-cost">📦 {plan.tier_upgrade.supplies_cost.toLocaleString()}</span>
+      </div>
+      {!plan.tier_upgrade.already_researched && (
+        <div class="research-items">
+          {plan.tier_upgrade.items.map(item => (
+            <div class={`item-row ${item.fulfilled ? 'fulfilled' : 'missing'}`}>
+              <span class="item-name">{item.name}</span>
+              <span class="item-qty">
+                <span class={item.quantity_available >= item.quantity_required ? 'have-enough' : 'not-enough'}>
+                  {item.quantity_available.toLocaleString()}
+                </span>
+                / {item.quantity_required.toLocaleString()}
+              </span>
+              {item.fulfilled
+                ? <span class="item-status ok">✅</span>
+                : <span class="item-status missing">❌ need {(item.quantity_required - item.quantity_available).toLocaleString()} more</span>
+              }
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )}
+
+  {/* Other Researches */}
+  <div class="researches-grid">
+    {plan.researches.map(r => (
+      <div class={`research-card compact ${r.already_researched ? 'done' : 'pending'}`}>
+        <div class="research-header">
+          <span class="research-status">{r.already_researched ? '✅' : '⬜'}</span>
+          <strong>{r.tech.name}</strong>
+          <span class="research-type">{r.tech.tech_type}</span>
+          <span class="supplies-cost">📦 {r.supplies_cost.toLocaleString()}</span>
+        </div>
+        {!r.already_researched && (
+          <div class="research-items">
+            {r.items.map(item => (
+              <div class={`item-row ${item.fulfilled ? 'fulfilled' : 'missing'}`}>
+                <span class="item-name">{item.name}</span>
+                <span class="item-qty">
+                  <span class={item.quantity_available >= item.quantity_required ? 'have-enough' : 'not-enough'}>
+                    {item.quantity_available.toLocaleString()}
+                  </span>
+                  / {item.quantity_required.toLocaleString()}
+                </span>
+                {item.fulfilled ? <span class="item-status ok">✅</span> : <span class="item-status missing">❌</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    ))}
+  </div>
+
+  {/* Summary: all items needed */}
+  {!allDone && plan.all_items_needed.length > 0 && (
+    <div class="items-summary">
+      <h4>📋 Total Items Needed for Tier {plan.tier}</h4>
+      <div class="summary-table">
+        {plan.all_items_needed.map(item => (
+          <div class={`summary-row ${item.deficit > 0 ? 'has-deficit' : 'fulfilled'}`}>
+            <span class={`tier tier-${item.tier}`}>T{item.tier}</span>
+            <span class="item-name">{item.name}</span>
+            <span class="summary-qty">
+              <span class={item.total_available >= item.total_required ? 'have-enough' : 'not-enough'}>
+                {item.total_available.toLocaleString()}
+              </span>
+              / {item.total_required.toLocaleString()}
+            </span>
+            {item.deficit > 0
+              ? <span class="deficit-label">Need {item.deficit.toLocaleString()} more</span>
+              : <span class="ok-label">✅</span>
+            }
+          </div>
+        ))}
+      </div>
+    </div>
+  )}
+</div>

@@ -1,0 +1,90 @@
+---
+import type { MemberInfo } from "../lib/ordum-data";
+
+interface Props {
+  members: MemberInfo[];
+  claimName: string;
+}
+
+const { members, claimName } = Astro.props;
+const online = members.filter((m) => m.online);
+const offline = members.filter((m) => !m.online);
+---
+
+<div class="members-section">
+  <div class="section-header">
+    <h3>{claimName} — Members</h3>
+    <span class="badge">{online.length} online · {members.length} total</span>
+  </div>
+
+  <div class="filters">
+    <input type="text" class="search-input" placeholder="Search members..." data-table={`members-${claimName}`} />
+    <label class="toggle-label">
+      <input type="checkbox" class="show-offline" data-table={`members-${claimName}`} checked />
+      Show offline
+    </label>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="members-table" data-id={`members-${claimName}`}>
+      <thead>
+        <tr>
+          <th>Status</th>
+          <th>Name</th>
+          <th>Perms</th>
+          <th>Top Skills</th>
+          <th>Inventory Items</th>
+        </tr>
+      </thead>
+      <tbody>
+        {[...online, ...offline].map((m) => {
+          const topSkills = Object.entries(m.skills)
+            .sort(([, a], [, b]) => b.level - a.level)
+            .slice(0, 5);
+          const perms = [
+            m.co_owner_permission && "Co-Owner",
+            m.officer_permission && "Officer",
+            m.build_permission && "Build",
+            m.inventory_permission && "Inventory",
+          ].filter(Boolean);
+          return (
+            <tr class={m.online ? 'online' : 'offline'} data-name={m.user_name.toLowerCase()} data-online={m.online ? 'true' : 'false'}>
+              <td>
+                <span class={`status-dot ${m.online ? 'online' : 'offline'}`} />
+              </td>
+              <td class="member-name">{m.user_name}</td>
+              <td class="perms-cell">
+                {perms.length > 0 ? perms.join(', ') : '—'}
+              </td>
+              <td class="skills-cell">
+                {topSkills.length > 0 ? (
+                  <div class="skill-chips">
+                    {topSkills.map(([name, s]) => (
+                      <span class="skill-chip" title={`${name}: Lv${s.level} (${s.experience.toLocaleString()} XP, Rank #${s.rank})`}>
+                        {name} <strong>{s.level}</strong>
+                      </span>
+                    ))}
+                  </div>
+                ) : '—'}
+              </td>
+              <td class="inventory-cell">
+                {m.inventory_items.length > 0 ? (
+                  <details>
+                    <summary>{m.inventory_items.length} items</summary>
+                    <ul class="inv-list">
+                      {m.inventory_items.map((item) => (
+                        <li>
+                          {item.name} <span class="loc-qty">×{item.quantity}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ) : '—'}
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  </div>
+</div>

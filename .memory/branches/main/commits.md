@@ -37,3 +37,47 @@ The project established a robust foundation by creating an automated TypeScript 
 - Verified production compatibility for the live-data stream, confirming the server's topic-based pub/sub model integrates correctly with the generated client.
 - Enhanced the generator's entity model coverage to include missing state types required for comprehensive live update handling.
 - Confirmed the end-to-end reliability of the typed subscription system through live testing against the production environment.
+
+---
+
+## Commit c017ab9f | 2026-03-08T19:18:00.425Z
+
+### Branch Purpose
+
+The `main` branch is the primary development track for the Ordum Dashboard, a tool for aggregating and visualizing Bitcraft game data (claims, inventories, members, and resources) via a generated TypeScript API client.
+
+### Previous Progress Summary
+
+The project established a robust foundation by creating an automated TypeScript API client generator that fetches Rust source code directly from GitHub, using a custom bracket-aware parser to handle complex patterns. This resulted in a strictly-typed client for the REST API (33 endpoints, 46 models) and a stateful WebSocket client (26 message types) with automatic reconnection and typed subscriptions, both of which were verified against the production API.
+
+### This Commit's Contribution
+
+- Switched to string-based entity IDs for all API interactions to prevent 64-bit integer precision loss in JavaScript's `Number` type.
+- Decided to implement a custom raw `fetch` layer for critical entity data after discovering that the generated client's standard JSON parsing mangled large Bitcraft IDs.
+- Established a multi-source inventory aggregation strategy that unifies building storage, active player inventories, and offline player data into a single searchable resource pool.
+- Implemented a client-side filtering and sorting architecture to handle large datasets (hundreds of members and resource types) efficiently without server round-trips.
+- Determined that the production API lacks an explicit "empire" endpoint, necessitating a client-side claim aggregation model for the Ordum Empire.
+- Developed a tabbed organizational structure for claims to separate building logistics from player-specific inventories and member skill rankings.
+- Verified that the `getClaim` endpoint provides sufficient granularity for tracking item locations down to specific buildings within a claim.
+
+---
+
+## Commit 4948f2b5 | 2026-03-09T01:41:42.660Z
+
+### Branch Purpose
+
+Development of the Ordum Empire Dashboard for Bitcraft, providing deep insights into empire resources, settlement upgrade requirements, and complex crafting logistics using a generated API client and integrated static game data.
+
+### Previous Progress Summary
+
+The project established a robust foundation by building an automated TypeScript API client generator that parses Rust source code directly from GitHub to produce strictly-typed REST and WebSocket clients. It resolved critical data integrity issues by adopting string-based entity IDs to prevent 64-bit integer precision loss and implemented a multi-source inventory aggregation strategy. This unified building storage, player inventories, and member skill rankings into a searchable dashboard optimized for multi-claim empire management.
+
+### This Commit's Contribution
+
+- Integrated 14 static game data files (items, recipes, techs) via a new automated update script to provide offline context and requirements for live API data.
+- Transitioned the application from SSG to SSR (Server-Side Rendering) using the Astro Node.js adapter to support dynamic API routes and heavy server-side data processing.
+- Decided to implement crafting and search logic as server-side API routes to avoid shipping the large game data index (7K+ items/recipes) to the client.
+- Built a recursive craft planner with cycle detection (handling Package/Unpack loops) and configurable depth limits to resolve full production trees from raw materials.
+- Developed a settlement planner that identifies research deficits by comparing live claim inventory against tiered game data requirements.
+- Implemented a JSON-based indexing layer for game data to enable efficient O(1) lookups of item dependencies and recipe outputs across the entire library.
+- Added a global navigation system and dedicated pages for settlement planning and crafting logistics to unify the dashboard experience.
