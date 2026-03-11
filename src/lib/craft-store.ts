@@ -72,7 +72,7 @@ export const $canCalculate = computed($targets, (targets) => targets.length > 0)
  * A "trigger" atom: bump this to fire off a craft plan request.
  * The value is the serialized request params, or null if nothing requested yet.
  */
-const $craftRequest = computed([$player, $targets], (player, t) => ({
+export const $craftRequest = computed([$player, $targets], (player, t) => ({
   player,
   items: t,
 }));
@@ -83,7 +83,7 @@ const $craftRequest = computed([$player, $targets], (player, t) => ({
  *   { state: 'loading' } | { state: 'loaded', value, changing } | { state: 'failed', error, changing }
  */
 export const $craftPlan = computedAsync($craftRequest, async (request) => {
-  if (!request) return null;
+  if (!request.items.length) return null;
 
   const { data, error } = await actions.craftPlan(request);
   if (error) {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte';
-  import { $player as playerStore } from '../../lib/craft-store';
+  import { $player as player } from '../../lib/craft-store';
 
   interface Props {
     members: { entity_id: number; user_name: string }[];
@@ -8,14 +8,13 @@
 
   let { members }: Props = $props();
 
-  let query = $state('');
   let open = $state(false);
   let highlightIdx = $state(-1);
   let inputEl: HTMLInputElement | undefined = $state();
   let dropdownEl: HTMLDivElement | undefined = $state();
 
   let filtered = $derived.by(() => {
-    const q = query.toLowerCase().trim();
+    const q = $player.toLowerCase().trim();
     if (q.length === 0) return members;
     return members.filter(m => m.user_name.toLowerCase().includes(q));
   });
@@ -28,19 +27,18 @@
   });
 
   function pickPlayer(name: string) {
-    query = name;
-    playerStore.set(name);
+    player.set(name);
     open = false;
     highlightIdx = -1;
   }
 
   function handleInput(e: Event) {
-    query = (e.target as HTMLInputElement).value;
+    $player = (e.target as HTMLInputElement).value;
     open = true;
     highlightIdx = -1;
     // If cleared, reset player
-    if (!query.trim()) {
-      playerStore.set('');
+    if (!$player.trim()) {
+      $player.set('');
     }
   }
 
@@ -87,13 +85,13 @@
       placeholder="Type to search players..."
       autocomplete="off"
       bind:this={inputEl}
-      value={query}
+      value={$player}
       oninput={handleInput}
       onkeydown={handleKeydown}
       onfocus={handleFocus}
     />
-    {#if query}
-      <button type="button" class="clear-btn" onclick={() => { query = ''; playerStore.set(''); open = false; }}>✕</button>
+    {#if $player}
+      <button type="button" class="clear-btn" onclick={() => { $player = ''; open = false; }}>✕</button>
     {/if}
   </div>
   {#if open && filtered.length > 0}
