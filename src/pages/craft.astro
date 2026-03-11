@@ -19,7 +19,7 @@ try {
 
 const itemIndex: { id: number; t: "Item" | "Cargo"; n: string; tier: number; tag: string }[] = [];
 for (const [id, item] of gd.items) {
-  if (item.name && item.tier >= 0) {
+  if (item.name) {
     itemIndex.push({ id, t: "Item", n: item.name, tier: item.tier, tag: item.tag });
   }
 }
