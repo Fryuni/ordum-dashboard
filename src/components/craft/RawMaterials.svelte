@@ -38,7 +38,7 @@
         <div class="raw-card">
           <div class="raw-card-header">
             <div class="raw-name-row">
-              <span class="tier-badge tier-{r.tier}">T{r.tier}</span>
+              <span class="tier-badge tier-{r.tier}">{r.tier >= 0 ? `T${r.tier}` : 'TX'}</span>
               <span class="raw-title">{r.name}</span>
             </div>
             <span class="raw-source">{r.source || 'Gather'}</span>

@@ -142,7 +142,7 @@
             role="option"
             aria-selected={i === $highlightIndexStore}
           >
-            <span class="tier-badge tier-{r.tier}">T{r.tier}</span>
+            <span class="tier-badge tier-{r.tier}">{r.tier >= 0 ? `T${r.tier}` : 'TX'}</span>
             <span>{r.n}</span>
             <span class="item-meta">{r.t}{r.tag ? ' · ' + r.tag : ''}</span>
           </button>
