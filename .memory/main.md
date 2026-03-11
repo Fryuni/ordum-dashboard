@@ -10,22 +10,34 @@ Dashboard for the Ordum empire in Bitcraft, built with Astro + the generated Typ
   1. **Dashboard** (`/`) — empire resource overview: buildings, player inventories, tools, members with skills
   2. **Settlement Planner** (`/settlement`) — shows all researches needed per tier, items required vs available in claim storage
   3. **Craft Planner** (`/craft`) — item search + full recursive crafting tree from raw materials, player inventory-aware
-- **API routes**: `/api/search-items`, `/api/craft-plan` for client-side interactivity
+- **Astro Actions** (`src/actions/index.ts`) — type-safe server endpoints replacing hand-rolled API routes
+- **nanostores with computedAsync** — using `Fryuni/nanostores#async-compute` (PR #383) for async derived stores
 - **Astro server mode** with `@astrojs/node` adapter
 
 ## Key Files
 ```
-scripts/update-gamedata.sh       — downloads game data from GitHub
-src/bitcraft-api-client.ts       — auto-generated API client (REST + WebSocket)
-src/lib/gamedata.ts              — game data parser/indexer
-src/lib/ordum-data.ts            — live API data fetcher for Ordum claims
-src/lib/settlement-planner.ts    — settlement upgrade requirement calculator
-src/lib/craft-planner.ts         — recursive recipe resolver (handles cycles)
-src/pages/index.astro            — main dashboard
-src/pages/settlement.astro       — settlement planner page
-src/pages/craft.astro            — craft planner page
-src/pages/api/                   — API routes for craft planner
-src/components/                  — ResourceTable, MembersTable, StatCard, TierPlan
+scripts/update-gamedata.sh              — downloads game data from GitHub
+src/bitcraft-api-client.ts              — auto-generated API client (REST + WebSocket)
+src/lib/gamedata.ts                     — game data parser/indexer
+src/lib/ordum-data.ts                   — live API data fetcher for Ordum claims
+src/lib/settlement-planner.ts           — settlement upgrade requirement calculator
+src/lib/craft-planner.ts               — recursive recipe resolver (handles cycles)
+src/lib/craft-store.ts                  — nanostores for craft planner state (uses computedAsync)
+src/actions/index.ts                    — Astro actions: searchItems, craftPlan
+src/pages/index.astro                   — main dashboard
+src/pages/settlement.astro              — settlement planner page
+src/pages/craft.astro                   — craft planner page
+src/components/CraftPlanner.svelte      — thin orchestrator composing sub-components
+src/components/craft/                   — split craft planner components:
+  CraftConfiguration.svelte             — config block (player + item picker + item list + buttons)
+  PlayerPicker.svelte                   — typeahead player search dropdown
+  ItemPicker.svelte                     — item search with dropdown + quantity input
+  ItemList.svelte                       — target item chips with remove
+  CraftingPlan.svelte                   — results display (player context + plan cards)
+  RawMaterials.svelte                   — raw material grid with progress bars
+  CraftingSteps.svelte                  — timeline wrapper for craft steps
+  CraftStep.svelte                      — single crafting step with inputs grid
+src/components/                         — ResourceTable, MembersTable, StatCard, TierPlan
 ```
 
 ## Key Decisions
@@ -34,6 +46,9 @@ src/components/                  — ResourceTable, MembersTable, StatCard, Tier
 - Max recipe resolution depth: 15
 - Ordum City claim ID: `"1224979098661645606"` — empire claims configurable in `EMPIRE_CLAIM_IDS`
 - Bun as runtime, Astro 6 beta
+- **nanostores `computedAsync`** replaces manual `$loading`/`$error` atoms — craft plan is an `AsyncValue<T>` store derived from a `$craftRequest` trigger atom
+- **Astro Actions** replace `/api/` routes — provides type-safe server functions with Zod validation
+- **Component decomposition**: CraftPlanner split into 8 focused components for maintainability
 
 ## Milestones
 - [x] REST API client generator
@@ -42,5 +57,8 @@ src/components/                  — ResourceTable, MembersTable, StatCard, Tier
 - [x] Game data download + update script
 - [x] Settlement planner
 - [x] Craft planner with recursive recipe resolution
+- [x] Migrate to Astro actions (type-safe server endpoints)
+- [x] Split CraftPlanner into focused sub-components
+- [x] Adopt computedAsync for async state management
 - [ ] Add other empire claims (need claim IDs from user)
 - [ ] Live updates via WebSocket

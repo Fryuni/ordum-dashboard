@@ -81,3 +81,25 @@ The project established a robust foundation by building an automated TypeScript 
 - Developed a settlement planner that identifies research deficits by comparing live claim inventory against tiered game data requirements.
 - Implemented a JSON-based indexing layer for game data to enable efficient O(1) lookups of item dependencies and recipe outputs across the entire library.
 - Added a global navigation system and dedicated pages for settlement planning and crafting logistics to unify the dashboard experience.
+
+---
+
+## Commit 7b35d258 | 2026-03-11T01:43:01.172Z
+
+### Branch Purpose
+
+Development of the Ordum Empire Dashboard for Bitcraft, providing deep insights into empire resources, settlement upgrade requirements, and complex crafting logistics using a generated API client and integrated static game data.
+
+### Previous Progress Summary
+
+The project established a robust foundation with a custom TypeScript API client generator for REST and WebSocket interfaces, strictly typed from Rust source code and utilizing string-based IDs for data integrity. The dashboard evolved into a sophisticated SSR-enabled tool featuring a recursive craft planner with cycle detection and a settlement research deficit tracker, both integrated with comprehensive static game data. Recent iterations refined the user experience through a complete UI overhaul optimized for information density, a conversion to Svelte 5 for fine-grained reactivity, and the implementation of a keyboard-driven autocomplete system for item management.
+
+### This Commit's Contribution
+
+- Adopted the `computedAsync` pattern by integrating a development version of `nanostores` (PR #383) to handle asynchronous state more declaratively.
+- Replaced custom API endpoints with Astro Actions, leveraging unified server-side logic and Zod-based input validation for improved robustness and type safety.
+- Refactored state management to utilize `AsyncValue` stores, deriving the craft plan directly from a request trigger atom to eliminate manual loading and error flags.
+- Decomposed the monolithic craft planner into a modular hierarchy of eight focused components, separating configuration logic from plan visualization.
+- Enhanced the UI architecture by creating specialized components for crafting steps and raw material summaries, improving overall maintainability.
+- Decided to move toward a "thin orchestrator" pattern for the main planner component to simplify data flow and component testing.
+- Streamlined the reactive data flow between the UI and backend, ensuring that craft plans and search results respond automatically to state changes.
