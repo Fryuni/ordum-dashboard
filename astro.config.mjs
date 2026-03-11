@@ -1,7 +1,7 @@
 import { defineConfig } from 'astro/config';
 import node from '@astrojs/node';
 
-import svelte from '@astrojs/svelte';
+import preact from '@astrojs/preact';
 
 // https://astro.build/config
 export default defineConfig({
@@ -17,5 +17,5 @@ export default defineConfig({
     },
   },
 
-  integrations: [svelte()],
+  integrations: [preact({ compat: true })],
 });

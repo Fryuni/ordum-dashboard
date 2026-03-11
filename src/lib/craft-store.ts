@@ -1,6 +1,7 @@
-import { atom, computed, computedAsync, type AsyncValue } from 'nanostores';
+import { atom, onMount, computed, computedAsync, type AsyncValue } from 'nanostores';
 import { persistentAtom } from '@nanostores/persistent';
 import { actions } from 'astro:actions';
+import { $updateTimer } from './util-store';
 
 export interface IndexItem {
   id: number;
@@ -66,7 +67,7 @@ export const $canAdd = computed($selectedItem, (item) => item !== null);
 // ─── Craft Plan (async) ────────────────────────────────────────────────────────
 
 /** Derived request object — recomputes whenever player or targets change. */
-export const $craftRequest = computed([$player, $targets], (player, t) => ({
+export const $craftRequest = computed([$player, $targets, $updateTimer], (player, t) => ({
   player,
   items: t,
 }));

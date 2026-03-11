@@ -125,3 +125,25 @@ The project established a robust foundation with a custom TypeScript API client 
 - Refined the game data parser to build a reverse index of resolved outputs, allowing the recursive planner to trace recipes through item list indirection.
 - Formally adopted a workflow requirement to git-commit the `.memory/` directory after every agent memory checkpoint to ensure memory state is tracked in version control.
 - Improved UI resilience by implementing styled error banners and better state handling for failed async computations.
+
+---
+
+## Commit 3687bb60 | 2026-03-11T13:20:23.081Z
+
+### Branch Purpose
+
+Dashboard for the Ordum empire in Bitcraft, utilizing a generated TypeScript API client and static game data to provide deep insights into resources, settlement research, and crafting logistics.
+
+### Previous Progress Summary
+
+The project established a robust foundation with a custom TypeScript API client generator for REST and WebSocket interfaces, strictly typed from Rust source code. It handles 64-bit entity IDs as strings to prevent precision loss and unifies building storage, player inventories, and member skill rankings into a searchable SSR-enabled dashboard. Recent milestones include the implementation of a recursive craft planner with cycle detection, the adoption of `computedAsync` for declarative async state management, and the refactoring of the planner into a modular hierarchy of components using Astro Actions for type-safe server logic.
+
+### This Commit's Contribution
+
+- Migrated all interactive components from Svelte 5 to Preact TSX, replacing `@astrojs/svelte` with `@astrojs/preact` and adopting `@nanostores/preact` for component-level reactivity.
+- Resolved a major inventory visibility gap by switching from the `/players` search endpoint to the `/inventorys/owner_entity_id` endpoint, which includes deployables like carts and rafts.
+- Fixed 64-bit entity ID precision loss by using string-based keys from the claim members object instead of parsed number fields that exceeded `MAX_SAFE_INTEGER`.
+- Expanded the inventory aggregation logic to include items stored in claim buildings (e.g., Town Bank) by filtering for the player's specific `player_owner_entity_id`.
+- Refactored 9 `.svelte` files into `.tsx` components, maintaining the "thin orchestrator" pattern for the `CraftPlanner` while improving type safety for props and hooks.
+- Decided to maintain `craft-store.ts` as a framework-agnostic nanostore core to ensure the migration didn't require rewrites of the underlying business logic.
+- Validated the transition with a clean production build, ensuring that all Astro Actions and recursive crafting calculations remain fully functional under the Preact bridge.
