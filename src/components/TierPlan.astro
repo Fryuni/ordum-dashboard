@@ -9,105 +9,427 @@ interface Props {
 const { plan, isNextTier } = Astro.props;
 const suppliesOk = plan.supplies_available >= plan.total_supplies_needed;
 const allDone = plan.researches.every(r => r.already_researched) && plan.tier_upgrade?.already_researched;
+
+// Calculate completion percentage based on total items fulfilled
+let totalReq = 0;
+let totalAvail = 0;
+for (const item of plan.all_items_needed) {
+  totalReq += item.total_required;
+  totalAvail += Math.min(item.total_available, item.total_required);
+}
+const percentDone = totalReq > 0 ? Math.round((totalAvail / totalReq) * 100) : (allDone ? 100 : 0);
+
+// Helper for card class
+const cardClass = allDone ? 'tier-completed' : isNextTier ? 'tier-active' : 'tier-future';
 ---
 
-<div class={`tier-plan ${isNextTier ? 'next-tier' : ''} ${allDone ? 'completed' : ''}`} id={`tier-${plan.tier}`}>
+<div class={`tier-plan ${cardClass}`} id={`tier-${plan.tier}`}>
   <div class="tier-header">
-    <h3>
-      {allDone ? '✅' : isNextTier ? '🎯' : '🔒'} Tier {plan.tier}
-      {allDone && <span class="done-badge">Complete</span>}
-    </h3>
-    <div class="tier-meta">
-      <span class={`supplies-indicator ${suppliesOk ? 'ok' : 'deficit'}`}>
-        📦 {plan.total_supplies_needed.toLocaleString()} supplies needed
-        {!suppliesOk && <span class="deficit-text"> (need {(plan.total_supplies_needed - plan.supplies_available).toLocaleString()} more)</span>}
-      </span>
+    <div class="tier-header-left">
+      <div class={`circular-progress ${allDone ? 'progress-done' : ''}`} style={`--p: ${allDone ? 100 : percentDone}%`}>
+        <span>{allDone ? '✓' : `T${plan.tier}`}</span>
+      </div>
+      <div>
+        <h3 class="tier-title">Tier {plan.tier} {allDone && <span class="badge-done">Complete</span>}</h3>
+        <p class="tier-subtitle">
+          <span class={`supplies-status ${suppliesOk ? 'text-green' : 'text-red'}`}>
+            📦 {plan.total_supplies_needed.toLocaleString()} supplies needed
+            {!suppliesOk && ` (need ${(plan.total_supplies_needed - plan.supplies_available).toLocaleString()} more)`}
+          </span>
+        </p>
+      </div>
     </div>
   </div>
 
-  {/* Tier Upgrade */}
+  {/* Tier Upgrade Banner */}
   {plan.tier_upgrade && (
-    <div class={`research-card ${plan.tier_upgrade.already_researched ? 'done' : 'pending'}`}>
-      <div class="research-header">
-        <span class="research-status">{plan.tier_upgrade.already_researched ? '✅' : '⬜'}</span>
-        <strong>{plan.tier_upgrade.tech.name}</strong>
-        <span class="research-type">Tier Upgrade</span>
-        <span class="supplies-cost">📦 {plan.tier_upgrade.supplies_cost.toLocaleString()}</span>
+    <div class={`upgrade-banner ${plan.tier_upgrade.already_researched ? 'banner-done' : 'banner-pending'}`}>
+      <div class="banner-header">
+        <div class="banner-title-area">
+          <div class="banner-icon">⭐</div>
+          <div>
+            <h4 class="banner-title">{plan.tier_upgrade.tech.name}</h4>
+            <span class="banner-subtitle">Tier Upgrade</span>
+          </div>
+        </div>
+        <div class="banner-cost">📦 {plan.tier_upgrade.supplies_cost.toLocaleString()}</div>
       </div>
+      
       {!plan.tier_upgrade.already_researched && (
-        <div class="research-items">
-          {plan.tier_upgrade.items.map(item => (
-            <div class={`item-row ${item.fulfilled ? 'fulfilled' : 'missing'}`}>
-              <span class="item-name">{item.name}</span>
-              <span class="item-qty">
-                <span class={item.quantity_available >= item.quantity_required ? 'have-enough' : 'not-enough'}>
-                  {item.quantity_available.toLocaleString()}
-                </span>
-                / {item.quantity_required.toLocaleString()}
-              </span>
-              {item.fulfilled
-                ? <span class="item-status ok">✅</span>
-                : <span class="item-status missing">❌ need {(item.quantity_required - item.quantity_available).toLocaleString()} more</span>
-              }
-            </div>
-          ))}
+        <div class="req-grid">
+          {plan.tier_upgrade.items.map(item => {
+            const pct = Math.min(100, (item.quantity_available / item.quantity_required) * 100);
+            return (
+              <div class={`req-card ${item.fulfilled ? 'req-fulfilled' : 'req-missing'}`}>
+                <div class="req-top">
+                  <span class="req-name">{item.name}</span>
+                  <span class="req-fraction">
+                    <span class={item.quantity_available >= item.quantity_required ? 'text-green' : 'text-red'}>
+                      {item.quantity_available.toLocaleString()}
+                    </span>
+                    <span class="text-muted"> / {item.quantity_required.toLocaleString()}</span>
+                  </span>
+                </div>
+                <div class="progress-bar-bg">
+                  <div class="progress-bar-fill" style={`width: ${pct}%`}></div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
   )}
 
-  {/* Other Researches */}
-  <div class="researches-grid">
+  {/* Research Cards */}
+  <div class="research-grid">
     {plan.researches.map(r => (
-      <div class={`research-card compact ${r.already_researched ? 'done' : 'pending'}`}>
+      <div class={`research-card ${r.already_researched ? 'research-done' : ''}`}>
         <div class="research-header">
-          <span class="research-status">{r.already_researched ? '✅' : '⬜'}</span>
-          <strong>{r.tech.name}</strong>
-          <span class="research-type">{r.tech.tech_type}</span>
-          <span class="supplies-cost">📦 {r.supplies_cost.toLocaleString()}</span>
+          <div class="r-title-row">
+            <h5 class="r-title">
+              {r.already_researched ? '✅ ' : ''}{r.tech.name}
+            </h5>
+            <span class="r-cost">📦 {r.supplies_cost.toLocaleString()}</span>
+          </div>
+          <span class="r-type-badge">{r.tech.tech_type}</span>
         </div>
+        
         {!r.already_researched && (
-          <div class="research-items">
-            {r.items.map(item => (
-              <div class={`item-row ${item.fulfilled ? 'fulfilled' : 'missing'}`}>
-                <span class="item-name">{item.name}</span>
-                <span class="item-qty">
-                  <span class={item.quantity_available >= item.quantity_required ? 'have-enough' : 'not-enough'}>
-                    {item.quantity_available.toLocaleString()}
-                  </span>
-                  / {item.quantity_required.toLocaleString()}
-                </span>
-                {item.fulfilled ? <span class="item-status ok">✅</span> : <span class="item-status missing">❌</span>}
-              </div>
-            ))}
+          <div class="req-grid mt-3">
+            {r.items.map(item => {
+              const pct = Math.min(100, (item.quantity_available / item.quantity_required) * 100);
+              return (
+                <div class={`req-card ${item.fulfilled ? 'req-fulfilled' : 'req-missing'}`}>
+                  <div class="req-top">
+                    <span class="req-name">{item.name}</span>
+                    <span class="req-fraction">
+                      <span class={item.quantity_available >= item.quantity_required ? 'text-green' : 'text-red'}>
+                        {item.quantity_available.toLocaleString()}
+                      </span>
+                      <span class="text-muted"> / {item.quantity_required.toLocaleString()}</span>
+                    </span>
+                  </div>
+                  <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" style={`width: ${pct}%`}></div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
     ))}
   </div>
 
-  {/* Summary: all items needed */}
+  {/* Summary Table */}
   {!allDone && plan.all_items_needed.length > 0 && (
-    <div class="items-summary">
-      <h4>📋 Total Items Needed for Tier {plan.tier}</h4>
-      <div class="summary-table">
-        {plan.all_items_needed.map(item => (
-          <div class={`summary-row ${item.deficit > 0 ? 'has-deficit' : 'fulfilled'}`}>
-            <span class={`tier tier-${item.tier}`}>T{item.tier}</span>
-            <span class="item-name">{item.name}</span>
-            <span class="summary-qty">
-              <span class={item.total_available >= item.total_required ? 'have-enough' : 'not-enough'}>
-                {item.total_available.toLocaleString()}
-              </span>
-              / {item.total_required.toLocaleString()}
-            </span>
-            {item.deficit > 0
-              ? <span class="deficit-label">Need {item.deficit.toLocaleString()} more</span>
-              : <span class="ok-label">✅</span>
-            }
-          </div>
-        ))}
+    <div class="summary-section">
+      <h4 class="summary-title">📋 Total Items Needed for Tier {plan.tier}</h4>
+      <div class="table-wrapper">
+        <table class="modern-table">
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th class="num">Available</th>
+              <th class="num">Required</th>
+              <th class="num">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {plan.all_items_needed.map(item => (
+              <tr class={item.deficit > 0 ? 'row-deficit' : 'row-ok'}>
+                <td>
+                  <div class="flex-align">
+                    <span class={`tier-badge tier-${item.tier}`}>T{item.tier}</span>
+                    <span class="item-name">{item.name}</span>
+                  </div>
+                </td>
+                <td class="num font-mono">{item.total_available.toLocaleString()}</td>
+                <td class="num font-mono">{item.total_required.toLocaleString()}</td>
+                <td class="num font-mono">
+                  {item.deficit > 0 
+                    ? <span class="text-red">Need {item.deficit.toLocaleString()}</span>
+                    : <span class="text-green">✅ Done</span>
+                  }
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   )}
 </div>
+
+<style>
+  /* Base Card */
+  .tier-plan {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+  .tier-completed {
+    opacity: 0.7;
+    border-left: 4px solid var(--green);
+  }
+  .tier-active {
+    border-color: var(--accent);
+    box-shadow: 0 8px 32px var(--accent-glow);
+    border-left: 4px solid var(--accent);
+  }
+  .tier-future {
+    border-left: 4px solid var(--border);
+  }
+
+  /* Header */
+  .tier-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tier-header-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .tier-title {
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .tier-subtitle {
+    font-size: 0.95rem;
+    margin: 0;
+  }
+
+  .badge-done {
+    background: rgba(74, 222, 128, 0.15);
+    color: var(--green);
+    font-size: 0.75rem;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(74, 222, 128, 0.3);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* Circular Progress */
+  .circular-progress {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: conic-gradient(var(--accent) var(--p), var(--bg-surface-3) 0deg);
+    position: relative;
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
+  .circular-progress::before {
+    content: '';
+    position: absolute;
+    inset: 3px;
+    border-radius: 50%;
+    background: var(--bg-surface);
+  }
+  .circular-progress span {
+    position: relative;
+    z-index: 1;
+    color: var(--text);
+  }
+  .progress-done {
+    background: conic-gradient(var(--green) var(--p), var(--bg-surface-3) 0deg);
+  }
+  .progress-done span { color: var(--green); }
+
+  /* Upgrade Banner */
+  .upgrade-banner {
+    background: linear-gradient(to right, rgba(251, 191, 36, 0.05), rgba(251, 191, 36, 0.01));
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    border-radius: 12px;
+    padding: 12px;
+    margin-bottom: 20px;
+  }
+  .banner-done {
+    opacity: 0.6;
+    border-color: var(--border);
+    background: var(--bg-surface-2);
+  }
+  .banner-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  .banner-title-area {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .banner-icon { font-size: 2rem; }
+  .banner-title { font-size: 1.3rem; margin: 0; color: var(--accent-4); }
+  .banner-subtitle { font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; letter-spacing: 0.5px;}
+  .banner-cost { font-weight: 600; color: var(--text); }
+
+  /* Grid Layouts */
+  .research-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 10px;
+  }
+  
+  .research-card {
+    background: var(--bg-surface-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .research-card:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    transform: translateY(-2px);
+  }
+  .research-done {
+    opacity: 0.5;
+  }
+
+  .research-header { margin-bottom: 16px; }
+  .r-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+  }
+  .r-title { font-size: 1.1rem; margin: 0; color: var(--text); }
+  .r-cost { font-size: 0.9rem; font-weight: 600; color: var(--text-muted); }
+  .r-type-badge {
+    background: var(--bg-surface-3);
+    color: var(--text-muted);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+
+  /* Requirement Mini-Cards */
+  .mt-3 { margin-top: 16px; }
+  .req-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .req-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+  }
+  .req-fulfilled { border-color: rgba(74, 222, 128, 0.4); background: rgba(74, 222, 128, 0.03); }
+  .req-missing { border-left: 3px solid var(--red); }
+  
+  .req-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+  }
+  .req-name { font-weight: 500; }
+  .req-fraction { font-family: monospace; font-size: 0.95rem; }
+
+  /* Progress Bar */
+  .progress-bar-bg {
+    height: 6px;
+    background: var(--bg-surface-3);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+  }
+  .req-fulfilled .progress-bar-fill { background: var(--green); }
+  .req-missing .progress-bar-fill { background: var(--accent-2); }
+
+  /* Table */
+  .summary-section {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .summary-title {
+    font-size: 1.2rem;
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+  .table-wrapper {
+    overflow-x: auto;
+    background: var(--bg-surface-2);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+  .modern-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+  }
+  .modern-table th {
+    background: rgba(26, 31, 46, 0.8);
+    backdrop-filter: blur(8px);
+    padding: 6px 10px;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    position: sticky;
+    top: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .modern-table th.num, .modern-table td.num { text-align: right; }
+  .modern-table td {
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    font-size: 0.95rem;
+  }
+  .modern-table tr:last-child td { border-bottom: none; }
+  
+  .flex-align {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .tier-badge {
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+  .tier-1 { background: #374151; color: #d1d5db; }
+  .tier-2 { background: #1e3a2f; color: #6ee7b7; }
+  .tier-3 { background: #1e2a3f; color: #93c5fd; }
+  .tier-4 { background: #2d1f3f; color: #c4b5fd; }
+  .tier-5 { background: #3f2d1f; color: #fcd34d; }
+  .tier--1, .tier-0 { background: #2d2d2d; color: #9ca3af; }
+
+  .font-mono { font-family: monospace; }
+  .text-green { color: var(--green); }
+  .text-red { color: var(--red); }
+  .text-muted { color: var(--text-muted); }
+</style>

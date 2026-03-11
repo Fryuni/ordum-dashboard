@@ -1,664 +1,420 @@
 ---
+import Layout from "../layouts/Layout.astro";
 import { fetchEmpireData } from "../lib/ordum-data";
 import ResourceTable from "../components/ResourceTable.astro";
 import MembersTable from "../components/MembersTable.astro";
 import StatCard from "../components/StatCard.astro";
 
 const empire = await fetchEmpireData();
-const claim = empire.claims[0]; // Ordum City (leader)
+const mainClaim = empire.claims[0]; // Ordum City (leader)
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Ordum Empire Dashboard</title>
-    <style>
-      /* ─── Reset & Base ──────────────────────────────────────────── */
-      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<Layout title="Ordum Empire Dashboard" activePage="dashboard">
+  <!-- Header -->
+  <div class="page-header">
+    <h1>👑 Ordum Empire</h1>
+    <p class="subtitle">
+      Last updated: {new Date(empire.fetched_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+      · {empire.claims.length} claim{empire.claims.length > 1 ? 's' : ''}
+    </p>
+  </div>
 
-      :root {
-        --bg: #0f1117;
-        --surface: #1a1d27;
-        --surface-2: #242836;
-        --border: #2e3347;
-        --text: #e1e4ed;
-        --text-dim: #8b90a5;
-        --accent: #6c8cff;
-        --accent-2: #ff8c6c;
-        --accent-3: #6cffb8;
-        --accent-4: #ffd06c;
-        --online: #4ade80;
-        --offline: #6b7280;
-        --rarity-common: #9ca3af;
-        --rarity-uncommon: #4ade80;
-        --rarity-rare: #60a5fa;
-        --rarity-epic: #c084fc;
-        --rarity-legendary: #fbbf24;
-      }
+  <!-- Summary Stats -->
+  <div class="stats-grid">
+    <StatCard label="Total Members" value={empire.totals.total_members} icon="👥" accent="var(--accent)" />
+    <StatCard label="Online Now" value={empire.totals.online_members} icon="🟢" accent="var(--accent-3)" />
+    <StatCard label="Buildings" value={empire.totals.total_buildings} icon="🏠" accent="var(--accent-2)" />
+    <StatCard label="Building Resources" value={empire.totals.total_building_resource_count} icon="📦" accent="var(--accent-4)" />
+    <StatCard label="Player Resources" value={empire.totals.total_player_resource_count} icon="🎒" accent="var(--accent)" />
+    <StatCard label="Resource Types" value={empire.totals.total_building_resource_types + empire.totals.total_player_resource_types} icon="📋" accent="var(--accent-2)" />
+    <StatCard label="Tools" value={empire.totals.total_tool_count} icon="⛏️" accent="var(--accent-3)" />
+    <StatCard label="Treasury" value={mainClaim ? mainClaim.treasury : '—'} icon="💰" accent="var(--accent-4)" />
+  </div>
 
-      body {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        background: var(--bg);
-        color: var(--text);
-        line-height: 1.5;
-        min-height: 100vh;
-      }
-
-      /* ─── Layout ────────────────────────────────────────────────── */
-      .dashboard {
-        max-width: 1600px;
-        margin: 0 auto;
-        padding: 24px;
-      }
-
-      .header {
-        text-align: center;
-        padding: 32px 0 24px;
-        border-bottom: 1px solid var(--border);
-        margin-bottom: 32px;
-      }
-
-      .header h1 {
-        font-size: 2rem;
-        font-weight: 700;
-        background: linear-gradient(135deg, var(--accent), var(--accent-3));
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-      }
-
-      .header .subtitle {
-        color: var(--text-dim);
-        margin-top: 4px;
-        font-size: 0.9rem;
-      }
-
-      /* ─── Stat Cards ────────────────────────────────────────────── */
-      .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        gap: 16px;
-        margin-bottom: 32px;
-      }
-
-      .stat-card {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 20px;
-        text-align: center;
-        transition: border-color 0.2s;
-      }
-
-      .stat-card:hover { border-color: var(--card-accent, var(--accent)); }
-      .stat-icon { font-size: 1.5rem; margin-bottom: 8px; }
-      .stat-value { font-size: 1.75rem; font-weight: 700; color: var(--card-accent, var(--accent)); }
-      .stat-label { font-size: 0.8rem; color: var(--text-dim); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
-
-      /* ─── Claim Info Bar ────────────────────────────────────────── */
-      .claim-bar {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 16px 24px;
-        margin-bottom: 24px;
-        display: flex;
-        align-items: center;
-        gap: 24px;
-        flex-wrap: wrap;
-      }
-
-      .claim-bar .claim-name {
-        font-size: 1.2rem;
-        font-weight: 600;
-      }
-
-      .claim-bar .claim-meta {
-        color: var(--text-dim);
-        font-size: 0.85rem;
-      }
-
-      .claim-bar .claim-meta span {
-        margin-right: 16px;
-      }
-
-      /* ─── Tabs ──────────────────────────────────────────────────── */
-      .tabs {
-        display: flex;
-        gap: 4px;
-        margin-bottom: 24px;
-        border-bottom: 2px solid var(--border);
-        padding-bottom: 0;
-        overflow-x: auto;
-      }
-
-      .tab-btn {
-        background: none;
-        border: none;
-        color: var(--text-dim);
-        padding: 12px 20px;
-        cursor: pointer;
-        font-size: 0.9rem;
-        font-weight: 500;
-        border-bottom: 2px solid transparent;
-        margin-bottom: -2px;
-        transition: all 0.2s;
-        white-space: nowrap;
-      }
-
-      .tab-btn:hover { color: var(--text); }
-      .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
-
-      .tab-panel { display: none; }
-      .tab-panel.active { display: block; }
-
-      /* ─── Section Headers ───────────────────────────────────────── */
-      .section-header {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 16px;
-      }
-
-      .section-header h3 {
-        font-size: 1.1rem;
-        font-weight: 600;
-      }
-
-      .badge {
-        background: var(--surface-2);
-        color: var(--text-dim);
-        padding: 4px 12px;
-        border-radius: 20px;
-        font-size: 0.75rem;
-      }
-
-      /* ─── Filters ───────────────────────────────────────────────── */
-      .filters {
-        display: flex;
-        gap: 12px;
-        margin-bottom: 16px;
-        flex-wrap: wrap;
-        align-items: center;
-      }
-
-      .search-input, .tier-filter, .tag-filter {
-        background: var(--surface-2);
-        border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 8px 14px;
-        color: var(--text);
-        font-size: 0.85rem;
-        outline: none;
-        transition: border-color 0.2s;
-      }
-
-      .search-input { min-width: 240px; flex: 1; max-width: 360px; }
-      .search-input:focus, .tier-filter:focus, .tag-filter:focus {
-        border-color: var(--accent);
-      }
-
-      .toggle-label {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        color: var(--text-dim);
-        font-size: 0.85rem;
-        cursor: pointer;
-      }
-
-      /* ─── Tables ────────────────────────────────────────────────── */
-      .table-wrapper {
-        overflow-x: auto;
-        border-radius: 12px;
-        border: 1px solid var(--border);
-        margin-bottom: 32px;
-      }
-
-      .resource-table, .members-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 0.85rem;
-      }
-
-      .resource-table th, .members-table th {
-        background: var(--surface-2);
-        padding: 10px 14px;
-        text-align: left;
-        font-weight: 600;
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: var(--text-dim);
-        position: sticky;
-        top: 0;
-        z-index: 1;
-      }
-
-      .resource-table th.num, .resource-table td.num { text-align: right; }
-
-      .resource-table td, .members-table td {
-        padding: 8px 14px;
-        border-top: 1px solid var(--border);
-        vertical-align: top;
-      }
-
-      .resource-table tbody tr:hover, .members-table tbody tr:hover {
-        background: var(--surface);
-      }
-
-      .sortable { cursor: pointer; user-select: none; }
-      .sortable:hover { color: var(--accent); }
-
-      /* ─── Item Name & Rarity ────────────────────────────────────── */
-      .item-name {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-        font-weight: 500;
-      }
-
-      .rarity-dot {
-        width: 8px; height: 8px;
-        border-radius: 50%;
-        display: inline-block;
-        flex-shrink: 0;
-      }
-
-      .rarity-common { background: var(--rarity-common); }
-      .rarity-uncommon { background: var(--rarity-uncommon); }
-      .rarity-rare { background: var(--rarity-rare); }
-      .rarity-epic { background: var(--rarity-epic); }
-      .rarity-legendary { background: var(--rarity-legendary); }
-
-      .tier {
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 0.75rem;
-        font-weight: 600;
-      }
-
-      .tier-1 { background: #374151; color: #d1d5db; }
-      .tier-2 { background: #1e3a2f; color: #6ee7b7; }
-      .tier-3 { background: #1e2d4a; color: #93c5fd; }
-      .tier-4 { background: #2d1f4e; color: #c4b5fd; }
-      .tier-5 { background: #3d2c0f; color: #fcd34d; }
-      .tier--1 { background: #2d2d2d; color: #9ca3af; }
-      .tier-0 { background: #2d2d2d; color: #9ca3af; }
-
-      /* ─── Locations ─────────────────────────────────────────────── */
-      .locations-cell details { cursor: pointer; }
-      .locations-cell summary { color: var(--accent); font-size: 0.8rem; }
-
-      .location-list {
-        list-style: none;
-        margin-top: 6px;
-        font-size: 0.8rem;
-      }
-
-      .location-list li {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 2px 0;
-      }
-
-      .loc-qty { color: var(--accent-4); font-weight: 600; margin-left: auto; }
-
-      /* ─── Members ───────────────────────────────────────────────── */
-      .status-dot {
-        display: inline-block;
-        width: 10px; height: 10px;
-        border-radius: 50%;
-      }
-
-      .status-dot.online { background: var(--online); box-shadow: 0 0 6px var(--online); }
-      .status-dot.offline { background: var(--offline); }
-
-      .member-name { font-weight: 500; }
-
-      .skill-chips {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
-      }
-
-      .skill-chip {
-        background: var(--surface-2);
-        border: 1px solid var(--border);
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 0.75rem;
-        white-space: nowrap;
-      }
-
-      .skill-chip strong { color: var(--accent); margin-left: 4px; }
-
-      .inv-list {
-        list-style: none;
-        font-size: 0.8rem;
-        margin-top: 4px;
-      }
-
-      .inv-list li { padding: 1px 0; }
-
-      .perms-cell { font-size: 0.8rem; color: var(--text-dim); }
-
-      .members-table tr.offline .member-name { color: var(--text-dim); }
-
-      /* ─── Nav ─────────────────────────────────────────────────────── */
-      .nav {
-        display: flex;
-        gap: 16px;
-        margin-bottom: 24px;
-        padding-bottom: 16px;
-        border-bottom: 1px solid var(--border);
-        align-items: center;
-      }
-      .nav a {
-        color: var(--text-dim);
-        text-decoration: none;
-        padding: 6px 14px;
-        border-radius: 8px;
-        font-size: 0.9rem;
-        transition: all 0.2s;
-      }
-      .nav a:hover { color: var(--text); background: var(--surface); }
-      .nav a.active { color: var(--accent); background: var(--surface); }
-
-      /* ─── Responsive ────────────────────────────────────────────── */
-      @media (max-width: 768px) {
-        .dashboard { padding: 12px; }
-        .stats-grid { grid-template-columns: repeat(2, 1fr); }
-        .claim-bar { flex-direction: column; align-items: flex-start; gap: 8px; }
-        .search-input { min-width: 160px; }
-      }
-    </style>
-  </head>
-
-  <body>
-    <div class="dashboard">
-      <!-- Nav -->
-      <nav class="nav">
-        <a href="/" class="active">📊 Dashboard</a>
-        <a href="/settlement">🏰 Settlement Planner</a>
-        <a href="/craft">⚒️ Craft Planner</a>
-      </nav>
-
-      <!-- Header -->
-      <div class="header">
-        <h1>⚔️ Ordum Empire Dashboard</h1>
-        <p class="subtitle">
-          Last updated: {new Date(empire.fetched_at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
-          · {empire.claims.length} claim{empire.claims.length > 1 ? 's' : ''}
-        </p>
+  <!-- Per-Claim Sections -->
+  {empire.claims.map((c, i) => (
+    <div class="claim-section">
+      <div class="claim-bar">
+        <div class="claim-title-area">
+          <span class="claim-icon">{i === 0 ? '👑' : '🏰'}</span>
+          <h2 class="claim-name">{c.name}</h2>
+          <span class="tier-badge">Tier {c.tier ?? '?'}</span>
+        </div>
+        <div class="claim-meta">
+          <div class="meta-item">🗺️ <span>{c.region}</span></div>
+          <div class="meta-item">📦 <span>{c.supplies.toLocaleString()} supplies</span></div>
+          <div class="meta-item">💰 <span>{c.treasury.toLocaleString()} gold</span></div>
+          <div class="meta-item">🧱 <span>{c.num_tiles.toLocaleString()} tiles</span></div>
+          <div class="meta-item">🏠 <span>{c.building_count} buildings</span></div>
+          <div class="meta-item">👥 <span>{c.member_count} members</span></div>
+        </div>
       </div>
 
-      <!-- Summary Stats -->
-      <div class="stats-grid">
-        <StatCard label="Members" value={empire.totals.total_members} icon="👥" accent="var(--accent)" />
-        <StatCard label="Online Now" value={empire.totals.online_members} icon="🟢" accent="var(--accent-3)" />
-        <StatCard label="Buildings" value={empire.totals.total_buildings} icon="🏠" accent="var(--accent-2)" />
-        <StatCard label="Building Resources" value={empire.totals.total_building_resource_count} icon="📦" accent="var(--accent-4)" />
-        <StatCard label="Player Resources" value={empire.totals.total_player_resource_count} icon="🎒" accent="var(--accent)" />
-        <StatCard label="Resource Types" value={empire.totals.total_building_resource_types + empire.totals.total_player_resource_types} icon="📋" accent="var(--accent-2)" />
-        <StatCard label="Tools" value={empire.totals.total_tool_count} icon="⛏️" accent="var(--accent-3)" />
-        <StatCard
-          label="Treasury"
-          value={claim ? claim.treasury.toLocaleString() : '—'}
-          icon="💰"
-          accent="var(--accent-4)"
-        />
+      <!-- Tabs for this claim -->
+      <div class="tabs-container">
+        <div class="tabs" data-claim={String(i)}>
+          <button class="tab-btn active" data-tab={`buildings-${i}`}>
+            <span class="tab-icon">🏠</span> Building Storage
+          </button>
+          <button class="tab-btn" data-tab={`players-${i}`}>
+            <span class="tab-icon">🎒</span> Player Inventory
+          </button>
+          <button class="tab-btn" data-tab={`tools-${i}`}>
+            <span class="tab-icon">⛏️</span> Tools
+          </button>
+          <button class="tab-btn" data-tab={`members-${i}`}>
+            <span class="tab-icon">👥</span> Members
+          </button>
+        </div>
       </div>
 
-      <!-- Per-Claim Sections -->
-      {empire.claims.map((c, i) => (
-        <div class="claim-section">
-          <div class="claim-bar">
-            <span class="claim-name">
-              {i === 0 ? '👑' : '🏰'} {c.name}
-            </span>
-            <div class="claim-meta">
-              <span>🗺️ {c.region}</span>
-              <span>⭐ Tier {c.tier ?? '?'}</span>
-              <span>📦 {c.supplies.toLocaleString()} supplies</span>
-              <span>💰 {c.treasury.toLocaleString()} treasury</span>
-              <span>🧱 {c.num_tiles.toLocaleString()} tiles</span>
-              <span>🏠 {c.building_count} buildings</span>
-              <span>👥 {c.member_count} members</span>
-            </div>
-          </div>
+      <div class="tab-panel active" id={`buildings-${i}`}>
+        <ResourceTable title="Building Storage" resources={c.building_resources} showLocations={true} id={`building-res-${i}`} />
+      </div>
 
-          <!-- Tabs for this claim -->
-          <div class="tabs" data-claim={String(i)}>
-            <button class="tab-btn active" data-tab={`buildings-${i}`}>🏠 Building Storage</button>
-            <button class="tab-btn" data-tab={`players-${i}`}>🎒 Player Inventory</button>
-            <button class="tab-btn" data-tab={`tools-${i}`}>⛏️ Tools</button>
-            <button class="tab-btn" data-tab={`members-${i}`}>👥 Members</button>
-          </div>
+      <div class="tab-panel" id={`players-${i}`}>
+        <ResourceTable title="Online Player Inventory" resources={c.player_resources} showLocations={true} id={`player-res-${i}`} />
+        <div style="height: 16px;"></div>
+        <ResourceTable title="Offline Player Inventory" resources={c.player_offline_resources} showLocations={true} id={`offline-res-${i}`} />
+      </div>
 
-          <div class="tab-panel active" id={`buildings-${i}`}>
-            <ResourceTable
-              title="Building Storage"
-              resources={c.building_resources}
-              showLocations={true}
-              id={`building-res-${i}`}
-            />
-          </div>
+      <div class="tab-panel" id={`tools-${i}`}>
+        <ResourceTable title="Online Player Tools" resources={c.tool_resources} id={`tools-online-${i}`} />
+        <div style="height: 16px;"></div>
+        <ResourceTable title="Offline Player Tools" resources={c.tool_offline_resources} id={`tools-offline-${i}`} />
+      </div>
 
-          <div class="tab-panel" id={`players-${i}`}>
-            <ResourceTable
-              title="Online Player Inventory"
-              resources={c.player_resources}
-              showLocations={true}
-              id={`player-res-${i}`}
-            />
-            <ResourceTable
-              title="Offline Player Inventory"
-              resources={c.player_offline_resources}
-              showLocations={true}
-              id={`offline-res-${i}`}
-            />
-          </div>
-
-          <div class="tab-panel" id={`tools-${i}`}>
-            <ResourceTable
-              title="Online Player Tools"
-              resources={c.tool_resources}
-              id={`tools-online-${i}`}
-            />
-            <ResourceTable
-              title="Offline Player Tools"
-              resources={c.tool_offline_resources}
-              id={`tools-offline-${i}`}
-            />
-          </div>
-
-          <div class="tab-panel" id={`members-${i}`}>
-            <MembersTable members={c.members} claimName={c.name} />
-          </div>
-        </div>
-      ))}
-
-      <!-- Empire-wide Aggregates -->
-      {empire.claims.length > 1 && (
-        <div class="claim-section">
-          <div class="claim-bar">
-            <span class="claim-name">🌐 Empire-Wide Totals</span>
-          </div>
-
-          <div class="tabs" data-claim="empire">
-            <button class="tab-btn active" data-tab="empire-buildings">🏠 All Building Resources</button>
-            <button class="tab-btn" data-tab="empire-players">🎒 All Player Resources</button>
-            <button class="tab-btn" data-tab="empire-tools">⛏️ All Tools</button>
-          </div>
-
-          <div class="tab-panel active" id="empire-buildings">
-            <ResourceTable
-              title="All Building Resources (Empire)"
-              resources={empire.all_building_resources}
-              id="empire-building-res"
-            />
-          </div>
-
-          <div class="tab-panel" id="empire-players">
-            <ResourceTable
-              title="All Player Resources (Empire)"
-              resources={empire.all_player_resources}
-              id="empire-player-res"
-            />
-          </div>
-
-          <div class="tab-panel" id="empire-tools">
-            <ResourceTable
-              title="All Tools (Empire)"
-              resources={empire.all_tool_resources}
-              id="empire-tool-res"
-            />
-          </div>
-        </div>
-      )}
+      <div class="tab-panel" id={`members-${i}`}>
+        <MembersTable members={c.members} claimName={c.name} />
+      </div>
     </div>
+  ))}
 
-    <script>
-      // ─── Tab switching ────────────────────────────────────────────
-      document.querySelectorAll('.tab-btn').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const tabId = btn.getAttribute('data-tab')!;
-          const tabsContainer = btn.closest('.tabs')!;
-          const claimSection = tabsContainer.parentElement!;
+  <!-- Empire-wide Aggregates -->
+  {empire.claims.length > 1 && (
+    <div class="claim-section">
+      <div class="claim-bar empire-bar">
+        <div class="claim-title-area">
+          <span class="claim-icon">🌐</span>
+          <h2 class="claim-name">Empire-Wide Totals</h2>
+        </div>
+      </div>
 
-          // Deactivate siblings
-          tabsContainer.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
-          claimSection.querySelectorAll(':scope > .tab-panel').forEach((p) => p.classList.remove('active'));
+      <div class="tabs-container">
+        <div class="tabs" data-claim="empire">
+          <button class="tab-btn active" data-tab="empire-buildings"><span class="tab-icon">🏠</span> All Building Resources</button>
+          <button class="tab-btn" data-tab="empire-players"><span class="tab-icon">🎒</span> All Player Resources</button>
+          <button class="tab-btn" data-tab="empire-tools"><span class="tab-icon">⛏️</span> All Tools</button>
+        </div>
+      </div>
 
-          // Activate clicked
-          btn.classList.add('active');
-          document.getElementById(tabId)?.classList.add('active');
-        });
-      });
+      <div class="tab-panel active" id="empire-buildings">
+        <ResourceTable title="All Building Resources (Empire)" resources={empire.all_building_resources} id="empire-building-res" />
+      </div>
 
-      // ─── Search / Filter ──────────────────────────────────────────
-      document.querySelectorAll('.search-input').forEach((input) => {
-        input.addEventListener('input', () => {
-          const tableId = (input as HTMLInputElement).dataset.table!;
-          filterTable(tableId);
-        });
-      });
+      <div class="tab-panel" id="empire-players">
+        <ResourceTable title="All Player Resources (Empire)" resources={empire.all_player_resources} id="empire-player-res" />
+      </div>
 
-      document.querySelectorAll('.tier-filter').forEach((sel) => {
-        sel.addEventListener('change', () => {
-          const tableId = (sel as HTMLSelectElement).dataset.table!;
-          filterTable(tableId);
-        });
-      });
+      <div class="tab-panel" id="empire-tools">
+        <ResourceTable title="All Tools (Empire)" resources={empire.all_tool_resources} id="empire-tool-res" />
+      </div>
+    </div>
+  )}
+</Layout>
 
-      document.querySelectorAll('.tag-filter').forEach((sel) => {
-        sel.addEventListener('change', () => {
-          const tableId = (sel as HTMLSelectElement).dataset.table!;
-          filterTable(tableId);
-        });
-      });
+<style>
+  /* Page Header */
+  .page-header {
+    text-align: center;
+    padding: 8px 0 12px;
+    margin-bottom: 12px;
+  }
+  .page-header h1 {
+    font-size: 1.3rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--accent-3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 4px;
+    letter-spacing: -0.5px;
+  }
+  .page-header .subtitle {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
 
-      function filterTable(tableId: string) {
-        const section = document.getElementById(tableId);
-        if (!section) return;
+  /* Stats Grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
 
-        const searchInput = section.querySelector('.search-input') as HTMLInputElement | null;
-        const tierFilter = section.querySelector('.tier-filter') as HTMLSelectElement | null;
-        const tagFilter = section.querySelector('.tag-filter') as HTMLSelectElement | null;
+  /* Claim Section & Bar */
+  .claim-section {
+    margin-bottom: 24px;
+  }
+  .claim-bar {
+    background: rgba(26, 31, 46, 0.6);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 16px;
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  .empire-bar {
+    background: linear-gradient(135deg, rgba(108, 140, 255, 0.1), rgba(26, 31, 46, 0.6));
+    border-color: rgba(108, 140, 255, 0.2);
+  }
 
-        const search = searchInput?.value.toLowerCase() ?? '';
-        const tier = tierFilter?.value ?? '';
-        const tag = tagFilter?.value ?? '';
+  .claim-title-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .claim-icon {
+    font-size: 1.3rem;
+    line-height: 1;
+  }
+  .claim-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0;
+  }
+  .tier-badge {
+    background: var(--bg-surface-3);
+    color: var(--accent-4);
+    border: 1px solid rgba(251, 191, 36, 0.3);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
 
-        const table = section.querySelector('table');
-        if (!table) return;
+  .claim-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+  }
+  .meta-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+  .meta-item span {
+    color: var(--text);
+    font-weight: 500;
+  }
 
-        table.querySelectorAll('tbody tr').forEach((row) => {
-          const el = row as HTMLElement;
-          const name = el.dataset.name ?? '';
-          const rowTier = el.dataset.tier ?? '';
-          const rowTag = el.dataset.tag ?? '';
+  /* Tabs */
+  .tabs-container {
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+    padding: 0 8px;
+  }
+  .tabs {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none; /* Firefox */
+  }
+  .tabs::-webkit-scrollbar { display: none; } /* Chrome */
 
-          const matchSearch = !search || name.includes(search);
-          const matchTier = !tier || rowTier === tier;
-          const matchTag = !tag || rowTag === tag;
+  .tab-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    padding: 8px 16px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 6px 6px 0 0;
+  }
+  .tab-icon { font-size: 0.95rem; }
 
-          el.style.display = matchSearch && matchTier && matchTag ? '' : 'none';
-        });
+  .tab-btn:hover {
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.02);
+  }
+  .tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+    background: linear-gradient(to top, rgba(108, 140, 255, 0.1), transparent);
+  }
+
+  .tab-panel { display: none; animation: fadeIn 0.3s ease; }
+  .tab-panel.active { display: block; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+    .claim-bar { padding: 20px; }
+    .claim-meta { gap: 12px; }
+    .tab-btn { padding: 12px 16px; font-size: 0.85rem; }
+  }
+</style>
+
+<script>
+  // ─── Tab switching ────────────────────────────────────────────
+  document.querySelectorAll('.tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const tabId = btn.getAttribute('data-tab')!;
+      const tabsContainer = btn.closest('.tabs')!;
+      const claimSection = tabsContainer.closest('.claim-section')!;
+
+      // Deactivate siblings
+      tabsContainer.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+      claimSection.querySelectorAll('.tab-panel').forEach((p) => p.classList.remove('active'));
+
+      // Activate clicked
+      btn.classList.add('active');
+      document.getElementById(tabId)?.classList.add('active');
+    });
+  });
+
+  // ─── Search / Filter ──────────────────────────────────────────
+  document.querySelectorAll('.search-input').forEach((input) => {
+    input.addEventListener('input', () => {
+      const tableId = (input as HTMLInputElement).dataset.table!;
+      
+      // Check if it's the members table logic or resource table logic based on tableId prefix
+      if (tableId.startsWith('members-')) {
+        filterMembers(tableId);
+      } else {
+        filterTable(tableId);
       }
+    });
+  });
 
-      // ─── Member search & offline toggle ───────────────────────────
-      document.querySelectorAll('.members-section .search-input').forEach((input) => {
-        input.addEventListener('input', () => {
-          filterMembers((input as HTMLInputElement).dataset.table!);
-        });
+  document.querySelectorAll('.tier-filter').forEach((sel) => {
+    sel.addEventListener('change', () => {
+      const tableId = (sel as HTMLSelectElement).dataset.table!;
+      filterTable(tableId);
+    });
+  });
+
+  document.querySelectorAll('.tag-filter').forEach((sel) => {
+    sel.addEventListener('change', () => {
+      const tableId = (sel as HTMLSelectElement).dataset.table!;
+      filterTable(tableId);
+    });
+  });
+
+  function filterTable(tableId: string) {
+    const section = document.getElementById(tableId);
+    if (!section) return;
+
+    const searchInput = section.querySelector('.search-input') as HTMLInputElement | null;
+    const tierFilter = section.querySelector('.tier-filter') as HTMLSelectElement | null;
+    const tagFilter = section.querySelector('.tag-filter') as HTMLSelectElement | null;
+
+    const search = searchInput?.value.toLowerCase() ?? '';
+    const tier = tierFilter?.value ?? '';
+    const tag = tagFilter?.value ?? '';
+
+    const table = section.querySelector('table');
+    if (!table) return;
+
+    table.querySelectorAll('tbody tr').forEach((row) => {
+      const el = row as HTMLElement;
+      const name = el.dataset.name ?? '';
+      const rowTier = el.dataset.tier ?? '';
+      const rowTag = el.dataset.tag ?? '';
+
+      const matchSearch = !search || name.includes(search);
+      const matchTier = !tier || rowTier === tier;
+      const matchTag = !tag || rowTag === tag;
+
+      el.style.display = matchSearch && matchTier && matchTag ? '' : 'none';
+    });
+  }
+
+  // ─── Member search & offline toggle ───────────────────────────
+  document.querySelectorAll('.show-offline').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      filterMembers((cb as HTMLInputElement).dataset.table!);
+    });
+  });
+
+  function filterMembers(tableId: string) {
+    // Find the members-section that contains the given table-id
+    const section = document.querySelector(`table[data-id="${tableId}"]`)?.closest('.members-section');
+    if (!section) return;
+    
+    const searchInput = section.querySelector('.search-input') as HTMLInputElement | null;
+    const offlineCb = section.querySelector('.show-offline') as HTMLInputElement | null;
+
+    const search = searchInput?.value.toLowerCase() ?? '';
+    const showOffline = offlineCb?.checked ?? true;
+
+    const table = section.querySelector('table');
+    if (!table) return;
+
+    table.querySelectorAll('tbody tr').forEach((row) => {
+      const el = row as HTMLElement;
+      const name = el.dataset.name ?? '';
+      const isOnline = el.dataset.online === 'true';
+
+      const matchSearch = !search || name.includes(search);
+      const matchOnline = showOffline || isOnline;
+
+      el.style.display = matchSearch && matchOnline ? '' : 'none';
+    });
+  }
+
+  // ─── Column sorting ──────────────────────────────────────────
+  document.querySelectorAll('.sortable').forEach((th) => {
+    th.addEventListener('click', () => {
+      const table = th.closest('table')!;
+      const tbody = table.querySelector('tbody')!;
+      const rows = [...tbody.querySelectorAll('tr')];
+      const colIndex = [...th.parentElement!.children].indexOf(th);
+      const isNum = th.classList.contains('num');
+
+      // Toggle direction
+      const currentDir = (th as HTMLElement).dataset.dir === 'asc' ? 'desc' : 'asc';
+      (th as HTMLElement).dataset.dir = currentDir;
+
+      rows.sort((a, b) => {
+        const aCell = a.children[colIndex]?.textContent?.trim() ?? '';
+        const bCell = b.children[colIndex]?.textContent?.trim() ?? '';
+
+        let cmp: number;
+        if (isNum) {
+          cmp = parseFloat(aCell.replace(/,/g, '') || '0') - parseFloat(bCell.replace(/,/g, '') || '0');
+        } else {
+          cmp = aCell.localeCompare(bCell);
+        }
+        return currentDir === 'asc' ? cmp : -cmp;
       });
 
-      document.querySelectorAll('.show-offline').forEach((cb) => {
-        cb.addEventListener('change', () => {
-          filterMembers((cb as HTMLInputElement).dataset.table!);
-        });
-      });
-
-      function filterMembers(tableId: string) {
-        const section = document.querySelector(`.members-section`)!;
-        const searchInput = section?.querySelector('.search-input') as HTMLInputElement | null;
-        const offlineCb = section?.querySelector('.show-offline') as HTMLInputElement | null;
-
-        const search = searchInput?.value.toLowerCase() ?? '';
-        const showOffline = offlineCb?.checked ?? true;
-
-        const table = section?.querySelector('table');
-        if (!table) return;
-
-        table.querySelectorAll('tbody tr').forEach((row) => {
-          const el = row as HTMLElement;
-          const name = el.dataset.name ?? '';
-          const isOnline = el.dataset.online === 'true';
-
-          const matchSearch = !search || name.includes(search);
-          const matchOnline = showOffline || isOnline;
-
-          el.style.display = matchSearch && matchOnline ? '' : 'none';
-        });
+      for (const row of rows) {
+        tbody.appendChild(row);
       }
-
-      // ─── Column sorting ──────────────────────────────────────────
-      document.querySelectorAll('.sortable').forEach((th) => {
-        th.addEventListener('click', () => {
-          const table = th.closest('table')!;
-          const tbody = table.querySelector('tbody')!;
-          const rows = [...tbody.querySelectorAll('tr')];
-          const colIndex = [...th.parentElement!.children].indexOf(th);
-          const sortKey = (th as HTMLElement).dataset.sort!;
-          const isNum = th.classList.contains('num');
-
-          // Toggle direction
-          const currentDir = (th as HTMLElement).dataset.dir === 'asc' ? 'desc' : 'asc';
-          (th as HTMLElement).dataset.dir = currentDir;
-
-          rows.sort((a, b) => {
-            const aCell = a.children[colIndex]?.textContent?.trim() ?? '';
-            const bCell = b.children[colIndex]?.textContent?.trim() ?? '';
-
-            let cmp: number;
-            if (isNum) {
-              cmp = parseFloat(aCell.replace(/,/g, '') || '0') - parseFloat(bCell.replace(/,/g, '') || '0');
-            } else {
-              cmp = aCell.localeCompare(bCell);
-            }
-            return currentDir === 'asc' ? cmp : -cmp;
-          });
-
-          for (const row of rows) {
-            tbody.appendChild(row);
-          }
-        });
-      });
-    </script>
-  </body>
-</html>
+    });
+  });
+</script>

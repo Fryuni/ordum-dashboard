@@ -18,15 +18,20 @@ const offline = members.filter((m) => !m.online);
   </div>
 
   <div class="filters">
-    <input type="text" class="search-input" placeholder="Search members..." data-table={`members-${claimName}`} />
+    <div class="search-input-wrapper">
+      <span class="search-icon">🔍</span>
+      <input type="text" class="search-input custom-input" placeholder="Search members..." data-table={`members-${claimName}`} />
+    </div>
+    
     <label class="toggle-label">
-      <input type="checkbox" class="show-offline" data-table={`members-${claimName}`} checked />
-      Show offline
+      <input type="checkbox" class="show-offline toggle-checkbox" data-table={`members-${claimName}`} checked />
+      <span class="toggle-slider"></span>
+      <span class="toggle-text">Show offline</span>
     </label>
   </div>
 
   <div class="table-wrapper">
-    <table class="members-table" data-id={`members-${claimName}`}>
+    <table class="members-table modern-table" data-id={`members-${claimName}`}>
       <thead>
         <tr>
           <th>Status</th>
@@ -48,13 +53,16 @@ const offline = members.filter((m) => !m.online);
             m.inventory_permission && "Inventory",
           ].filter(Boolean);
           return (
-            <tr class={m.online ? 'online' : 'offline'} data-name={m.user_name.toLowerCase()} data-online={m.online ? 'true' : 'false'}>
-              <td>
+            <tr class={m.online ? 'online' : 'offline-row'} data-name={m.user_name.toLowerCase()} data-online={m.online ? 'true' : 'false'}>
+              <td class="status-cell">
                 <span class={`status-dot ${m.online ? 'online' : 'offline'}`} />
+                <span class="status-text">{m.online ? 'Online' : 'Offline'}</span>
               </td>
               <td class="member-name">{m.user_name}</td>
               <td class="perms-cell">
-                {perms.length > 0 ? perms.join(', ') : '—'}
+                <div class="perms-list">
+                  {perms.length > 0 ? perms.map(p => <span class="perm-badge">{p}</span>) : <span class="text-muted">—</span>}
+                </div>
               </td>
               <td class="skills-cell">
                 {topSkills.length > 0 ? (
@@ -65,21 +73,22 @@ const offline = members.filter((m) => !m.online);
                       </span>
                     ))}
                   </div>
-                ) : '—'}
+                ) : <span class="text-muted">—</span>}
               </td>
               <td class="inventory-cell">
                 {m.inventory_items.length > 0 ? (
-                  <details>
+                  <details class="loc-details">
                     <summary>{m.inventory_items.length} items</summary>
                     <ul class="inv-list">
                       {m.inventory_items.map((item) => (
                         <li>
-                          {item.name} <span class="loc-qty">×{item.quantity}</span>
+                          <span class="item-name">{item.name}</span>
+                          <span class="loc-qty font-mono">×{item.quantity}</span>
                         </li>
                       ))}
                     </ul>
                   </details>
-                ) : '—'}
+                ) : <span class="text-muted">—</span>}
               </td>
             </tr>
           );
@@ -88,3 +97,229 @@ const offline = members.filter((m) => !m.online);
     </table>
   </div>
 </div>
+
+<style>
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .section-header h3 {
+    font-size: 1.1rem;
+    color: var(--text);
+    margin: 0;
+  }
+  .badge {
+    background: var(--bg-surface-3);
+    color: var(--text-muted);
+    padding: 4px 10px;
+    border-radius: 16px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    border: 1px solid var(--border);
+  }
+
+  .filters {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .search-input-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 260px;
+    max-width: 400px;
+  }
+  .search-icon {
+    position: absolute;
+    left: 10px;
+    font-size: 0.9rem;
+    pointer-events: none;
+    color: var(--text-muted);
+  }
+  .custom-input {
+    background: var(--bg-surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    height: 34px;
+    color: var(--text);
+    font-size: 0.85rem;
+    outline: none;
+    transition: all 0.2s ease;
+    width: 100%;
+    padding: 0 12px 0 36px;
+  }
+  .custom-input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  /* Custom Toggle Switch */
+  .toggle-label {
+    display: inline-flex;
+    align-items: center;
+    cursor: pointer;
+    gap: 12px;
+  }
+  .toggle-checkbox { display: none; }
+  .toggle-slider {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    background-color: var(--bg-surface-3);
+    border-radius: 24px;
+    transition: 0.3s;
+    border: 1px solid var(--border);
+  }
+  .toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: var(--text-muted);
+    border-radius: 50%;
+    transition: 0.3s;
+  }
+  .toggle-checkbox:checked + .toggle-slider {
+    background-color: var(--accent);
+    border-color: var(--accent);
+  }
+  .toggle-checkbox:checked + .toggle-slider:before {
+    transform: translateX(20px);
+    background-color: #fff;
+  }
+  .toggle-text {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+  .toggle-checkbox:checked ~ .toggle-text {
+    color: var(--text);
+  }
+
+  /* Table styling identical to ResourceTable */
+  .table-wrapper {
+    overflow-x: auto;
+    background: var(--bg-surface-2);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+  .modern-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+  }
+  .modern-table th {
+    background: rgba(26, 31, 46, 0.8);
+    backdrop-filter: blur(8px);
+    padding: 10px 12px;
+    color: var(--text-muted);
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    border-bottom: 1px solid var(--border);
+  }
+  .modern-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    font-size: 0.85rem;
+    vertical-align: middle;
+  }
+  .modern-table tbody tr:last-child td { border-bottom: none; }
+  .modern-table tbody tr { transition: background 0.2s; }
+  .modern-table tbody tr:hover { background: var(--bg-surface-3); }
+
+  .status-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .status-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+  }
+  .status-dot.online { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .status-dot.offline { background: var(--text-muted); }
+  .status-text { font-size: 0.8rem; color: var(--text-muted); }
+
+  .member-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  .offline-row .member-name { color: var(--text-muted); font-weight: 500; }
+
+  .perms-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .perm-badge {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .skill-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .skill-chip {
+    background: var(--bg-surface);
+    border: 1px solid rgba(108, 140, 255, 0.2);
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    color: var(--text);
+  }
+  .skill-chip strong { color: var(--accent); margin-left: 4px; }
+
+  .text-muted { color: var(--text-muted); }
+  
+  .loc-details summary {
+    cursor: pointer;
+    color: var(--accent);
+    font-size: 0.85rem;
+    font-weight: 500;
+    user-select: none;
+    outline: none;
+  }
+  .loc-details summary:hover { text-decoration: underline; }
+  .inv-list {
+    list-style: none;
+    margin-top: 8px;
+    padding: 8px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 0.85rem;
+  }
+  .inv-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .inv-list li:last-child { border-bottom: none; }
+  .item-name { color: var(--text-muted); }
+  .loc-qty { color: var(--accent-4); font-weight: 600; }
+  .font-mono { font-family: monospace; }
+</style>

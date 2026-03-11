@@ -1,4 +1,5 @@
 ---
+import Layout from "../layouts/Layout.astro";
 import { loadGameData } from "../lib/gamedata";
 import { buildSettlementPlan } from "../lib/settlement-planner";
 import { API_BASE_URL, ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
@@ -46,287 +47,199 @@ for (const section of ["players", "players_offline"]) {
 
 // Build plan
 const plans = buildSettlementPlan(gd, currentTier, learnedIds, supplies, inventory);
-const nextTierPlan = plans[0];
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Settlement Planner — {claimName}</title>
-    <style>
-      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<Layout title={`Settlement Planner — ${claimName}`} activePage="settlement">
+  <div class="page-header">
+    <h1>🏰 Settlement Planner</h1>
+    <p class="subtitle">Track research requirements and item availability for {claimName}</p>
+  </div>
 
-      :root {
-        --bg: #0f1117;
-        --surface: #1a1d27;
-        --surface-2: #242836;
-        --border: #2e3347;
-        --text: #e1e4ed;
-        --text-dim: #8b90a5;
-        --accent: #6c8cff;
-        --accent-2: #ff8c6c;
-        --accent-3: #6cffb8;
-        --accent-4: #ffd06c;
-        --green: #4ade80;
-        --red: #f87171;
-      }
-
-      body {
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        background: var(--bg);
-        color: var(--text);
-        line-height: 1.5;
-        min-height: 100vh;
-      }
-
-      .dashboard {
-        max-width: 1400px;
-        margin: 0 auto;
-        padding: 24px;
-      }
-
-      /* Nav */
-      .nav {
-        display: flex;
-        gap: 16px;
-        margin-bottom: 24px;
-        padding-bottom: 16px;
-        border-bottom: 1px solid var(--border);
-        align-items: center;
-      }
-      .nav a {
-        color: var(--text-dim);
-        text-decoration: none;
-        padding: 6px 14px;
-        border-radius: 8px;
-        font-size: 0.9rem;
-        transition: all 0.2s;
-      }
-      .nav a:hover { color: var(--text); background: var(--surface); }
-      .nav a.active { color: var(--accent); background: var(--surface); }
-
-      /* Header */
-      .header {
-        text-align: center;
-        padding: 24px 0;
-        margin-bottom: 24px;
-      }
-      .header h1 {
-        font-size: 1.8rem;
-        font-weight: 700;
-        background: linear-gradient(135deg, var(--accent), var(--accent-4));
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-      }
-      .header .subtitle { color: var(--text-dim); margin-top: 4px; font-size: 0.9rem; }
-
-      /* Claim Status Bar */
-      .status-bar {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 16px 24px;
-        margin-bottom: 32px;
-        display: flex;
-        align-items: center;
-        gap: 24px;
-        flex-wrap: wrap;
-      }
-      .status-bar .claim-name { font-size: 1.2rem; font-weight: 600; }
-      .status-bar .meta { color: var(--text-dim); font-size: 0.85rem; }
-      .status-bar .meta span { margin-right: 16px; }
-
-      /* Tier Plans */
-      .tier-plan {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 24px;
-        margin-bottom: 24px;
-      }
-      .tier-plan.next-tier { border-color: var(--accent); }
-      .tier-plan.completed { opacity: 0.6; }
-
-      .tier-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
-        flex-wrap: wrap;
-        gap: 12px;
-      }
-      .tier-header h3 { font-size: 1.3rem; display: flex; align-items: center; gap: 8px; }
-      .done-badge {
-        background: var(--green);
-        color: #000;
-        padding: 2px 10px;
-        border-radius: 12px;
-        font-size: 0.7rem;
-        font-weight: 700;
-        text-transform: uppercase;
-      }
-      .supplies-indicator { font-size: 0.85rem; }
-      .supplies-indicator.ok { color: var(--green); }
-      .supplies-indicator.deficit { color: var(--red); }
-      .deficit-text { font-weight: 600; }
-
-      /* Research Cards */
-      .research-card {
-        background: var(--surface-2);
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 16px;
-        margin-bottom: 12px;
-      }
-      .research-card.done { opacity: 0.5; }
-      .research-card.pending { border-left: 3px solid var(--accent-4); }
-
-      .research-header {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex-wrap: wrap;
-      }
-      .research-status { font-size: 1.1rem; }
-      .research-type {
-        background: var(--surface);
-        color: var(--text-dim);
-        padding: 2px 8px;
-        border-radius: 4px;
-        font-size: 0.7rem;
-        text-transform: uppercase;
-      }
-      .supplies-cost { margin-left: auto; color: var(--text-dim); font-size: 0.8rem; }
-
-      .research-items { margin-top: 12px; }
-
-      .item-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 6px 0;
-        font-size: 0.85rem;
-        border-bottom: 1px solid var(--border);
-      }
-      .item-row:last-child { border-bottom: none; }
-      .item-row .item-name { flex: 1; }
-      .item-row .item-qty { font-family: monospace; }
-      .item-row .item-status { font-size: 0.8rem; }
-
-      .have-enough { color: var(--green); font-weight: 600; }
-      .not-enough { color: var(--red); font-weight: 600; }
-
-      /* Researches Grid */
-      .researches-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-        gap: 12px;
-      }
-      .research-card.compact { margin-bottom: 0; }
-
-      /* Items Summary */
-      .items-summary {
-        margin-top: 20px;
-        background: var(--surface-2);
-        border: 1px solid var(--border);
-        border-radius: 10px;
-        padding: 20px;
-      }
-      .items-summary h4 {
-        margin-bottom: 16px;
-        font-size: 1rem;
-      }
-      .summary-row {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        padding: 8px 0;
-        font-size: 0.85rem;
-        border-bottom: 1px solid var(--border);
-      }
-      .summary-row:last-child { border-bottom: none; }
-      .summary-row .item-name { flex: 1; font-weight: 500; }
-      .summary-row .summary-qty { font-family: monospace; min-width: 120px; text-align: right; }
-      .deficit-label { color: var(--red); font-weight: 600; font-size: 0.8rem; }
-      .ok-label { color: var(--green); }
-
-      /* Tier badges */
-      .tier { padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
-      .tier-1 { background: #374151; color: #d1d5db; }
-      .tier-2 { background: #1e3a2f; color: #6ee7b7; }
-      .tier-3 { background: #1e2d4a; color: #93c5fd; }
-      .tier-4 { background: #2d1f4e; color: #c4b5fd; }
-      .tier-5 { background: #3d2c0f; color: #fcd34d; }
-      .tier--1, .tier-0 { background: #2d2d2d; color: #9ca3af; }
-
-      /* Tier nav */
-      .tier-nav {
-        display: flex;
-        gap: 8px;
-        margin-bottom: 24px;
-        flex-wrap: wrap;
-      }
-      .tier-nav a {
-        padding: 8px 16px;
-        border-radius: 8px;
-        background: var(--surface);
-        border: 1px solid var(--border);
-        color: var(--text-dim);
-        text-decoration: none;
-        font-size: 0.85rem;
-        transition: all 0.2s;
-      }
-      .tier-nav a:hover { border-color: var(--accent); color: var(--text); }
-      .tier-nav a.current { border-color: var(--accent); color: var(--accent); font-weight: 600; }
-
-      @media (max-width: 768px) {
-        .dashboard { padding: 12px; }
-        .researches-grid { grid-template-columns: 1fr; }
-        .status-bar { flex-direction: column; align-items: flex-start; gap: 8px; }
-      }
-    </style>
-  </head>
-
-  <body>
-    <div class="dashboard">
-      <nav class="nav">
-        <a href="/">📊 Dashboard</a>
-        <a href="/settlement" class="active">🏰 Settlement Planner</a>
-        <a href="/craft">⚒️ Craft Planner</a>
-      </nav>
-
-      <div class="header">
-        <h1>🏰 Settlement Planner</h1>
-        <p class="subtitle">Track research requirements and item availability for settlement upgrades</p>
-      </div>
-
-      <div class="status-bar">
-        <span class="claim-name">👑 {claimName}</span>
-        <div class="meta">
-          <span>⭐ Current Tier: <strong>{currentTier}</strong></span>
-          <span>📦 Supplies: <strong>{supplies.toLocaleString()}</strong></span>
-          <span>🔬 Researched: <strong>{learnedIds.size}</strong> / {gd.claimTechs.length}</span>
-        </div>
-      </div>
-
-      <div class="tier-nav">
-        {plans.map((p, i) => (
-          <a
-            href={`#tier-${p.tier}`}
-            class={i === 0 ? 'current' : ''}
-          >
-            Tier {p.tier}
-            {p.researches.every(r => r.already_researched) && p.tier_upgrade?.already_researched ? ' ✅' : ''}
-          </a>
-        ))}
-      </div>
-
-      {plans.map((plan, i) => (
-        <TierPlan plan={plan} isNextTier={i === 0} />
-      ))}
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-label">Current Tier</div>
+      <div class="kpi-value text-accent">{currentTier}</div>
     </div>
-  </body>
-</html>
+    <div class="kpi-card">
+      <div class="kpi-label">Available Supplies</div>
+      <div class="kpi-value">{supplies.toLocaleString()}</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Techs Researched</div>
+      <div class="kpi-value">{learnedIds.size} <span class="kpi-muted">/ {gd.claimTechs.length}</span></div>
+    </div>
+  </div>
+
+  <div class="timeline-nav-container">
+    <div class="timeline-nav">
+      {plans.map((p, i) => {
+        const allDone = p.researches.every(r => r.already_researched) && p.tier_upgrade?.already_researched;
+        const isNext = i === 0;
+        
+        let stateClass = "tl-future";
+        if (allDone) stateClass = "tl-done";
+        else if (isNext) stateClass = "tl-active";
+
+        return (
+          <a href={`#tier-${p.tier}`} class={`tl-node ${stateClass}`}>
+            <span class="tl-circle">{allDone ? '✓' : p.tier}</span>
+            <span class="tl-label">Tier {p.tier}</span>
+          </a>
+        );
+      })}
+    </div>
+  </div>
+
+  <div class="plans-container">
+    {plans.map((plan, i) => (
+      <TierPlan plan={plan} isNextTier={i === 0} />
+    ))}
+  </div>
+</Layout>
+
+<style>
+  /* Page Header */
+  .page-header {
+    text-align: center;
+    padding: 8px 0 12px;
+    margin-bottom: 12px;
+  }
+  .page-header h1 {
+    font-size: 1.3rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent), var(--accent-4));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 4px;
+    letter-spacing: -0.5px;
+  }
+  .page-header .subtitle {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+
+  /* KPI Row */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: linear-gradient(145deg, var(--bg-surface), var(--bg-surface-2));
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .kpi-label {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    font-weight: 600;
+    margin-bottom: 8px;
+  }
+  .kpi-value {
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--text);
+  }
+  .text-accent { color: var(--accent); }
+  .kpi-muted { color: var(--text-muted); font-size: 1rem; font-weight: 500; }
+
+  /* Timeline Nav */
+  .timeline-nav-container {
+    margin-bottom: 16px;
+    overflow-x: auto;
+    padding: 16px 0;
+  }
+  .timeline-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    min-width: 600px;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+  /* The connecting line */
+  .timeline-nav::before {
+    content: '';
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    right: 20px;
+    height: 2px;
+    background: var(--bg-surface-3);
+    z-index: 0;
+  }
+
+  .tl-node {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  
+  .tl-circle {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.7rem;
+    background: var(--bg-surface);
+    border: 2px solid var(--border);
+    color: var(--text-muted);
+    transition: all 0.3s ease;
+  }
+  .tl-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    transition: all 0.3s ease;
+  }
+
+  /* Timeline States */
+  .tl-done .tl-circle {
+    background: var(--green);
+    border-color: var(--green);
+    color: var(--bg-base);
+  }
+  .tl-done .tl-label { color: var(--green); }
+
+  .tl-active .tl-circle {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-glow);
+    transform: scale(1.1);
+  }
+  .tl-active .tl-label { color: var(--accent); font-weight: 700; }
+
+  .tl-node:hover .tl-circle {
+    border-color: var(--text);
+    color: var(--text);
+  }
+
+  .plans-container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  @media (max-width: 768px) {
+    .kpi-row { grid-template-columns: 1fr; }
+  }
+</style>
