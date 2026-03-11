@@ -725,7 +725,7 @@ export class BitcraftApiClient {
   /**
    * `GET /api/bitcraft/inventorys/owner_entity_id/{id}`
    */
-  async findInventoryByOwnerEntityId(id: number): Promise<InventorysResponse> {
+  async findInventoryByOwnerEntityId(id: string | number): Promise<InventorysResponse> {
     return this.request<InventorysResponse>(`/api/bitcraft/inventorys/owner_entity_id/${id}`);
   }
 
