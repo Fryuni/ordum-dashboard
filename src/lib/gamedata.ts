@@ -156,11 +156,22 @@ export interface GameConstructionRecipe {
 
 // ─── Indexed Game Data ─────────────────────────────────────────────────────────
 
+/** Maps an "Output" item to its resolved real items via item_list_id */
+export interface ItemListResolution {
+  outputItemId: number;
+  realItemType: "Item" | "Cargo";
+  realItemId: number;
+  quantity: number; // quantity from the highest-probability possibility
+}
+
 export interface GameData {
   items: Map<number, GameItemDesc>;
   cargo: Map<number, GameCargoDesc>;
   recipes: GameCraftingRecipe[];
   recipesByOutput: Map<string, GameCraftingRecipe[]>; // "Item:id" or "Cargo:id"
+  /** Recipes that produce an item indirectly via item list resolution (Output items).
+   *  Key is "ItemType:realItemId", value is { recipe, outputQuantity per craft } */
+  recipesByResolvedOutput: Map<string, { recipe: GameCraftingRecipe; outputPerCraft: number }[]>;
   extractionRecipes: GameExtractionRecipe[];
   extractionByOutput: Map<string, GameExtractionRecipe[]>;
   claimTechs: GameClaimTech[];
@@ -213,6 +224,41 @@ export function loadGameData(gamedataDir?: string): GameData {
     }
   }
 
+  // Build item_list_id → output item id lookup, and resolve Output items to real items.
+  // Many recipes produce "Output" items (e.g. "Rough Wood Log Output") whose item_list_id
+  // points to an item list that resolves to the real item (e.g. "Rough Wood Log").
+  // We index these so the craft planner can find recipes for real items that are only
+  // produced indirectly through item lists.
+  const recipesByResolvedOutput = new Map<string, { recipe: GameCraftingRecipe; outputPerCraft: number }[]>();
+
+  // Map: item_list_id → GameItemListDesc
+  const itemListById = new Map<number, GameItemListDesc>();
+  for (const il of rawItemLists) itemListById.set(il.id, il);
+
+  // For each recipe output that is an "Output" item (has item_list_id), resolve it
+  for (const r of rawRecipes) {
+    for (const out of r.crafted_item_stacks) {
+      if (out.item_type !== "Item") continue;
+      const outputItem = items.get(out.item_id);
+      if (!outputItem || outputItem.item_list_id === 0) continue;
+
+      const itemList = itemListById.get(outputItem.item_list_id);
+      if (!itemList) continue;
+
+      // Take the highest-probability possibility to determine the real output
+      const bestPossibility = itemList.possibilities.reduce((best, p) =>
+        p.probability > best.probability ? p : best, itemList.possibilities[0]);
+      if (!bestPossibility) continue;
+
+      for (const realItem of bestPossibility.items) {
+        const realKey = `${realItem.item_type}:${realItem.item_id}`;
+        const outputPerCraft = realItem.quantity * out.quantity;
+        if (!recipesByResolvedOutput.has(realKey)) recipesByResolvedOutput.set(realKey, []);
+        recipesByResolvedOutput.get(realKey)!.push({ recipe: r, outputPerCraft });
+      }
+    }
+  }
+
   // Index extraction recipes by output
   const extractionByOutput = new Map<string, GameExtractionRecipe[]>();
   for (const r of rawExtraction) {
@@ -253,6 +299,7 @@ export function loadGameData(gamedataDir?: string): GameData {
     cargo,
     recipes: rawRecipes,
     recipesByOutput,
+    recipesByResolvedOutput,
     extractionRecipes: rawExtraction,
     extractionByOutput,
     claimTechs: rawClaimTechs,

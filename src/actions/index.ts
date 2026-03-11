@@ -2,7 +2,7 @@ import { defineAction, ActionError } from "astro:actions";
 import { z } from "astro/zod";
 import { loadGameData } from "../lib/gamedata";
 import { buildCraftPlan, searchItems, type CraftTarget } from "../lib/craft-planner";
-import { API_BASE_URL } from "../lib/ordum-data";
+import { api } from "../lib/api";
 
 const gd = loadGameData();
 
@@ -49,13 +49,9 @@ export const server = {
 
       if (player) {
         try {
-          const playersResp = await fetch(
-            `${API_BASE_URL}/players?search=${encodeURIComponent(player)}&per_page=5`,
-            { headers: { Accept: "application/json" } },
-          );
-          const playersData = await playersResp.json();
+          const playersData = await api.listPlayers({ search: player, per_page: 5 });
           const found = playersData.players?.find(
-            (p: any) => p.username?.toLowerCase() === player.toLowerCase(),
+            (p) => p.username?.toLowerCase() === player.toLowerCase(),
           );
 
           if (found) {
@@ -65,7 +61,7 @@ export const server = {
               signed_in: found.signed_in,
             };
 
-            const pockets = found.pockets ?? [];
+            const pockets = (found as any).pockets ?? [];
             for (const pocket of pockets) {
               if (pocket?.contents) {
                 const c = pocket.contents;

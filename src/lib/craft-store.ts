@@ -63,15 +63,9 @@ export const $searchResults = computed([$searchQuery, $itemIndex], (query, index
 // Computed: can add item?
 export const $canAdd = computed($selectedItem, (item) => item !== null);
 
-// Computed: can calculate?
-export const $canCalculate = computed($targets, (targets) => targets.length > 0);
-
 // ─── Craft Plan (async) ────────────────────────────────────────────────────────
 
-/**
- * A "trigger" atom: bump this to fire off a craft plan request.
- * The value is the serialized request params, or null if nothing requested yet.
- */
+/** Derived request object — recomputes whenever player or targets change. */
 export const $craftRequest = computed([$player, $targets], (player, t) => ({
   player,
   items: t,
@@ -108,7 +102,13 @@ export function addTarget() {
   const item = $selectedItem.get();
   if (!item) return;
   const qty = $quantity.get() || 1;
-  $targets.set([...$targets.get(), { ...item, quantity: qty }]);
+  const existing = $targets.get();
+  const idx = existing.findIndex(t => t.id === item.id && t.type === item.type);
+  if (idx >= 0) {
+    $targets.set(existing.map((t, i) => i === idx ? { ...t, quantity: t.quantity + qty } : t));
+  } else {
+    $targets.set([...existing, { ...item, quantity: qty }]);
+  }
   $selectedItem.set(null);
   $searchQuery.set('');
   $quantity.set(1);
@@ -121,9 +121,4 @@ export function removeTarget(index: number) {
 
 export function clearAll() {
   $targets.set([]);
-}
-
-export function calculate() {
-  const t = $targets.get();
-  if (t.length === 0) return;
 }

@@ -181,14 +181,10 @@ function mergeResources(items: ResourceItem[]): ResourceItem[] {
  * the raw string form in the URL.
  */
 export async function fetchClaimData(
-  _client: BitcraftApiClient,
+  client: BitcraftApiClient,
   claimIdStr: string,
 ): Promise<ClaimSummary> {
-  const resp = await fetch(`${API_BASE_URL}/api/bitcraft/claims/${claimIdStr}`, {
-    headers: { Accept: "application/json" },
-  });
-  if (!resp.ok) throw new Error(`Failed to fetch claim ${claimIdStr}: ${resp.status}`);
-  const raw: ClaimDescriptionStateWithInventoryAndPlayTime = await resp.json();
+  const raw = await client.getClaim(claimIdStr);
 
   // Parse building resources (with locations)
   const buildingLocs: ResourceWithLocations[] = [];
@@ -302,10 +298,9 @@ export async function fetchClaimData(
 }
 
 export async function fetchEmpireData(
+  client: BitcraftApiClient,
   claimIds: { id: string; name: string }[] = EMPIRE_CLAIM_IDS,
 ): Promise<EmpireSummary> {
-  const client = new BitcraftApiClient({ baseUrl: API_BASE_URL, timeout: 60_000 });
-
   const claims: ClaimSummary[] = [];
   for (const { id } of claimIds) {
     try {

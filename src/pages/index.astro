@@ -1,11 +1,12 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import { fetchEmpireData } from "../lib/ordum-data";
+import { api } from "../lib/api";
 import ResourceTable from "../components/ResourceTable.astro";
 import MembersTable from "../components/MembersTable.astro";
 import StatCard from "../components/StatCard.astro";
 
-const empire = await fetchEmpireData();
+const empire = await fetchEmpireData(api);
 const mainClaim = empire.claims[0]; // Ordum City (leader)
 ---
 

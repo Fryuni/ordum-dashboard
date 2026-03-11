@@ -43,21 +43,31 @@ export interface CraftStep {
   depth: number;
 }
 
+export interface RawMaterialSource {
+  resource_name: string;
+  verb: string;
+}
+
+export interface RawMaterial {
+  item_id: number;
+  item_type: "Item" | "Cargo";
+  name: string;
+  tier: number;
+  tag: string;
+  total_needed: number;
+  available: number;
+  deficit: number;
+  source: string;
+  skill_requirements: { skill: string; level: number }[];
+  tool_requirements: { tool: string; level: number }[];
+  resource_sources: RawMaterialSource[];
+}
+
 export interface CraftPlan {
   target: CraftTarget;
   target_name: string;
   steps: CraftStep[];
-  raw_materials: {
-    item_id: number;
-    item_type: "Item" | "Cargo";
-    name: string;
-    tier: number;
-    tag: string;
-    total_needed: number;
-    available: number;
-    deficit: number;
-    source: string;
-  }[];
+  raw_materials: RawMaterial[];
   already_have: { item_id: number; item_type: "Item" | "Cargo"; name: string; quantity: number }[];
 }
 
@@ -87,11 +97,7 @@ function buildSinglePlan(
   available: Map<string, number>,
 ): CraftPlan {
   const steps: CraftStep[] = [];
-  const rawTotals = new Map<string, {
-    item_id: number; item_type: "Item" | "Cargo";
-    name: string; tier: number; tag: string;
-    total_needed: number; source: string;
-  }>();
+  const rawTotals = new Map<string, Omit<RawMaterial, "available" | "deficit">>();
   const alreadyHave: { item_id: number; item_type: "Item" | "Cargo"; name: string; quantity: number }[] = [];
 
   // Recursive resolve with global cycle detection
@@ -130,8 +136,22 @@ function buildSinglePlan(
     }
 
     // Find crafting recipe (skip packaging/unpackaging)
-    const recipes = (gd.recipesByOutput.get(key) ?? []).filter((r) => !shouldSkipRecipe(r));
-    const recipe = pickBestRecipe(recipes);
+    // First check direct recipes, then fall back to resolved item list recipes
+    const directRecipes = (gd.recipesByOutput.get(key) ?? []).filter((r) => !shouldSkipRecipe(r));
+    let recipe = pickBestRecipe(directRecipes);
+    let resolvedOutputPerCraft: number | null = null;
+
+    if (!recipe) {
+      // Check for recipes that produce this item indirectly via item lists
+      // (e.g. "Split into" Rough Wood Trunk → "Rough Wood Log Output" → Rough Wood Log)
+      const resolvedRecipes = (gd.recipesByResolvedOutput.get(key) ?? [])
+        .filter((r) => !shouldSkipRecipe(r.recipe));
+      if (resolvedRecipes.length > 0) {
+        const best = resolvedRecipes[0];
+        recipe = best.recipe;
+        resolvedOutputPerCraft = best.outputPerCraft;
+      }
+    }
 
     if (!recipe) {
       addRaw(key, itemType, itemId, stillNeed);
@@ -141,17 +161,24 @@ function buildSinglePlan(
     resolving.add(key);
 
     // Calculate craft count
-    const outputStack = recipe.crafted_item_stacks.find(
-      (s) => s.item_type === itemType && s.item_id === itemId,
-    );
-    const outputQty = outputStack?.quantity ?? 1;
+    // For resolved recipes, use the pre-computed output quantity from item list resolution
+    let outputQty: number;
+    if (resolvedOutputPerCraft !== null) {
+      outputQty = resolvedOutputPerCraft;
+    } else {
+      const outputStack = recipe.crafted_item_stacks.find(
+        (s) => s.item_type === itemType && s.item_id === itemId,
+      );
+      outputQty = outputStack?.quantity ?? 1;
+    }
     const craftCount = Math.ceil(stillNeed / outputQty);
 
     // Build inputs list
     const inputs = recipe.consumed_item_stacks.map((inp) => {
       const inpKey = `${inp.item_type}:${inp.item_id}`;
-      const validRecipes = (gd.recipesByOutput.get(inpKey) ?? []).filter((r) => !shouldSkipRecipe(r));
-      const isRaw = validRecipes.length === 0;
+      const directValid = (gd.recipesByOutput.get(inpKey) ?? []).filter((r) => !shouldSkipRecipe(r));
+      const resolvedValid = (gd.recipesByResolvedOutput.get(inpKey) ?? []).filter((r) => !shouldSkipRecipe(r.recipe));
+      const isRaw = directValid.length === 0 && resolvedValid.length === 0;
       return {
         item_id: inp.item_id,
         item_type: inp.item_type,
@@ -203,11 +230,15 @@ function buildSinglePlan(
       existing.total_needed += quantity;
     } else {
       const info = getItemInfo(gd, itemType, itemId);
-      const source = getSourceVerb(gd, itemType, itemId);
+      const extractionInfo = getExtractionInfo(gd, itemType, itemId);
       rawTotals.set(key, {
         item_id: itemId, item_type: itemType,
         name: info.name, tier: info.tier, tag: info.tag,
-        total_needed: quantity, source,
+        total_needed: quantity,
+        source: extractionInfo.source,
+        skill_requirements: extractionInfo.skill_requirements,
+        tool_requirements: extractionInfo.tool_requirements,
+        resource_sources: extractionInfo.resource_sources,
       });
     }
   }
@@ -259,13 +290,50 @@ function pickBestRecipe(recipes: GameCraftingRecipe[]): GameCraftingRecipe | nul
   })[0];
 }
 
-function getSourceVerb(gd: GameData, itemType: "Item" | "Cargo", itemId: number): string {
+function getExtractionInfo(
+  gd: GameData,
+  itemType: "Item" | "Cargo",
+  itemId: number,
+): {
+  source: string;
+  skill_requirements: { skill: string; level: number }[];
+  tool_requirements: { tool: string; level: number }[];
+  resource_sources: RawMaterialSource[];
+} {
   const key = `${itemType}:${itemId}`;
-  const extraction = gd.extractionByOutput.get(key);
-  if (extraction && extraction.length > 0) {
-    return extraction[0].verb_phrase || "Gather";
+  const extractions = gd.extractionByOutput.get(key);
+  if (!extractions || extractions.length === 0) {
+    return { source: "Obtain", skill_requirements: [], tool_requirements: [], resource_sources: [] };
   }
-  return "Obtain";
+
+  // Use the first extraction recipe for skill/tool info (they're usually the same across all sources)
+  const first = extractions[0];
+  const source = first.verb_phrase || "Gather";
+  const skill_requirements = first.level_requirements.map((r) => ({
+    skill: getSkillName(gd, r.skill_id),
+    level: r.level,
+  }));
+  const tool_requirements = first.tool_requirements.map((t) => ({
+    tool: getToolTypeName(gd, t.tool_type),
+    level: t.level,
+  }));
+
+  // Collect all unique world resource sources
+  const seen = new Set<number>();
+  const resource_sources: RawMaterialSource[] = [];
+  for (const e of extractions) {
+    if (seen.has(e.resource_id)) continue;
+    seen.add(e.resource_id);
+    const res = gd.resources.get(e.resource_id);
+    if (res) {
+      resource_sources.push({
+        resource_name: res.name,
+        verb: e.verb_phrase || "Gather",
+      });
+    }
+  }
+
+  return { source, skill_requirements, tool_requirements, resource_sources };
 }
 
 // ─── Item Search Helper ────────────────────────────────────────────────────────

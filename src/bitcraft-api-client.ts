@@ -781,7 +781,7 @@ export class BitcraftApiClient {
   /**
    * `GET /api/bitcraft/claims/{id}`
    */
-  async getClaim(id: number): Promise<ClaimDescriptionStateWithInventoryAndPlayTime> {
+  async getClaim(id: string | number): Promise<ClaimDescriptionStateWithInventoryAndPlayTime> {
     return this.request<ClaimDescriptionStateWithInventoryAndPlayTime>(`/api/bitcraft/claims/${id}`);
   }
 

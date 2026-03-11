@@ -2,16 +2,14 @@
 import Layout from "../layouts/Layout.astro";
 import CraftPlanner from "../components/CraftPlanner.svelte";
 import { loadGameData } from "../lib/gamedata";
-import { API_BASE_URL, ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
+import { ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
+import { api } from "../lib/api";
 
 const gd = loadGameData();
 
 let members: { entity_id: number; user_name: string }[] = [];
 try {
-  const resp = await fetch(`${API_BASE_URL}/api/bitcraft/claims/${ORDUM_MAIN_CLAIM_ID}`, {
-    headers: { Accept: "application/json" },
-  });
-  const claim = await resp.json();
+  const claim = await api.getClaim(ORDUM_MAIN_CLAIM_ID);
   members = Object.values(claim.members ?? {})
     .map((m: any) => ({ entity_id: m.entity_id, user_name: m.user_name }))
     .sort((a: any, b: any) => a.user_name.localeCompare(b.user_name));

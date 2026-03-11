@@ -2,17 +2,15 @@
 import Layout from "../layouts/Layout.astro";
 import { loadGameData } from "../lib/gamedata";
 import { buildSettlementPlan } from "../lib/settlement-planner";
-import { API_BASE_URL, ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
+import { ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
+import { api } from "../lib/api";
 import TierPlan from "../components/TierPlan.astro";
 
 // Load game data
 const gd = loadGameData();
 
 // Fetch live claim data
-const resp = await fetch(`${API_BASE_URL}/api/bitcraft/claims/${ORDUM_MAIN_CLAIM_ID}`, {
-  headers: { Accept: "application/json" },
-});
-const claim = await resp.json();
+const claim = await api.getClaim(ORDUM_MAIN_CLAIM_ID);
 
 const currentTier = claim.tier ?? 1;
 const supplies = claim.supplies ?? 0;

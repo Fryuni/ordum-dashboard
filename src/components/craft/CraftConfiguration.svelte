@@ -2,10 +2,7 @@
   import { onMount } from 'svelte';
   import {
     $itemIndex as itemIndexStore,
-    $craftPlan as craftPlanStore,
-    $craftRequest as craftRequestStore,
-    $canCalculate as canCalculateStore,
-    calculate,
+    $targets as targetsStore,
     clearAll,
     type IndexItem,
   } from '../../lib/craft-store';
@@ -23,11 +20,6 @@
   onMount(() => {
     itemIndexStore.set(itemIndex);
   });
-
-  let isLoading = $derived(
-    ($craftPlanStore.state === 'loading' && !!$craftRequestStore) ||
-    ($craftPlanStore.state === 'loaded' && $craftPlanStore.changing)
-  );
 </script>
 
 <div class="planner-card">
@@ -38,17 +30,11 @@
   <ItemPicker />
   <ItemList />
 
-  <div class="form-actions">
-    <button
-      type="button"
-      class="btn btn-large btn-accent"
-      disabled={!$canCalculateStore || isLoading}
-      onclick={calculate}
-    >
-      {#if isLoading}⏳ Calculating...{:else}🔍 Calculate Craft Plan{/if}
-    </button>
-    <button type="button" class="btn btn-large btn-secondary" onclick={clearAll}>Clear All</button>
-  </div>
+  {#if $targetsStore.length > 0}
+    <div class="form-actions">
+      <button type="button" class="btn btn-secondary" onclick={clearAll}>Clear All</button>
+    </div>
+  {/if}
 </div>
 
 <style>
@@ -88,13 +74,6 @@
     justify-content: center;
   }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-large { font-size: 0.9rem; padding: 0 24px; }
-  .btn-accent { background: var(--accent); color: #fff; }
-  .btn-accent:hover:not(:disabled) {
-    background: #5b7be5;
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px var(--accent-glow);
-  }
   .btn-secondary {
     background: transparent;
     border: 1px solid var(--border);

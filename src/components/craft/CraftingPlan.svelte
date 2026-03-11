@@ -1,20 +1,35 @@
 <script lang="ts">
-  import { $craftPlan as craftPlanStore, $craftRequest as craftRequestStore } from '../../lib/craft-store';
+  import { $craftPlan as craftPlanStore, $targets as targetsStore } from '../../lib/craft-store';
   import RawMaterials from './RawMaterials.svelte';
   import CraftingSteps from './CraftingSteps.svelte';
+
+  let hasTargets = $derived($targetsStore.length > 0);
+  let isLoading = $derived(
+    $craftPlanStore.state === 'loading' ||
+    ($craftPlanStore.state !== 'loading' && $craftPlanStore.changing)
+  );
+  let hasPlan = $derived($craftPlanStore.state === 'loaded' && $craftPlanStore.value);
 </script>
 
+{#if hasTargets && isLoading}
+  <div class="loading-container">
+    <div class="spinner-wrap">
+      <div class="spinner"></div>
+      <span class="loading-text">Computing craft plan…</span>
+    </div>
+  </div>
+{/if}
+
 {#if $craftPlanStore.state === 'failed'}
-  <div class="loading" style="color: var(--red);">❌ {$craftPlanStore.error}</div>
+  <div class="error-banner">
+    <span class="error-icon">⚠</span>
+    <span>{$craftPlanStore.error}</span>
+  </div>
 {/if}
 
-{#if $craftPlanStore.state === 'loading' && $craftRequestStore}
-  <div class="loading">⏳ Calculating craft plan...</div>
-{/if}
-
-{#if $craftPlanStore.state === 'loaded' && $craftPlanStore.value}
+{#if hasPlan}
   {@const results = $craftPlanStore.value}
-  <div class="results">
+  <div class="results" class:faded={isLoading}>
     {#if results.player}
       <div class="player-context">
         👤 Player: <strong>{results.player.username}</strong>
@@ -56,11 +71,64 @@
 {/if}
 
 <style>
-  .loading {
-    text-align: center;
-    padding: 24px;
+  /* ─── Loading ───────────────────────────────────────────────── */
+  .loading-container {
+    display: flex;
+    justify-content: center;
+    padding: 20px 0 8px;
+  }
+  .spinner-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 8px 20px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+  }
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .loading-text {
+    font-size: 0.82rem;
     color: var(--text-muted);
-    font-size: 0.95rem;
+    font-weight: 500;
+  }
+
+  /* ─── Error ─────────────────────────────────────────────────── */
+  .error-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(248, 113, 113, 0.08);
+    border: 1px solid rgba(248, 113, 113, 0.25);
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    color: var(--red);
+    font-size: 0.85rem;
+  }
+  .error-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+
+  /* ─── Results ───────────────────────────────────────────────── */
+  .results {
+    transition: opacity 0.2s ease;
+  }
+  .results.faded {
+    opacity: 0.45;
+    pointer-events: none;
   }
   .player-context {
     margin-bottom: 16px;
