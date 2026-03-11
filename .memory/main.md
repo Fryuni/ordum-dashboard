@@ -40,6 +40,9 @@ src/components/craft/                   — split craft planner components:
 src/components/                         — ResourceTable, MembersTable, StatCard, TierPlan
 ```
 
+## Workflow
+- **Always `git commit` after completing each objective** the user gives
+
 ## Key Decisions
 - Entity IDs use **string form** in API URLs (exceed `Number.MAX_SAFE_INTEGER`)
 - Skip "Package"/"Unpack" recipes in craft planner to avoid cycles

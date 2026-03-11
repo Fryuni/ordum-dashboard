@@ -103,3 +103,25 @@ The project established a robust foundation with a custom TypeScript API client 
 - Enhanced the UI architecture by creating specialized components for crafting steps and raw material summaries, improving overall maintainability.
 - Decided to move toward a "thin orchestrator" pattern for the main planner component to simplify data flow and component testing.
 - Streamlined the reactive data flow between the UI and backend, ensuring that craft plans and search results respond automatically to state changes.
+
+---
+
+## Commit a3552c42 | 2026-03-11T03:03:26.284Z
+
+### Branch Purpose
+
+Dashboard for the Ordum empire in Bitcraft, utilizing a generated TypeScript API client and static game data to provide deep insights into resources, settlement research, and crafting logistics.
+
+### Previous Progress Summary
+
+The project established a robust foundation with a custom TypeScript API client generator for REST and WebSocket interfaces, strictly typed from Rust source code and utilizing string-based IDs for data integrity. The dashboard evolved into a sophisticated SSR-enabled tool featuring a recursive craft planner with cycle detection and a settlement research deficit tracker, integrated with comprehensive static game data. Recent iterations refined the user experience through a Svelte 5 conversion for fine-grained reactivity, the adoption of `computedAsync` for declarative async state, and a complete modular refactor of the craft planner into focused components using Astro Actions for type-safe server logic.
+
+### This Commit's Contribution
+
+- Eliminated the manual "Calculate" trigger in the craft planner, making plan generation fully reactive to changes in targets or player context by leveraging `computedAsync` stores.
+- Implemented a polished loading UX for the craft planner, featuring a center-aligned spinner and a fading effect on stale results to prevent jarring content flashes during updates.
+- Resolved a critical gap in recipe resolution by indexing "Output" items that resolve via item lists, correctly connecting resources like Rough Wood Logs to their gathered origins.
+- Enhanced the `addTarget` logic to automatically merge duplicate items by summing quantities rather than creating separate entries.
+- Refined the game data parser to build a reverse index of resolved outputs, allowing the recursive planner to trace recipes through item list indirection.
+- Formally adopted a workflow requirement to git-commit the `.memory/` directory after every agent memory checkpoint to ensure memory state is tracked in version control.
+- Improved UI resilience by implementing styled error banners and better state handling for failed async computations.
