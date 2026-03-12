@@ -58,8 +58,8 @@ const plans = buildSettlementPlan(gd, currentTier, learnedIds, supplies, invento
   </div>
 
   <div class="plans-container">
-    {plans.map((plan) => (
-      <TierPlan plan={plan} isNextTier={plan.tier === currentTier + 1} currentTier={currentTier} />
+    {plans.filter(p => p.tier === currentTier + 1).map((plan) => (
+      <TierPlan plan={plan} isNextTier={true} currentTier={currentTier} />
     ))}
   </div>
 </Layout>
