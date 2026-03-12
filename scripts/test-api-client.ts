@@ -15,7 +15,9 @@ import {
 
 const baseUrl = process.env.BITCRAFT_API_URL;
 if (!baseUrl) {
-  console.error("Error: set BITCRAFT_API_URL (e.g. https://craft-api.resubaka.dev)");
+  console.error(
+    "Error: set BITCRAFT_API_URL (e.g. https://craft-api.resubaka.dev)",
+  );
   process.exit(1);
 }
 
@@ -35,7 +37,9 @@ try {
 
   console.log(`✅ listPlayers returned successfully`);
   console.log(`   Total online players: ${res.total}`);
-  console.log(`   Page ${res.page}, showing ${res.players.length} of ${res.perPage} per page\n`);
+  console.log(
+    `   Page ${res.page}, showing ${res.players.length} of ${res.perPage} per page\n`,
+  );
 
   for (const p of res.players) {
     const status = p.signed_in ? "🟢 online" : "⚪ offline";
@@ -92,7 +96,9 @@ await new Promise<void>((resolve) => {
   };
 
   live.onError = () => {
-    console.log("⚠️  WebSocket error (server may not have live updates enabled)");
+    console.log(
+      "⚠️  WebSocket error (server may not have live updates enabled)",
+    );
     clearTimeout(timeout);
     live.disconnect();
     resolve();

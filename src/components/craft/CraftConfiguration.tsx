@@ -1,14 +1,14 @@
-import { useEffect } from 'preact/hooks';
-import { useStore } from '@nanostores/preact';
+import { useEffect } from "preact/hooks";
+import { useStore } from "@nanostores/preact";
 import {
   $itemIndex,
   $targets,
   clearAll,
   type IndexItem,
-} from '../../lib/craft-store';
-import PlayerPicker from './PlayerPicker';
-import ItemPicker from './ItemPicker';
-import ItemList from './ItemList';
+} from "../../lib/craft-store";
+import PlayerPicker from "./PlayerPicker";
+import ItemPicker from "./ItemPicker";
+import ItemList from "./ItemList";
 
 interface Props {
   itemIndex: IndexItem[];
@@ -33,7 +33,9 @@ export default function CraftConfiguration({ itemIndex, members = [] }: Props) {
 
       {targets.length > 0 && (
         <div class="form-actions">
-          <button type="button" class="btn btn-secondary" onClick={clearAll}>Clear All</button>
+          <button type="button" class="btn btn-secondary" onClick={clearAll}>
+            Clear All
+          </button>
         </div>
       )}
     </div>

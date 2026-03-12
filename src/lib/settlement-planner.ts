@@ -69,10 +69,14 @@ export function buildSettlementPlan(
 
   // Build plans for tiers from currentTier+1 up to 10
   for (let tier = currentTier + 1; tier <= 10; tier++) {
-    const tierTechs = gd.claimTechs.filter((t) => t.tier === tier && t.input.length > 0);
+    const tierTechs = gd.claimTechs.filter(
+      (t) => t.tier === tier && t.input.length > 0,
+    );
 
     // Find the TierUpgrade entry
-    const tierUpgradeTech = tierTechs.find((t) => t.tech_type === "TierUpgrade");
+    const tierUpgradeTech = tierTechs.find(
+      (t) => t.tech_type === "TierUpgrade",
+    );
     const otherTechs = tierTechs.filter((t) => t.tech_type !== "TierUpgrade");
 
     const buildReq = (tech: GameClaimTech): ResearchRequirement => {
@@ -107,16 +111,18 @@ export function buildSettlementPlan(
     };
 
     const tierUpgrade = tierUpgradeTech ? buildReq(tierUpgradeTech) : null;
-    const researches = otherTechs
-      .map(buildReq)
-      .sort((a, b) => {
-        // Sort: unresearched first, then by type name
-        if (a.already_researched !== b.already_researched) return a.already_researched ? 1 : -1;
-        return a.tech.name.localeCompare(b.tech.name);
-      });
+    const researches = otherTechs.map(buildReq).sort((a, b) => {
+      // Sort: unresearched first, then by type name
+      if (a.already_researched !== b.already_researched)
+        return a.already_researched ? 1 : -1;
+      return a.tech.name.localeCompare(b.tech.name);
+    });
 
     // Aggregate all items needed for this tier
-    const itemTotals = new Map<string, { item_id: number; item_type: "Item" | "Cargo"; total_required: number }>();
+    const itemTotals = new Map<
+      string,
+      { item_id: number; item_type: "Item" | "Cargo"; total_required: number }
+    >();
     const allReqs = tierUpgrade ? [tierUpgrade, ...researches] : researches;
     for (const req of allReqs) {
       if (req.already_researched) continue;
@@ -135,21 +141,23 @@ export function buildSettlementPlan(
       }
     }
 
-    const allItemsNeeded = [...itemTotals.entries()].map(([key, val]) => {
-      const info = getItemInfo(gd, val.item_type, val.item_id);
-      const available = inventory.get(key) ?? 0;
-      return {
-        item_id: val.item_id,
-        item_type: val.item_type,
-        name: info.name,
-        tier: info.tier,
-        tag: info.tag,
-        icon: info.icon,
-        total_required: val.total_required,
-        total_available: available,
-        deficit: Math.max(0, val.total_required - available),
-      };
-    }).sort((a, b) => b.deficit - a.deficit);
+    const allItemsNeeded = [...itemTotals.entries()]
+      .map(([key, val]) => {
+        const info = getItemInfo(gd, val.item_type, val.item_id);
+        const available = inventory.get(key) ?? 0;
+        return {
+          item_id: val.item_id,
+          item_type: val.item_type,
+          name: info.name,
+          tier: info.tier,
+          tag: info.tag,
+          icon: info.icon,
+          total_required: val.total_required,
+          total_available: available,
+          deficit: Math.max(0, val.total_required - available),
+        };
+      })
+      .sort((a, b) => b.deficit - a.deficit);
 
     const totalSuppliesNeeded = allReqs
       .filter((r) => !r.already_researched)

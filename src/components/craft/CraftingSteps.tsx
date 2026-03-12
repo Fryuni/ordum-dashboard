@@ -1,6 +1,7 @@
-import CraftStep from './CraftStep';
+import type { CraftStep as Step } from "../../lib/craft-planner";
+import CraftStep from "./CraftStep";
 
-export default function CraftingSteps({ steps }: { steps: any[] }) {
+export default function CraftingSteps({ steps }: { steps: Step[] }) {
   if (steps.length === 0) return null;
 
   return (

@@ -7,6 +7,7 @@
       "dependencies": {
         "@astrojs/node": "^10.0.0",
         "@astrojs/preact": "^5.0.0",
+        "@inox-tools/utils": "^1.1.1",
         "@nanostores/persistent": "^1.3.3",
         "@nanostores/preact": "^1.0.0",
         "astro": "^6.0.2",
@@ -188,6 +189,8 @@
     "@img/sharp-win32-ia32": ["@img/sharp-win32-ia32@0.34.5", "", { "os": "win32", "cpu": "ia32" }, "sha512-FV9m/7NmeCmSHDD5j4+4pNI8Cp3aW+JvLoXcTUo0IqyjSfAZJ8dIUmijx1qaJsIiU+Hosw6xM5KijAWRJCSgNg=="],
 
     "@img/sharp-win32-x64": ["@img/sharp-win32-x64@0.34.5", "", { "os": "win32", "cpu": "x64" }, "sha512-+29YMsqY2/9eFEiW93eqWnuLcWcufowXewwSNIT6UwZdUUCrM3oFjMWH/Z6/TMmb4hlFenmfAVbpWeup2jryCw=="],
+
+    "@inox-tools/utils": ["@inox-tools/utils@1.1.1", "", { "peerDependencies": { "nanostores": "^1.1.0" }, "optionalPeers": ["nanostores"] }, "sha512-EwbddV6XBPbLmPOJm1GisFPKzuF2o58o0YPufnYYLwjYeoIldCpm875hHKGtHjnpUQSgZJ3z/WFREr7FX+PqTg=="],
 
     "@jridgewell/gen-mapping": ["@jridgewell/gen-mapping@0.3.13", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA=="],
 

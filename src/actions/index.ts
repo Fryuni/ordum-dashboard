@@ -1,11 +1,12 @@
 import { defineAction, ActionError } from "astro:actions";
 import { z } from "astro/zod";
-import { loadGameData } from "../lib/gamedata";
-import { buildCraftPlan, searchItems, type CraftTarget } from "../lib/craft-planner";
+import {
+  buildCraftPlan,
+  searchItems,
+  type CraftTarget,
+} from "../lib/craft-planner";
 import { api } from "../lib/api";
 import { ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
-
-const gd = loadGameData();
 
 export const server = {
   searchItems: defineAction({
@@ -13,25 +14,29 @@ export const server = {
       query: z.string().min(2),
     }),
     handler: async ({ query }) => {
-      return searchItems(gd, query, 20);
+      return searchItems(query, 20);
     },
   }),
 
   craftPlan: defineAction({
     input: z.object({
       player: z.string().optional().default(""),
-      items: z.array(z.object({
-        id: z.int(),
-        type: z.enum(['Item', 'Cargo']),
-        quantity: z.int(),
-      }))
+      items: z.array(
+        z.object({
+          id: z.int(),
+          type: z.enum(["Item", "Cargo"]),
+          quantity: z.int(),
+        }),
+      ),
     }),
     handler: async ({ player, items }) => {
-      const targets = items.map((item): CraftTarget => ({
-        item_type: item.type,
-        item_id: item.id,
-        quantity: item.quantity,
-      }));
+      const targets = items.map(
+        (item): CraftTarget => ({
+          item_type: item.type,
+          item_id: item.id,
+          quantity: item.quantity,
+        }),
+      );
 
       if (targets.length === 0) {
         throw new ActionError({
@@ -76,14 +81,18 @@ export const server = {
             // This returns personal inventory, tool belt, wallet, AND deployables
             // (carts, rafts, etc.) — everything the player owns.
             // Use the string key to avoid number precision loss.
-            const invData = await api.findInventoryByOwnerEntityId(memberEntityId);
+            const invData =
+              await api.findInventoryByOwnerEntityId(memberEntityId);
             for (const inv of invData.inventorys ?? []) {
               for (const pocket of inv.pockets ?? []) {
                 const p = pocket as any;
                 if (p?.contents) {
                   const c = p.contents;
                   const key = `${c.item_type ?? "Item"}:${c.item_id}`;
-                  inventory.set(key, (inventory.get(key) ?? 0) + (c.quantity ?? 1));
+                  inventory.set(
+                    key,
+                    (inventory.get(key) ?? 0) + (c.quantity ?? 1),
+                  );
                 }
               }
             }
@@ -93,12 +102,12 @@ export const server = {
         }
       }
 
-      const plans = buildCraftPlan(gd, targets, inventory);
+      const plan = buildCraftPlan(targets, inventory);
 
       return {
         player: playerInfo,
         inventory_size: inventory.size,
-        plans,
+        plan,
       };
     },
   }),

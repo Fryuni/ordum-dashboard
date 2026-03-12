@@ -18,7 +18,12 @@ const REPO_OWNER = "ResuBaka";
 const REPO_NAME = "bitcraft-hub";
 const API_SRC_PATH = "rust/api-server/api/src";
 const DEFAULT_BRANCH = "main";
-const DEFAULT_OUTPUT = path.join(import.meta.dirname, '..', "src", "bitcraft-api-client.ts");
+const DEFAULT_OUTPUT = path.join(
+  import.meta.dirname,
+  "..",
+  "src",
+  "bitcraft-api-client.ts",
+);
 
 // Modules that only contain internal/websocket/event logic, not HTTP routes
 const SKIP_MODULES = new Set([
@@ -78,14 +83,19 @@ function rawUrl(branch: string, filePath: string): string {
   return `https://raw.githubusercontent.com/${REPO_OWNER}/${REPO_NAME}/${branch}/${filePath}`;
 }
 
-async function fetchFile(branch: string, filePath: string): Promise<string | null> {
+async function fetchFile(
+  branch: string,
+  filePath: string,
+): Promise<string | null> {
   const res = await fetch(rawUrl(branch, filePath));
   return res.ok ? res.text() : null;
 }
 
 async function fetchModuleNames(branch: string): Promise<string[]> {
   const url = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${API_SRC_PATH}?ref=${branch}`;
-  const res = await fetch(url, { headers: { Accept: "application/vnd.github.v3+json" } });
+  const res = await fetch(url, {
+    headers: { Accept: "application/vnd.github.v3+json" },
+  });
   if (!res.ok) throw new Error(`Failed to list ${API_SRC_PATH}: ${res.status}`);
   const items: { name: string; type: string }[] = (await res.json()) as any;
   return items.filter((i) => i.type === "dir").map((i) => i.name);
@@ -98,12 +108,15 @@ function findMatchingBracket(
   src: string,
   start: number,
   open = "{",
-  close = "}"
+  close = "}",
 ): number {
   let depth = 1;
   for (let i = start + 1; i < src.length; i++) {
     if (src[i] === open) depth++;
-    else if (src[i] === close) { depth--; if (depth === 0) return i; }
+    else if (src[i] === close) {
+      depth--;
+      if (depth === 0) return i;
+    }
   }
   return -1;
 }
@@ -115,7 +128,10 @@ function extractGenericInner(typeStr: string): string | null {
   let depth = 1;
   for (let i = lt + 1; i < typeStr.length; i++) {
     if (typeStr[i] === "<") depth++;
-    if (typeStr[i] === ">") { depth--; if (depth === 0) return typeStr.substring(lt + 1, i); }
+    if (typeStr[i] === ">") {
+      depth--;
+      if (depth === 0) return typeStr.substring(lt + 1, i);
+    }
   }
   return null;
 }
@@ -206,9 +222,13 @@ function parseRoutes(src: string, prefix = ""): ParsedRoute[] {
   return parseRoutesWithModule(src, prefix);
 }
 
-function parseRoutesWithModule(src: string, prefix = ""): ParsedRouteWithModule[] {
+function parseRoutesWithModule(
+  src: string,
+  prefix = "",
+): ParsedRouteWithModule[] {
   const routes: ParsedRouteWithModule[] = [];
-  const re = /\.route\(\s*"([^"]+)"\s*,\s*axum_codec::routing::(get|post|put|delete|patch)\(([^)]+)\)/g;
+  const re =
+    /\.route\(\s*"([^"]+)"\s*,\s*axum_codec::routing::(get|post|put|delete|patch)\(([^)]+)\)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(src)) !== null) {
     const handler = m[3].trim();
@@ -247,7 +267,10 @@ function parseHandlers(src: string): ParsedHandler[] {
     const args = src.substring(argsStart, argsEnd - 1);
 
     // Find `->` and then the return type up to the `{`
-    const afterArgs = src.substring(argsEnd, Math.min(argsEnd + 500, src.length));
+    const afterArgs = src.substring(
+      argsEnd,
+      Math.min(argsEnd + 500, src.length),
+    );
     const arrowIdx = afterArgs.indexOf("->");
     if (arrowIdx === -1) continue;
 
@@ -282,7 +305,13 @@ function parseHandlers(src: string): ParsedHandler[] {
     const queryMatch2 = /axum::extract::Query<(\w+)>/.exec(args);
     if (!queryParamType && queryMatch2) queryParamType = queryMatch2[1];
 
-    handlers.push({ name, returnType, pathParamType, pathParamName, queryParamType });
+    handlers.push({
+      name,
+      returnType,
+      pathParamType,
+      pathParamName,
+      queryParamType,
+    });
   }
   return handlers;
 }
@@ -309,7 +338,29 @@ function parseStructFields(body: string): ParsedField[] {
     if (fieldMatch) {
       const fieldName = fieldMatch[1];
       // Skip Rust keywords that look like field matches inside macro/impl blocks
-      if (["fn", "let", "mut", "use", "self", "super", "crate", "type", "impl", "mod", "async", "await", "return", "if", "else", "match", "for", "while", "loop"].includes(fieldName)) {
+      if (
+        [
+          "fn",
+          "let",
+          "mut",
+          "use",
+          "self",
+          "super",
+          "crate",
+          "type",
+          "impl",
+          "mod",
+          "async",
+          "await",
+          "return",
+          "if",
+          "else",
+          "match",
+          "for",
+          "while",
+          "loop",
+        ].includes(fieldName)
+      ) {
         pendingRename = null;
         continue;
       }
@@ -322,7 +373,12 @@ function parseStructFields(body: string): ParsedField[] {
       pendingRename = null;
     } else {
       // Not a field line — reset pending rename unless it's a comment/attr
-      if (!line.startsWith("#") && !line.startsWith("//") && !line.startsWith("///") && line !== "") {
+      if (
+        !line.startsWith("#") &&
+        !line.startsWith("//") &&
+        !line.startsWith("///") &&
+        line !== ""
+      ) {
         pendingRename = null;
       }
     }
@@ -335,7 +391,8 @@ function parseStructs(src: string): ParsedStruct[] {
 
   // ── Structs ──
   // Find `struct Name {` with optional attributes before it
-  const structRe = /((?:\s*#\[[^\]]*\]\s*)*)(?:pub(?:\(crate\))?\s+)?struct\s+(\w+)\s*\{/g;
+  const structRe =
+    /((?:\s*#\[[^\]]*\]\s*)*)(?:pub(?:\(crate\))?\s+)?struct\s+(\w+)\s*\{/g;
   let m: RegExpExecArray | null;
   while ((m = structRe.exec(src)) !== null) {
     const attrs = m[1] || "";
@@ -357,7 +414,8 @@ function parseStructs(src: string): ParsedStruct[] {
   }
 
   // ── Enums ──
-  const enumRe = /((?:\s*#\[[^\]]*\]\s*)*)(?:pub(?:\(crate\))?\s+)?enum\s+(\w+)\s*\{/g;
+  const enumRe =
+    /((?:\s*#\[[^\]]*\]\s*)*)(?:pub(?:\(crate\))?\s+)?enum\s+(\w+)\s*\{/g;
   while ((m = enumRe.exec(src)) !== null) {
     const attrs = m[1] || "";
     const name = m[2];
@@ -378,7 +436,12 @@ function parseStructs(src: string): ParsedStruct[] {
     while ((vm = varRe.exec(body)) !== null) {
       const vName = vm[1];
       // Skip Rust keywords that might match
-      if (["pub", "fn", "let", "mut", "use", "crate", "self", "super"].includes(vName)) continue;
+      if (
+        ["pub", "fn", "let", "mut", "use", "crate", "self", "super"].includes(
+          vName,
+        )
+      )
+        continue;
       const innerType = vm[2]?.trim() || null;
       variants.push({ name: vName, innerType });
     }
@@ -396,21 +459,35 @@ function parseStructs(src: string): ParsedStruct[] {
   return structs;
 }
 
-function parseQueryStructs(src: string, handlers: ParsedHandler[]): ParsedQueryStruct[] {
+function parseQueryStructs(
+  src: string,
+  handlers: ParsedHandler[],
+): ParsedQueryStruct[] {
   const queryTypeNames = new Set(
-    handlers.map((h) => h.queryParamType).filter(Boolean) as string[]
+    handlers.map((h) => h.queryParamType).filter(Boolean) as string[],
   );
   const structs = parseStructs(src);
   const result: ParsedQueryStruct[] = [];
 
   for (const s of structs) {
     if (s.isEnum) continue;
-    if (!queryTypeNames.has(s.name) && !s.name.endsWith("Params") && !s.name.endsWith("Query")) continue;
+    if (
+      !queryTypeNames.has(s.name) &&
+      !s.name.endsWith("Params") &&
+      !s.name.endsWith("Query")
+    )
+      continue;
 
     const fields = s.fields.map((f) => {
       const isOption = f.rustType.startsWith("Option<");
-      const inner = isOption ? extractGenericInner(f.rustType) ?? f.rustType : f.rustType;
-      return { name: f.serdeRename || f.name, rustType: inner, optional: isOption };
+      const inner = isOption
+        ? (extractGenericInner(f.rustType) ?? f.rustType)
+        : f.rustType;
+      return {
+        name: f.serdeRename || f.name,
+        rustType: inner,
+        optional: isOption,
+      };
     });
     result.push({ name: s.name, fields });
   }
@@ -455,12 +532,21 @@ function parseInlineRouters(libSrc: string): Map<string, ParsedRoute[]> {
 // ─── Rust → TypeScript Type Mapping ──────────────────────────────────────────
 
 const RUST_PRIMITIVES: Record<string, string> = {
-  i8: "number", i16: "number", i32: "number", i64: "number",
-  u8: "number", u16: "number", u32: "number", u64: "number",
-  usize: "number", isize: "number",
-  f32: "number", f64: "number",
+  i8: "number",
+  i16: "number",
+  i32: "number",
+  i64: "number",
+  u8: "number",
+  u16: "number",
+  u32: "number",
+  u64: "number",
+  usize: "number",
+  isize: "number",
+  f32: "number",
+  f64: "number",
   bool: "boolean",
-  String: "string", str: "string",
+  String: "string",
+  str: "string",
   Value: "unknown",
   Identity: "string",
 };
@@ -484,7 +570,12 @@ function rustTypeToTs(rustType: string, knownStructs: Set<string>): string {
   }
 
   // HashMap / BTreeMap / DashMap
-  const mapPrefixes = ["HashMap<", "BTreeMap<", "dashmap::DashMap<", "DashMap<"];
+  const mapPrefixes = [
+    "HashMap<",
+    "BTreeMap<",
+    "dashmap::DashMap<",
+    "DashMap<",
+  ];
   for (const prefix of mapPrefixes) {
     if (t.startsWith(prefix) || t.includes(prefix)) {
       const inner = extractGenericInner(t);
@@ -518,7 +609,10 @@ function rustTypeToTs(rustType: string, knownStructs: Set<string>): string {
       // Try to make a descriptive name: entity::player_state::Model → PlayerStateModel
       if (segments.length >= 2) {
         const modPart = segments[segments.length - 2];
-        const camel = modPart.split("_").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join("");
+        const camel = modPart
+          .split("_")
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join("");
         return camel + "Model";
       }
       return "Record<string, unknown>";
@@ -553,7 +647,7 @@ function buildEndpoint(
   route: ParsedRoute,
   handler: ParsedHandler | null,
   queryStructs: ParsedQueryStruct[],
-  knownStructs: Set<string>
+  knownStructs: Set<string>,
 ): Endpoint {
   // Path params
   const pathParams: { name: string; tsType: string }[] = [];
@@ -562,7 +656,10 @@ function buildEndpoint(
   while ((pp = ppRe.exec(route.path)) !== null) {
     let tsType = "number";
     if (handler?.pathParamType) {
-      tsType = handler.pathParamType === "String" || handler.pathParamType === "str" ? "string" : "number";
+      tsType =
+        handler.pathParamType === "String" || handler.pathParamType === "str"
+          ? "string"
+          : "number";
     }
     pathParams.push({ name: pp[1], tsType });
   }
@@ -644,7 +741,10 @@ function deduplicateEndpoints(endpoints: Endpoint[]): Endpoint[] {
     const existing = byPath.get(pathKey);
     if (!existing) {
       byPath.set(pathKey, ep);
-    } else if (existing.returnType === "unknown" && ep.returnType !== "unknown") {
+    } else if (
+      existing.returnType === "unknown" &&
+      ep.returnType !== "unknown"
+    ) {
       byPath.set(pathKey, ep);
     }
   }
@@ -700,13 +800,15 @@ function emitStructType(s: ParsedStruct, knownStructs: Set<string>): string {
     if (s.serdeUntagged) {
       // Union of variant inner types
       const types = s.enumVariants
-        .map((v) => v.innerType ? rustTypeToTs(v.innerType, knownStructs) : v.name)
+        .map((v) =>
+          v.innerType ? rustTypeToTs(v.innerType, knownStructs) : v.name,
+        )
         .filter((t) => t !== "unknown");
       return `export type ${s.name} = ${types.join(" | ") || "unknown"};\n`;
     }
     if (s.serdeTag) {
       const variants = s.enumVariants.map(
-        (v) => `{ ${s.serdeTag}: "${v.name}" }`
+        (v) => `{ ${s.serdeTag}: "${v.name}" }`,
       );
       return `export type ${s.name} = ${variants.join(" | ")};\n`;
     }
@@ -729,7 +831,10 @@ function emitStructType(s: ParsedStruct, knownStructs: Set<string>): string {
   return `export interface ${s.name} {\n${fields.join("\n")}\n  [key: string]: unknown;\n}\n`;
 }
 
-function emitQueryParamsType(qs: ParsedQueryStruct, knownStructs: Set<string>): string {
+function emitQueryParamsType(
+  qs: ParsedQueryStruct,
+  knownStructs: Set<string>,
+): string {
   const fields = qs.fields.map((f) => {
     const tsType = rustTypeToTs(f.rustType, knownStructs);
     return `  ${f.name}${f.optional ? "?" : ""}: ${tsType};`;
@@ -754,14 +859,16 @@ function emitMethod(ep: Endpoint): string {
 
   let pathExpr: string;
   if (ep.pathParams.length > 0) {
-    pathExpr = "`" + ep.path.replace(/\{(\w+)\}/g, (_, n) => "${" + n + "}") + "`";
+    pathExpr =
+      "`" + ep.path.replace(/\{(\w+)\}/g, (_, n) => "${" + n + "}") + "`";
   } else {
     pathExpr = `"${ep.path}"`;
   }
 
-  const body = ep.queryParams.length > 0
-    ? `    const query = params ? this.buildQuery(params) : "";\n    return this.request<${ep.returnType}>(${pathExpr} + query);`
-    : `    return this.request<${ep.returnType}>(${pathExpr});`;
+  const body =
+    ep.queryParams.length > 0
+      ? `    const query = params ? this.buildQuery(params) : "";\n    return this.request<${ep.returnType}>(${pathExpr} + query);`
+      : `    return this.request<${ep.returnType}>(${pathExpr});`;
 
   return `
   /**
@@ -802,7 +909,10 @@ function parseWebSocketMessages(src: string): WsVariant[] {
   while (i < lines.length) {
     const line = lines[i].trim();
     // Skip comments, attributes, empty lines
-    if (!line || line.startsWith("//") || line.startsWith("#")) { i++; continue; }
+    if (!line || line.startsWith("//") || line.startsWith("#")) {
+      i++;
+      continue;
+    }
 
     // Tuple variant: Name(Type) or Name(Type1, Type2),
     const tupleMatch = /^(\w+)\(([^)]+)\)\s*,?/.exec(line);
@@ -813,10 +923,19 @@ function parseWebSocketMessages(src: string): WsVariant[] {
       const parts = splitTopLevel(rawInner);
       const rustType = parts.length > 1 ? `(${rawInner})` : rawInner;
       // Skip control-flow variants
-      if (!["Subscribe", "Unsubscribe", "ListSubscribedTopics", "SubscribedTopics", "Message"].includes(name)) {
+      if (
+        ![
+          "Subscribe",
+          "Unsubscribe",
+          "ListSubscribedTopics",
+          "SubscribedTopics",
+          "Message",
+        ].includes(name)
+      ) {
         variants.push({ name, contentType: rustType, topics: [] });
       }
-      i++; continue;
+      i++;
+      continue;
     }
 
     // Struct variant: Name { field: Type, ... },
@@ -832,9 +951,20 @@ function parseWebSocketMessages(src: string): WsVariant[] {
           if (ch === "}") depth--;
         }
         braceContent += lines[j] + "\n";
-        if (depth <= 0) { i = j + 1; break; }
+        if (depth <= 0) {
+          i = j + 1;
+          break;
+        }
       }
-      if (!["Subscribe", "Unsubscribe", "ListSubscribedTopics", "SubscribedTopics", "Message"].includes(name)) {
+      if (
+        ![
+          "Subscribe",
+          "Unsubscribe",
+          "ListSubscribedTopics",
+          "SubscribedTopics",
+          "Message",
+        ].includes(name)
+      ) {
         // Parse fields from the brace content
         const fields: { name: string; type: string }[] = [];
         const fieldRe = /(\w+)\s*:\s*([^,\n}]+)/g;
@@ -855,7 +985,15 @@ function parseWebSocketMessages(src: string): WsVariant[] {
     const simpleMatch = /^(\w+)\s*,?$/.exec(line);
     if (simpleMatch) {
       const name = simpleMatch[1];
-      if (!["Subscribe", "Unsubscribe", "ListSubscribedTopics", "SubscribedTopics", "Message"].includes(name)) {
+      if (
+        ![
+          "Subscribe",
+          "Unsubscribe",
+          "ListSubscribedTopics",
+          "SubscribedTopics",
+          "Message",
+        ].includes(name)
+      ) {
         variants.push({ name, contentType: null, topics: [] });
       }
     }
@@ -863,15 +1001,24 @@ function parseWebSocketMessages(src: string): WsVariant[] {
   }
 
   // Now parse the topics() method to associate topic strings with variants
-  const topicsMatch = /fn\s+topics\s*\(\s*&self\s*\)\s*->\s*Option<Vec<\(String,\s*Option<i64>\)>>\s*\{/g.exec(src);
+  const topicsMatch =
+    /fn\s+topics\s*\(\s*&self\s*\)\s*->\s*Option<Vec<\(String,\s*Option<i64>\)>>\s*\{/g.exec(
+      src,
+    );
   if (topicsMatch) {
-    const topicsBodyStart = src.indexOf("{", topicsMatch.index + topicsMatch[0].length - 1);
+    const topicsBodyStart = src.indexOf(
+      "{",
+      topicsMatch.index + topicsMatch[0].length - 1,
+    );
     const topicsBody = extractBracedBody(src, topicsBodyStart);
     if (topicsBody) {
       // For each variant, find the match arm and extract topic strings
       for (const v of variants) {
         // Match: WebSocketMessages::VariantName(... | { ... }) => Some(vec![("topic_name", ...)])
-        const armRe = new RegExp(`WebSocketMessages::${v.name}[^=]*=>\\s*Some\\(vec!\\[([^\\]]+)\\]`, "s");
+        const armRe = new RegExp(
+          `WebSocketMessages::${v.name}[^=]*=>\\s*Some\\(vec!\\[([^\\]]+)\\]`,
+          "s",
+        );
         const armMatch = armRe.exec(topicsBody);
         if (armMatch) {
           const topicStrs = armMatch[1].matchAll(/"([^"]+)"/g);
@@ -886,7 +1033,10 @@ function parseWebSocketMessages(src: string): WsVariant[] {
   return variants;
 }
 
-function emitWebSocketTypes(variants: WsVariant[], knownStructs: Set<string>): string {
+function emitWebSocketTypes(
+  variants: WsVariant[],
+  knownStructs: Set<string>,
+): string {
   const lines: string[] = [];
 
   // Emit inline struct types for struct variants
@@ -918,7 +1068,9 @@ function emitWebSocketTypes(variants: WsVariant[], knownStructs: Set<string>): s
   lines.push(`export type WebSocketMessageType = WebSocketMessage["t"];\n`);
 
   // Emit a helper to extract the content type for a given message type
-  lines.push(`export type WebSocketMessageContent<T extends WebSocketMessageType> =`);
+  lines.push(
+    `export type WebSocketMessageContent<T extends WebSocketMessageType> =`,
+  );
   lines.push(`  Extract<WebSocketMessage, { t: T }>["c"];\n`);
 
   // Emit known topic names
@@ -1201,7 +1353,7 @@ async function main() {
     moduleDirs.map(async (mod) => {
       const src = await fetchFile(branch, `${API_SRC_PATH}/${mod}/mod.rs`);
       if (src) moduleSources.set(mod, src);
-    })
+    }),
   );
   console.log(`  Fetched ${moduleSources.size} module source files`);
 
@@ -1227,17 +1379,37 @@ async function main() {
 
   // Also add synthetic Model types for entity modules
   const entityModelTypes = [
-    "PlayerStateModel", "MobileEntityStateModel", "ClaimStateModel",
-    "ClaimTileStateModel", "ClaimMemberStateModel", "ClaimLocalStateModel",
-    "BuildingStateModel", "BuildingDescModel", "BuildingNicknameStateModel",
-    "InventoryModel", "InventoryChangelogModel", "ItemDescModel", "CargoDescModel",
-    "CraftingRecipeModel", "ClaimTechDescModel", "ItemListDescModel",
-    "SkillDescModel", "LocationModel", "TradeOrderModel",
-    "DeployableStateModel", "AuctionListingStateModel",
-    "TravelerTaskDescModel", "NpcDescModel", "PlayerActionStateModel",
-    "PlayerUsernameStateModel", "PlayerHousingStateModel",
-    "PermissionStateModel", "PortalStateModel", "LocationStateModel",
-    "ExtractionRecipeDescModel", "VaultStateCollectiblesModel",
+    "PlayerStateModel",
+    "MobileEntityStateModel",
+    "ClaimStateModel",
+    "ClaimTileStateModel",
+    "ClaimMemberStateModel",
+    "ClaimLocalStateModel",
+    "BuildingStateModel",
+    "BuildingDescModel",
+    "BuildingNicknameStateModel",
+    "InventoryModel",
+    "InventoryChangelogModel",
+    "ItemDescModel",
+    "CargoDescModel",
+    "CraftingRecipeModel",
+    "ClaimTechDescModel",
+    "ItemListDescModel",
+    "SkillDescModel",
+    "LocationModel",
+    "TradeOrderModel",
+    "DeployableStateModel",
+    "AuctionListingStateModel",
+    "TravelerTaskDescModel",
+    "NpcDescModel",
+    "PlayerActionStateModel",
+    "PlayerUsernameStateModel",
+    "PlayerHousingStateModel",
+    "PermissionStateModel",
+    "PortalStateModel",
+    "LocationStateModel",
+    "ExtractionRecipeDescModel",
+    "VaultStateCollectiblesModel",
     "TravelerTaskStateModel",
     "ActionStateModel",
   ];
@@ -1256,17 +1428,28 @@ async function main() {
   }
 
   /** Resolve a handler by name, optionally scoped to a module. */
-  function resolveHandler(handlerName: string, moduleName?: string): { handler: ParsedHandler | null; queryStructs: ParsedQueryStruct[] } {
+  function resolveHandler(
+    handlerName: string,
+    moduleName?: string,
+  ): { handler: ParsedHandler | null; queryStructs: ParsedQueryStruct[] } {
     // If module is specified, look there first
     if (moduleName) {
       const modHandlers = moduleHandlersMap.get(moduleName);
       const h = modHandlers?.find((h) => h.name === handlerName) || null;
-      if (h) return { handler: h, queryStructs: moduleQueryStructsMap.get(moduleName) || [] };
+      if (h)
+        return {
+          handler: h,
+          queryStructs: moduleQueryStructsMap.get(moduleName) || [],
+        };
     }
     // Fallback: search all modules
     for (const [mod, handlers] of moduleHandlersMap) {
       const h = handlers.find((h) => h.name === handlerName);
-      if (h) return { handler: h, queryStructs: moduleQueryStructsMap.get(mod) || [] };
+      if (h)
+        return {
+          handler: h,
+          queryStructs: moduleQueryStructsMap.get(mod) || [],
+        };
     }
     // Check lib handlers
     const libHandler = libHandlers.find((h) => h.name === handlerName);
@@ -1280,7 +1463,10 @@ async function main() {
   allQueryStructs.push(...libQS);
 
   for (const route of libRoutes) {
-    const { handler, queryStructs: qs } = resolveHandler(route.handlerName, route.moduleName);
+    const { handler, queryStructs: qs } = resolveHandler(
+      route.handlerName,
+      route.moduleName,
+    );
     allEndpoints.push(buildEndpoint(route, handler, qs, knownStructNames));
   }
 
@@ -1290,8 +1476,13 @@ async function main() {
     if (inlineRoutes) {
       for (const route of inlineRoutes) {
         const prefixed = { ...route, path: nest.prefix + route.path };
-        const { handler, queryStructs: qs } = resolveHandler(route.handlerName, route.moduleName);
-        allEndpoints.push(buildEndpoint(prefixed, handler, qs, knownStructNames));
+        const { handler, queryStructs: qs } = resolveHandler(
+          route.handlerName,
+          route.moduleName,
+        );
+        allEndpoints.push(
+          buildEndpoint(prefixed, handler, qs, knownStructNames),
+        );
       }
     }
   }
@@ -1307,7 +1498,9 @@ async function main() {
     if (routes.length === 0) continue;
 
     const handlers = moduleHandlersMap.get(modName) || [];
-    const structs = parseStructs(modSrc).filter((s) => !SKIP_STRUCTS.has(s.name));
+    const structs = parseStructs(modSrc).filter(
+      (s) => !SKIP_STRUCTS.has(s.name),
+    );
     const queryStructs = moduleQueryStructsMap.get(modName) || [];
 
     allStructs.push(...structs);
@@ -1317,7 +1510,9 @@ async function main() {
       // Set module name for routes within the module (they don't have a module:: qualifier)
       if (!route.moduleName) route.moduleName = modName;
       const handler = handlers.find((h) => h.name === route.handlerName);
-      allEndpoints.push(buildEndpoint(route, handler || null, queryStructs, knownStructNames));
+      allEndpoints.push(
+        buildEndpoint(route, handler || null, queryStructs, knownStructNames),
+      );
     }
   }
 
@@ -1327,12 +1522,18 @@ async function main() {
   const seenStructs = new Set<string>();
   const dedupedStructs: ParsedStruct[] = [];
   for (const s of allStructs) {
-    if (!seenStructs.has(s.name)) { seenStructs.add(s.name); dedupedStructs.push(s); }
+    if (!seenStructs.has(s.name)) {
+      seenStructs.add(s.name);
+      dedupedStructs.push(s);
+    }
   }
   const seenQS = new Set<string>();
   const dedupedQS: ParsedQueryStruct[] = [];
   for (const qs of allQueryStructs) {
-    if (!seenQS.has(qs.name)) { seenQS.add(qs.name); dedupedQS.push(qs); }
+    if (!seenQS.has(qs.name)) {
+      seenQS.add(qs.name);
+      dedupedQS.push(qs);
+    }
   }
 
   console.log(`  Parsed ${endpoints.length} unique endpoints`);
@@ -1344,13 +1545,22 @@ async function main() {
   console.log(`  Parsed ${wsVariants.length} WebSocket message types`);
 
   // 8. Generate output
-  const code = emitClient(endpoints, dedupedStructs, dedupedQS, knownStructNames, branch, wsVariants);
+  const code = emitClient(
+    endpoints,
+    dedupedStructs,
+    dedupedQS,
+    knownStructNames,
+    branch,
+    wsVariants,
+  );
   const dir = path.dirname(output);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(output, code, "utf-8");
 
   console.log(`\n✅ Generated ${output}`);
-  console.log(`   ${endpoints.length} endpoints, ${dedupedStructs.length} types, ${code.split("\n").length} lines`);
+  console.log(
+    `   ${endpoints.length} endpoints, ${dedupedStructs.length} types, ${code.split("\n").length} lines`,
+  );
 }
 
 function emitClient(

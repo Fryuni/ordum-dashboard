@@ -1,5 +1,5 @@
-import { useStore } from '@nanostores/preact';
-import { $targets, removeTarget } from '../../lib/craft-store';
+import { useStore } from "@nanostores/preact";
+import { $targets, removeTarget } from "../../lib/craft-store";
 
 export default function ItemList() {
   const targets = useStore($targets);
@@ -12,7 +12,9 @@ export default function ItemList() {
         <div class="target-chip" key={`${t.type}-${t.id}`}>
           <span class="name">{t.name}</span>
           <span class="qty">×{t.quantity}</span>
-          <button type="button" class="remove" onClick={() => removeTarget(i)}>✕</button>
+          <button type="button" class="remove" onClick={() => removeTarget(i)}>
+            ✕
+          </button>
         </div>
       ))}
     </div>

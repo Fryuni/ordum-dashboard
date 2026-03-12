@@ -1,6 +1,12 @@
-import { useStore } from '@nanostores/preact';
-import { useRef, useState, useEffect, useMemo, useCallback } from 'preact/hooks';
-import { $player } from '../../lib/craft-store';
+import { useStore } from "@nanostores/preact";
+import {
+  useRef,
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+} from "preact/hooks";
+import { $player } from "../../lib/craft-store";
 
 interface Props {
   members: { entity_id: number; user_name: string }[];
@@ -16,24 +22,27 @@ export default function PlayerPicker({ members }: Props) {
   const filtered = useMemo(() => {
     const q = player.toLowerCase().trim();
     if (q.length === 0) return members;
-    return members.filter(m => m.user_name.toLowerCase().includes(q));
+    return members.filter((m) => m.user_name.toLowerCase().includes(q));
   }, [player, members]);
 
   useEffect(() => {
     if (highlightIdx >= 0 && dropdownRef.current) {
       const el = dropdownRef.current.children[highlightIdx] as HTMLElement;
-      if (el) el.scrollIntoView({ block: 'nearest' });
+      if (el) el.scrollIntoView({ block: "nearest" });
     }
   }, [highlightIdx]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (!(e.target instanceof HTMLElement) || !e.target.closest('.player-search-container')) {
+      if (
+        !(e.target instanceof HTMLElement) ||
+        !e.target.closest(".player-search-container")
+      ) {
         setOpen(false);
       }
     }
-    document.addEventListener('click', handleClick);
-    return () => document.removeEventListener('click', handleClick);
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
   }, []);
 
   const pickPlayer = useCallback((name: string) => {
@@ -49,19 +58,19 @@ export default function PlayerPicker({ members }: Props) {
   }
 
   function handleKeydown(e: KeyboardEvent) {
-    if (e.key === 'ArrowDown') {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
       if (!open) setOpen(true);
-      setHighlightIdx(i => Math.min(i + 1, filtered.length - 1));
-    } else if (e.key === 'ArrowUp') {
+      setHighlightIdx((i) => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setHighlightIdx(i => Math.max(i - 1, 0));
-    } else if (e.key === 'Enter') {
+      setHighlightIdx((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
       e.preventDefault();
       if (highlightIdx >= 0 && highlightIdx < filtered.length) {
         pickPlayer(filtered[highlightIdx]!.user_name);
       }
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       setOpen(false);
       setHighlightIdx(-1);
     }
@@ -89,7 +98,16 @@ export default function PlayerPicker({ members }: Props) {
           onFocus={handleFocus}
         />
         {player && (
-          <button type="button" class="clear-btn" onClick={() => { $player.set(''); setOpen(false); }}>✕</button>
+          <button
+            type="button"
+            class="clear-btn"
+            onClick={() => {
+              $player.set("");
+              setOpen(false);
+            }}
+          >
+            ✕
+          </button>
         )}
       </div>
       {open && filtered.length > 0 && (
@@ -97,7 +115,7 @@ export default function PlayerPicker({ members }: Props) {
           {filtered.map((m, i) => (
             <button
               type="button"
-              class={`search-option ${i === highlightIdx ? 'highlighted' : ''}`}
+              class={`search-option ${i === highlightIdx ? "highlighted" : ""}`}
               onClick={() => pickPlayer(m.user_name)}
               onMouseEnter={() => setHighlightIdx(i)}
               role="option"

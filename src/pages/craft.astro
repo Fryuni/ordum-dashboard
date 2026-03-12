@@ -1,6 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import CraftPlanner from "../components/CraftPlanner";
+import CraftConfiguration from "../components/craft/CraftConfiguration";
+import CraftingPlan from "../components/craft/CraftingPlan";
 import "../styles/craft.css";
 import { loadGameData } from "../lib/gamedata";
 import { ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
@@ -37,7 +38,8 @@ for (const [id, c] of gd.cargo) {
     <p class="subtitle">Calculate full crafting trees from raw materials, accounting for your inventory</p>
   </div>
 
-  <CraftPlanner client:load itemIndex={itemIndex} members={members} />
+  <CraftConfiguration client:only itemIndex={itemIndex} members={members} />
+  <CraftingPlan client:only />
 </Layout>
 
 <style>

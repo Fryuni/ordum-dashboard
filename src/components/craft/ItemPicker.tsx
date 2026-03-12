@@ -1,5 +1,5 @@
-import { useStore } from '@nanostores/preact';
-import { useRef, useEffect, useCallback } from 'preact/hooks';
+import { useStore } from "@nanostores/preact";
+import { useRef, useEffect, useCallback } from "preact/hooks";
 import {
   $searchQuery,
   $highlightIndex,
@@ -10,7 +10,7 @@ import {
   $canAdd,
   selectItem,
   addTarget,
-} from '../../lib/craft-store';
+} from "../../lib/craft-store";
 
 export default function ItemPicker() {
   const searchQuery = useStore($searchQuery);
@@ -27,18 +27,21 @@ export default function ItemPicker() {
   useEffect(() => {
     if (highlightIndex >= 0 && dropdownRef.current) {
       const el = dropdownRef.current.children[highlightIndex] as HTMLElement;
-      if (el) el.scrollIntoView({ block: 'nearest' });
+      if (el) el.scrollIntoView({ block: "nearest" });
     }
   }, [highlightIndex]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (!(e.target instanceof HTMLElement) || !e.target.closest('.item-search-container')) {
+      if (
+        !(e.target instanceof HTMLElement) ||
+        !e.target.closest(".item-search-container")
+      ) {
         $dropdownOpen.set(false);
       }
     }
-    document.addEventListener('click', handleClick);
-    return () => document.removeEventListener('click', handleClick);
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
   }, []);
 
   function handleSearchInput(e: Event) {
@@ -53,16 +56,20 @@ export default function ItemPicker() {
     const res = $searchResults.get();
     const hi = $highlightIndex.get();
 
-    if (e.key === 'ArrowDown') {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
-      if (!$dropdownOpen.get() && searchRef.current && searchRef.current.value.trim().length >= 2) {
+      if (
+        !$dropdownOpen.get() &&
+        searchRef.current &&
+        searchRef.current.value.trim().length >= 2
+      ) {
         $dropdownOpen.set(true);
       }
       $highlightIndex.set(Math.min(hi + 1, res.length - 1));
-    } else if (e.key === 'ArrowUp') {
+    } else if (e.key === "ArrowUp") {
       e.preventDefault();
       $highlightIndex.set(Math.max(hi - 1, 0));
-    } else if (e.key === 'Enter') {
+    } else if (e.key === "Enter") {
       e.preventDefault();
       if (hi >= 0 && hi < res.length) {
         selectItem(res[hi]!);
@@ -71,14 +78,18 @@ export default function ItemPicker() {
           qtyRef.current?.select();
         }, 0);
       }
-    } else if (e.key === 'Escape') {
+    } else if (e.key === "Escape") {
       $dropdownOpen.set(false);
       $highlightIndex.set(-1);
     }
   }
 
   function handleSearchFocus() {
-    if ($searchResults.get().length > 0 && searchRef.current && searchRef.current.value.trim().length >= 2) {
+    if (
+      $searchResults.get().length > 0 &&
+      searchRef.current &&
+      searchRef.current.value.trim().length >= 2
+    ) {
       $dropdownOpen.set(true);
     }
   }
@@ -99,7 +110,7 @@ export default function ItemPicker() {
   }
 
   function handleQtyKeydown(e: KeyboardEvent) {
-    if (e.key === 'Enter') {
+    if (e.key === "Enter") {
       e.preventDefault();
       if ($selectedItem.get()) {
         addTarget();
@@ -137,16 +148,21 @@ export default function ItemPicker() {
             {searchResults.map((r, i) => (
               <button
                 type="button"
-                class={`search-option ${i === highlightIndex ? 'highlighted' : ''}`}
+                class={`search-option ${i === highlightIndex ? "highlighted" : ""}`}
                 onClick={() => handleDropdownClick(i)}
                 onMouseEnter={() => $highlightIndex.set(i)}
                 role="option"
                 aria-selected={i === highlightIndex}
                 key={`${r.t}-${r.id}`}
               >
-                <span class={`tier-badge tier-${r.tier}`}>{r.tier >= 0 ? `T${r.tier}` : 'TX'}</span>
+                <span class={`tier-badge tier-${r.tier}`}>
+                  {r.tier >= 0 ? `T${r.tier}` : "TX"}
+                </span>
                 <span>{r.n}</span>
-                <span class="item-meta">{r.t}{r.tag ? ' · ' + r.tag : ''}</span>
+                <span class="item-meta">
+                  {r.t}
+                  {r.tag ? " · " + r.tag : ""}
+                </span>
               </button>
             ))}
           </div>
@@ -166,7 +182,14 @@ export default function ItemPicker() {
         />
       </div>
       <div class="btn-group">
-        <button type="button" class="btn btn-primary" disabled={!canAdd} onClick={handleAddClick}>Add Item</button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          disabled={!canAdd}
+          onClick={handleAddClick}
+        >
+          Add Item
+        </button>
       </div>
     </div>
   );

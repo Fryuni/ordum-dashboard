@@ -135,7 +135,9 @@ function parseExpendedRef(ref: ExpendedRefrence): ResourceItem {
   };
 }
 
-function parseInventoryLocation(loc: InventoryItemLocation): ResourceWithLocations {
+function parseInventoryLocation(
+  loc: InventoryItemLocation,
+): ResourceWithLocations {
   const item = (loc as any).item ?? {};
   return {
     item_id: loc.item_id,
@@ -206,7 +208,8 @@ export async function fetchClaimData(
 
   // Parse offline player resources
   const offlineLocs: ResourceWithLocations[] = [];
-  const offlineLocArray = (raw.inventory_locations as any)?.players_offline ?? [];
+  const offlineLocArray =
+    (raw.inventory_locations as any)?.players_offline ?? [];
   for (const loc of offlineLocArray) {
     const parsed = parseInventoryLocation(loc);
     parsed.quantity = parsed.locations.reduce((sum, l) => sum + l.quantity, 0);
@@ -229,8 +232,14 @@ export async function fetchClaimData(
   // Parse members
   const members: MemberInfo[] = [];
   const rawMembers = raw.members ?? {};
-  for (const [, m] of Object.entries(rawMembers) as [string, ClaimDescriptionStateMember][]) {
-    const skills: Record<string, { level: number; experience: number; rank: number }> = {};
+  for (const [, m] of Object.entries(rawMembers) as [
+    string,
+    ClaimDescriptionStateMember,
+  ][]) {
+    const skills: Record<
+      string,
+      { level: number; experience: number; rank: number }
+    > = {};
     const rawSkills = (m as any).skills_ranks ?? {};
     for (const [skillName, s] of Object.entries(rawSkills) as [string, any][]) {
       skills[skillName] = {
@@ -290,10 +299,16 @@ export async function fetchClaimData(
     building_count: (raw.building_states ?? []).length,
     building_resources: buildingLocs.sort((a, b) => b.quantity - a.quantity),
     player_resources: playerLocs.sort((a, b) => b.quantity - a.quantity),
-    player_offline_resources: offlineLocs.sort((a, b) => b.quantity - a.quantity),
+    player_offline_resources: offlineLocs.sort(
+      (a, b) => b.quantity - a.quantity,
+    ),
     tool_resources: toolItems.sort((a, b) => b.quantity - a.quantity),
-    tool_offline_resources: toolOfflineItems.sort((a, b) => b.quantity - a.quantity),
-    members: members.sort((a, b) => (a.online === b.online ? 0 : a.online ? -1 : 1)),
+    tool_offline_resources: toolOfflineItems.sort(
+      (a, b) => b.quantity - a.quantity,
+    ),
+    members: members.sort((a, b) =>
+      a.online === b.online ? 0 : a.online ? -1 : 1,
+    ),
   };
 }
 
@@ -327,10 +342,16 @@ export async function fetchEmpireData(
     for (const r of claim.building_resources) {
       allBuildingRes.push(r);
     }
-    for (const r of [...claim.player_resources, ...claim.player_offline_resources]) {
+    for (const r of [
+      ...claim.player_resources,
+      ...claim.player_offline_resources,
+    ]) {
       allPlayerRes.push(r);
     }
-    for (const r of [...claim.tool_resources, ...claim.tool_offline_resources]) {
+    for (const r of [
+      ...claim.tool_resources,
+      ...claim.tool_offline_resources,
+    ]) {
       allToolRes.push(r);
     }
   }
@@ -346,9 +367,15 @@ export async function fetchEmpireData(
       online_members,
       total_buildings,
       total_building_resource_types: mergedBuilding.length,
-      total_building_resource_count: mergedBuilding.reduce((s, r) => s + r.quantity, 0),
+      total_building_resource_count: mergedBuilding.reduce(
+        (s, r) => s + r.quantity,
+        0,
+      ),
       total_player_resource_types: mergedPlayer.length,
-      total_player_resource_count: mergedPlayer.reduce((s, r) => s + r.quantity, 0),
+      total_player_resource_count: mergedPlayer.reduce(
+        (s, r) => s + r.quantity,
+        0,
+      ),
       total_tool_types: mergedTools.length,
       total_tool_count: mergedTools.reduce((s, r) => s + r.quantity, 0),
     },

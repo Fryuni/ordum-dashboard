@@ -6,10 +6,19 @@
  * and craft planner pages.
  */
 
+import { Lazy, LazyKeyed } from "@inox-tools/utils/lazy";
 import fs from "node:fs";
 import path from "node:path";
 
 // ─── Raw JSON Types ────────────────────────────────────────────────────────────
+
+export type ItemType = "Item" | "Cargo";
+
+export interface ItemReference {
+  item_type: ItemType;
+  item_id: number;
+  __item_key?: string;
+}
 
 export interface GameItemDesc {
   id: number;
@@ -35,10 +44,8 @@ export interface GameCargoDesc {
   rarity: string;
 }
 
-export interface GameItemStack {
-  item_id: number;
+export interface GameItemStack extends ItemReference {
   quantity: number;
-  item_type: "Item" | "Cargo";
   durability?: number;
   discovery_score?: number;
   consumption_chance?: number;
@@ -106,7 +113,12 @@ export interface GameBuildingDesc {
   id: number;
   name: string;
   description: string;
-  functions: { function_type: number; level: number; storage_slots: number; cargo_slots: number }[];
+  functions: {
+    function_type: number;
+    level: number;
+    storage_slots: number;
+    cargo_slots: number;
+  }[];
   wilderness: boolean;
 }
 
@@ -159,7 +171,7 @@ export interface GameConstructionRecipe {
 /** Maps an "Output" item to its resolved real items via item_list_id */
 export interface ItemListResolution {
   outputItemId: number;
-  realItemType: "Item" | "Cargo";
+  realItemType: ItemType;
   realItemId: number;
   quantity: number; // quantity from the highest-probability possibility
 }
@@ -171,7 +183,10 @@ export interface GameData {
   recipesByOutput: Map<string, GameCraftingRecipe[]>; // "Item:id" or "Cargo:id"
   /** Recipes that produce an item indirectly via item list resolution (Output items).
    *  Key is "ItemType:realItemId", value is { recipe, outputQuantity per craft } */
-  recipesByResolvedOutput: Map<string, { recipe: GameCraftingRecipe; outputPerCraft: number }[]>;
+  recipesByResolvedOutput: Map<
+    string,
+    { recipe: GameCraftingRecipe; outputPerCraft: number }[]
+  >;
   extractionRecipes: GameExtractionRecipe[];
   extractionByOutput: Map<string, GameExtractionRecipe[]>;
   claimTechs: GameClaimTech[];
@@ -195,17 +210,37 @@ export function loadGameData(gamedataDir?: string): GameData {
 
   const rawItems = loadJson<GameItemDesc[]>(path.join(dir, "item_desc.json"));
   const rawCargo = loadJson<GameCargoDesc[]>(path.join(dir, "cargo_desc.json"));
-  const rawRecipes = loadJson<GameCraftingRecipe[]>(path.join(dir, "crafting_recipe_desc.json"));
-  const rawExtraction = loadJson<GameExtractionRecipe[]>(path.join(dir, "extraction_recipe_desc.json"));
-  const rawClaimTechs = loadJson<GameClaimTech[]>(path.join(dir, "claim_tech_desc.json"));
-  const rawBuildings = loadJson<GameBuildingDesc[]>(path.join(dir, "building_desc.json"));
-  const rawBuildingTypes = loadJson<GameBuildingTypeDesc[]>(path.join(dir, "building_type_desc.json"));
-  const rawSkills = loadJson<GameSkillDesc[]>(path.join(dir, "skill_desc.json"));
+  const rawRecipes = loadJson<GameCraftingRecipe[]>(
+    path.join(dir, "crafting_recipe_desc.json"),
+  );
+  const rawExtraction = loadJson<GameExtractionRecipe[]>(
+    path.join(dir, "extraction_recipe_desc.json"),
+  );
+  const rawClaimTechs = loadJson<GameClaimTech[]>(
+    path.join(dir, "claim_tech_desc.json"),
+  );
+  const rawBuildings = loadJson<GameBuildingDesc[]>(
+    path.join(dir, "building_desc.json"),
+  );
+  const rawBuildingTypes = loadJson<GameBuildingTypeDesc[]>(
+    path.join(dir, "building_type_desc.json"),
+  );
+  const rawSkills = loadJson<GameSkillDesc[]>(
+    path.join(dir, "skill_desc.json"),
+  );
   const rawTools = loadJson<GameToolDesc[]>(path.join(dir, "tool_desc.json"));
-  const rawToolTypes = loadJson<GameToolTypeDesc[]>(path.join(dir, "tool_type_desc.json"));
-  const rawResources = loadJson<GameResourceDesc[]>(path.join(dir, "resource_desc.json"));
-  const rawItemLists = loadJson<GameItemListDesc[]>(path.join(dir, "item_list_desc.json"));
-  const rawConstruction = loadJson<GameConstructionRecipe[]>(path.join(dir, "construction_recipe_desc.json"));
+  const rawToolTypes = loadJson<GameToolTypeDesc[]>(
+    path.join(dir, "tool_type_desc.json"),
+  );
+  const rawResources = loadJson<GameResourceDesc[]>(
+    path.join(dir, "resource_desc.json"),
+  );
+  const rawItemLists = loadJson<GameItemListDesc[]>(
+    path.join(dir, "item_list_desc.json"),
+  );
+  const rawConstruction = loadJson<GameConstructionRecipe[]>(
+    path.join(dir, "construction_recipe_desc.json"),
+  );
 
   // Index items
   const items = new Map<number, GameItemDesc>();
@@ -229,7 +264,10 @@ export function loadGameData(gamedataDir?: string): GameData {
   // points to an item list that resolves to the real item (e.g. "Rough Wood Log").
   // We index these so the craft planner can find recipes for real items that are only
   // produced indirectly through item lists.
-  const recipesByResolvedOutput = new Map<string, { recipe: GameCraftingRecipe; outputPerCraft: number }[]>();
+  const recipesByResolvedOutput = new Map<
+    string,
+    { recipe: GameCraftingRecipe; outputPerCraft: number }[]
+  >();
 
   // Map: item_list_id → GameItemListDesc
   const itemListById = new Map<number, GameItemListDesc>();
@@ -246,26 +284,21 @@ export function loadGameData(gamedataDir?: string): GameData {
       if (!itemList) continue;
 
       // Take the highest-probability possibility to determine the real output
-      const bestPossibility = itemList.possibilities.reduce((best, p) =>
-        p.probability > best.probability ? p : best, itemList.possibilities[0]);
+      const bestPossibility = itemList.possibilities.reduce(
+        (best, p) => (p.probability > best.probability ? p : best),
+        itemList.possibilities[0],
+      );
       if (!bestPossibility) continue;
 
       for (const realItem of bestPossibility.items) {
         const realKey = `${realItem.item_type}:${realItem.item_id}`;
         const outputPerCraft = realItem.quantity * out.quantity;
-        if (!recipesByResolvedOutput.has(realKey)) recipesByResolvedOutput.set(realKey, []);
-        recipesByResolvedOutput.get(realKey)!.push({ recipe: r, outputPerCraft });
+        if (!recipesByResolvedOutput.has(realKey))
+          recipesByResolvedOutput.set(realKey, []);
+        recipesByResolvedOutput
+          .get(realKey)!
+          .push({ recipe: r, outputPerCraft });
       }
-    }
-  }
-
-  // Index extraction recipes by output
-  const extractionByOutput = new Map<string, GameExtractionRecipe[]>();
-  for (const r of rawExtraction) {
-    for (const out of r.extracted_item_stacks) {
-      const key = `${out.item_stack.item_type}:${out.item_stack.item_id}`;
-      if (!extractionByOutput.has(key)) extractionByOutput.set(key, []);
-      extractionByOutput.get(key)!.push(r);
     }
   }
 
@@ -294,6 +327,21 @@ export function loadGameData(gamedataDir?: string): GameData {
   const itemLists = new Map<number, GameItemListDesc>();
   for (const il of rawItemLists) itemLists.set(il.id, il);
 
+  const extractionByOutput = Lazy.wrap(() => {
+    // Index extraction recipes by output
+    const extractionByOutput = new Map<string, GameExtractionRecipe[]>();
+    for (const r of rawExtraction) {
+      for (const out of realItemStack(
+        r.extracted_item_stacks.map((r) => r.item_stack),
+      )) {
+        const key = `${out.item_type}:${out.item_id}`;
+        if (!extractionByOutput.has(key)) extractionByOutput.set(key, []);
+        extractionByOutput.get(key)!.push(r);
+      }
+    }
+    return extractionByOutput;
+  });
+
   return {
     items,
     cargo,
@@ -301,7 +349,9 @@ export function loadGameData(gamedataDir?: string): GameData {
     recipesByOutput,
     recipesByResolvedOutput,
     extractionRecipes: rawExtraction,
-    extractionByOutput,
+    get extractionByOutput() {
+      return extractionByOutput();
+    },
     claimTechs: rawClaimTechs,
     claimTechById,
     buildings,
@@ -315,40 +365,112 @@ export function loadGameData(gamedataDir?: string): GameData {
   };
 }
 
+export const gd = Lazy.of(loadGameData);
+
 // ─── Utility Functions ─────────────────────────────────────────────────────────
 
 /** Get name for an item/cargo by type and ID */
-export function getItemName(gd: GameData, itemType: "Item" | "Cargo", itemId: number): string {
+export function getItemName(itemType: ItemType, itemId: number): string {
   if (itemType === "Item") {
-    return gd.items.get(itemId)?.name ?? `Unknown Item #${itemId}`;
+    return gd.get().items.get(itemId)?.name ?? `Unknown Item #${itemId}`;
   }
-  return gd.cargo.get(itemId)?.name ?? `Unknown Cargo #${itemId}`;
+  return gd.get().cargo.get(itemId)?.name ?? `Unknown Cargo #${itemId}`;
 }
 
 /** Get item/cargo description */
 export function getItemInfo(
-  gd: GameData,
-  itemType: "Item" | "Cargo",
+  itemType: ItemType,
   itemId: number,
 ): { name: string; tier: number; tag: string; icon: string; rarity: string } {
   if (itemType === "Item") {
-    const item = gd.items.get(itemId);
-    if (item) return { name: item.name, tier: item.tier, tag: item.tag, icon: item.icon_asset_name, rarity: item.rarity };
+    const item = gd.get().items.get(itemId);
+    if (item)
+      return {
+        name: item.name,
+        tier: item.tier,
+        tag: item.tag,
+        icon: item.icon_asset_name,
+        rarity: item.rarity,
+      };
   } else {
-    const c = gd.cargo.get(itemId);
-    if (c) return { name: c.name, tier: c.tier, tag: c.tag, icon: c.icon_asset_name, rarity: c.rarity };
+    const c = gd.get().cargo.get(itemId);
+    if (c)
+      return {
+        name: c.name,
+        tier: c.tier,
+        tag: c.tag,
+        icon: c.icon_asset_name,
+        rarity: c.rarity,
+      };
   }
-  return { name: `Unknown #${itemId}`, tier: 0, tag: "", icon: "", rarity: "Common" };
+  return {
+    name: `Unknown #${itemId}`,
+    tier: 0,
+    tag: "",
+    icon: "",
+    rarity: "Common",
+  };
 }
 
-export function getSkillName(gd: GameData, skillId: number): string {
-  return gd.skills.get(skillId)?.name ?? `Skill #${skillId}`;
+export function unifiedKey(itemType: string, itemId: number): string {
+  const typeName = { item: "Item", cargo: "Cargo" }[
+    itemType.toLowerCase().trim()
+  ];
+  if (!typeName)
+    throw new Error(`Unknown item type: ${JSON.stringify(itemType)}`);
+  return `${typeName}:${itemId}`;
 }
 
-export function getToolTypeName(gd: GameData, toolTypeId: number): string {
-  return gd.toolTypes.get(toolTypeId)?.name ?? `Tool Type #${toolTypeId}`;
+export function referenceKey(reference: ItemReference): string {
+  if (!reference.__item_key) {
+    reference.__item_key = `${reference.item_type}:${reference.item_id}`;
+  }
+  return reference.__item_key;
 }
 
-export function getBuildingTypeName(gd: GameData, buildingTypeId: number): string {
-  return gd.buildingTypes.get(buildingTypeId)?.name ?? `Building Type #${buildingTypeId}`;
+export const parseReferenceKey = LazyKeyed.wrap(
+  (key: string): ItemReference => {
+    const [itemType, idString] = key.split(":", 2);
+    if (!itemType || !idString) throw new Error(`Invalid item key: ${key}`);
+    return {
+      item_type: itemType as any,
+      item_id: Number.parseInt(idString, 10),
+      __item_key: key,
+    };
+  },
+);
+
+export function getSkillName(skillId: number): string {
+  return gd.get().skills.get(skillId)?.name ?? `Skill #${skillId}`;
+}
+
+export function getToolTypeName(toolTypeId: number): string {
+  return gd.get().toolTypes.get(toolTypeId)?.name ?? `Tool Type #${toolTypeId}`;
+}
+
+export function getBuildingTypeName(buildingTypeId: number): string {
+  return (
+    gd.get().buildingTypes.get(buildingTypeId)?.name ??
+    `Building Type #${buildingTypeId}`
+  );
+}
+
+export function realItemStack(list: GameItemStack[]): GameItemStack[] {
+  const { items, itemLists } = gd.get();
+
+  return list.flatMap((item) => {
+    if (item.item_type !== "Item") return item;
+    const outputItem = items.get(item.item_id);
+    if (!outputItem || outputItem.item_list_id === 0) return item;
+
+    const itemList = itemLists.get(outputItem.item_list_id);
+    if (!itemList) return item;
+
+    return itemList.possibilities.flatMap((list) =>
+      realItemStack(list.items).map((i) => ({
+        ...i,
+        quantity: i.quantity * item.quantity * list.probability,
+      })),
+    );
+  });
 }

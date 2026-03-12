@@ -1,15 +1,15 @@
-import { useStore } from '@nanostores/preact';
-import { $craftPlan, $targets } from '../../lib/craft-store';
-import RawMaterials from './RawMaterials';
-import CraftingSteps from './CraftingSteps';
+import { useStore } from "@nanostores/preact";
+import { $craftPlan, $targets } from "../../lib/craft-store";
+import RawMaterials from "./RawMaterials";
+import CraftingSteps from "./CraftingSteps";
 
 export default function CraftingPlan() {
   const craftPlan = useStore($craftPlan);
   const targets = useStore($targets);
 
   const hasTargets = targets.length > 0;
-  const isLoading = craftPlan.state === 'loading';
-  const hasPlan = craftPlan.state === 'loaded' && craftPlan.value;
+  const isLoading = craftPlan.state === "loading";
+  const hasPlan = craftPlan.state === "loaded" && craftPlan.value;
 
   return (
     <>
@@ -22,41 +22,42 @@ export default function CraftingPlan() {
         </div>
       )}
 
-      {craftPlan.state === 'failed' && (
+      {craftPlan.state === "failed" && (
         <div class="error-banner">
           <span class="error-icon">⚠</span>
           <span>{String(craftPlan.error)}</span>
         </div>
       )}
 
-      {hasPlan && (() => {
-        const results = craftPlan.value!;
-        return (
-          <div class={`results ${isLoading ? 'faded' : ''}`}>
-            {results.player && (
-              <div class="player-context">
-                👤 Player: <strong>{results.player.username}</strong>
-                {results.player.signed_in ? (
-                  <span class="online">● Online</span>
-                ) : (
-                  <span class="offline">○ Offline</span>
-                )}
-                <span class="inv-count">🎒 {results.inventory_size} item types</span>
-              </div>
-            )}
-
-            {results.plans.map((plan: any, i: number) => (
-              <div class="plan-card" key={i}>
-                <div class="plan-header">
-                  <h3>⚒️ {plan.target_name} <span class="plan-qty">×{plan.target.quantity}</span></h3>
+      {hasPlan &&
+        (() => {
+          const results = craftPlan.value!;
+          const plan = results.plan;
+          return (
+            <div class={`results ${isLoading ? "faded" : ""}`}>
+              {results.player && (
+                <div class="player-context">
+                  👤 Player: <strong>{results.player.username}</strong>
+                  {results.player.signed_in ? (
+                    <span class="online">● Online</span>
+                  ) : (
+                    <span class="offline">○ Offline</span>
+                  )}
+                  <span class="inv-count">
+                    🎒 {results.inventory_size} item types
+                  </span>
                 </div>
+              )}
 
+              <div class="plan-card">
                 {plan.already_have?.length > 0 && (
                   <div class="already-have">
                     <h4>✅ Already Have</h4>
                     <div class="have-chips">
                       {plan.already_have.map((item: any) => (
-                        <span class="have-chip" key={item.name}>{item.name} <strong>×{item.quantity}</strong></span>
+                        <span class="have-chip" key={item.name}>
+                          {item.name} <strong>×{item.quantity}</strong>
+                        </span>
                       ))}
                     </div>
                   </div>
@@ -66,13 +67,14 @@ export default function CraftingPlan() {
                 <CraftingSteps steps={plan.steps ?? []} />
 
                 {!plan.steps?.length && !plan.raw_materials?.length && (
-                  <div class="all-done">✅ You already have everything needed!</div>
+                  <div class="all-done">
+                    ✅ You already have everything needed!
+                  </div>
                 )}
               </div>
-            ))}
-          </div>
-        );
-      })()}
+            </div>
+          );
+        })()}
     </>
   );
 }

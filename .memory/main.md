@@ -1,9 +1,11 @@
 # Ordum Dashboard — Project Roadmap
 
 ## Purpose
+
 Dashboard for the Ordum empire in Bitcraft, built with Astro + the generated TypeScript API client talking to the [bitcraft-hub](https://github.com/ResuBaka/bitcraft-hub) Rust API server at `https://craft-api.resubaka.dev`.
 
 ## Current State
+
 - **Full API client**: `src/bitcraft-api-client.ts` — 33 REST endpoints, 26 WebSocket message types
 - **Game data**: 14 static JSON files in `gamedata/` from BitCraftToolBox/BitCraft_GameData (7K items, 7K recipes, 146 claim techs)
 - **Three working pages**:
@@ -16,6 +18,7 @@ Dashboard for the Ordum empire in Bitcraft, built with Astro + the generated Typ
 - **Astro server mode** with `@astrojs/node` adapter
 
 ## Key Files
+
 ```
 scripts/update-gamedata.sh              — downloads game data from GitHub
 src/bitcraft-api-client.ts              — auto-generated API client (REST + WebSocket)
@@ -42,9 +45,11 @@ src/components/                         — ResourceTable, MembersTable, StatCar
 ```
 
 ## Workflow
+
 - **Always `git commit` after completing each objective** the user gives
 
 ## Key Decisions
+
 - Entity IDs use **string form** in API URLs (exceed `Number.MAX_SAFE_INTEGER`)
 - Skip "Package"/"Unpack" recipes in craft planner to avoid cycles
 - Max recipe resolution depth: 15
@@ -56,6 +61,7 @@ src/components/                         — ResourceTable, MembersTable, StatCar
 - **Preact over Svelte**: TSX files > separate `.svelte` filetype; nanostores via `@nanostores/preact` `useStore()` hook
 
 ## Milestones
+
 - [x] REST API client generator
 - [x] WebSocket live-data client
 - [x] Empire resource dashboard

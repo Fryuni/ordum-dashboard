@@ -1,19 +1,19 @@
-import { defineConfig } from 'astro/config';
-import node from '@astrojs/node';
+import { defineConfig } from "astro/config";
+import node from "@astrojs/node";
 
-import preact from '@astrojs/preact';
+import preact from "@astrojs/preact";
 
 // https://astro.build/config
 export default defineConfig({
-  output: 'server',
+  output: "server",
 
   adapter: node({
-    mode: 'standalone',
+    mode: "standalone",
   }),
 
   vite: {
     server: {
-      allowedHosts: ['.ts.net'],
+      allowedHosts: [".ts.net"],
     },
   },
 
