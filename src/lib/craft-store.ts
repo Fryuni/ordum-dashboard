@@ -138,6 +138,17 @@ export function removeTarget(index: number) {
   $targets.set($targets.get().filter((_, i) => i !== index));
 }
 
+export function editTarget(index: number) {
+  const target = $targets.get()[index];
+  if (!target) return;
+  $targets.set($targets.get().filter((_, i) => i !== index));
+  $selectedItem.set({ id: target.id, type: target.type, name: target.name });
+  $searchQuery.set(target.name);
+  $quantity.set(target.quantity);
+  $dropdownOpen.set(false);
+  $highlightIndex.set(-1);
+}
+
 export function clearAll() {
   $targets.set([]);
 }

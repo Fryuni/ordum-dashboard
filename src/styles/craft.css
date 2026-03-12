@@ -257,6 +257,18 @@
   color: var(--accent-4);
   font-weight: 600;
 }
+.target-chip .edit {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0 2px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+.target-chip .edit:hover {
+  opacity: 1;
+}
 .target-chip .remove {
   background: none;
   border: none;

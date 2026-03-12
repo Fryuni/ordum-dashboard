@@ -131,6 +131,17 @@ export function groupRemoveTarget(index: number) {
   $groupTargets.set($groupTargets.get().filter((_, i) => i !== index));
 }
 
+export function groupEditTarget(index: number) {
+  const target = $groupTargets.get()[index];
+  if (!target) return;
+  $groupTargets.set($groupTargets.get().filter((_, i) => i !== index));
+  $groupSelectedItem.set({ id: target.id, type: target.type, name: target.name });
+  $groupSearchQuery.set(target.name);
+  $groupQuantity.set(target.quantity);
+  $groupDropdownOpen.set(false);
+  $groupHighlightIndex.set(-1);
+}
+
 export function groupClearAll() {
   $groupTargets.set([]);
 }
