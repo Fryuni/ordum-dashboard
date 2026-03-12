@@ -1,7 +1,6 @@
 import { useStore } from "@nanostores/preact";
 import { $craftPlan, $targets } from "../../lib/craft-store";
-import RawMaterials from "./RawMaterials";
-import CraftingSteps from "./CraftingSteps";
+import PlanCard from "./PlanCard";
 
 export default function CraftingPlan() {
   const craftPlan = useStore($craftPlan);
@@ -32,7 +31,6 @@ export default function CraftingPlan() {
       {hasPlan &&
         (() => {
           const results = craftPlan.value!;
-          const plan = results.plan;
           return (
             <div class={`results ${isLoading ? "faded" : ""}`}>
               {results.player && (
@@ -49,29 +47,7 @@ export default function CraftingPlan() {
                 </div>
               )}
 
-              <div class="plan-card">
-                {plan.already_have?.length > 0 && (
-                  <div class="already-have">
-                    <h4>✅ Already Have</h4>
-                    <div class="have-chips">
-                      {plan.already_have.map((item: any) => (
-                        <span class="have-chip" key={item.name}>
-                          {item.name} <strong>×{item.quantity}</strong>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <RawMaterials materials={plan.raw_materials ?? []} />
-                <CraftingSteps steps={plan.steps ?? []} />
-
-                {!plan.steps?.length && !plan.raw_materials?.length && (
-                  <div class="all-done">
-                    ✅ You already have everything needed!
-                  </div>
-                )}
-              </div>
+              <PlanCard plan={results.plan} />
             </div>
           );
         })()}

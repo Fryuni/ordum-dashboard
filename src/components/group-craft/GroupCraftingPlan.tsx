@@ -1,7 +1,6 @@
 import { useStore } from "@nanostores/preact";
 import { $groupCraftPlan, $groupTargets } from "../../lib/group-craft-store";
-import RawMaterials from "../craft/RawMaterials";
-import CraftingSteps from "../craft/CraftingSteps";
+import PlanCard from "../craft/PlanCard";
 
 export default function GroupCraftingPlan() {
   const craftPlan = useStore($groupCraftPlan);
@@ -32,7 +31,6 @@ export default function GroupCraftingPlan() {
       {hasPlan &&
         (() => {
           const results = craftPlan.value!;
-          const plan = results.plan;
           return (
             <div class={`results ${isLoading ? "faded" : ""}`}>
               <div class="player-context">
@@ -42,29 +40,10 @@ export default function GroupCraftingPlan() {
                 </span>
               </div>
 
-              <div class="plan-card">
-                {plan.already_have?.length > 0 && (
-                  <div class="already-have">
-                    <h4>✅ Already Have</h4>
-                    <div class="have-chips">
-                      {plan.already_have.map((item: any) => (
-                        <span class="have-chip" key={item.name}>
-                          {item.name} <strong>×{item.quantity}</strong>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <RawMaterials materials={plan.raw_materials ?? []} />
-                <CraftingSteps steps={plan.steps ?? []} />
-
-                {!plan.steps?.length && !plan.raw_materials?.length && (
-                  <div class="all-done">
-                    ✅ The claim already has everything needed!
-                  </div>
-                )}
-              </div>
+              <PlanCard
+                plan={results.plan}
+                allDoneMessage="✅ The claim already has everything needed!"
+              />
             </div>
           );
         })()}
