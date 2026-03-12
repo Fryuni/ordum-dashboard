@@ -153,3 +153,25 @@ The project established a robust foundation with a custom TypeScript API client 
 - Refactored 9 `.svelte` files into `.tsx` components, maintaining the "thin orchestrator" pattern for the `CraftPlanner` while improving type safety for props and hooks.
 - Decided to maintain `craft-store.ts` as a framework-agnostic nanostore core to ensure the migration didn't require rewrites of the underlying business logic.
 - Validated the transition with a clean production build, ensuring that all Astro Actions and recursive crafting calculations remain fully functional under the Preact bridge.
+
+---
+
+## Commit 457d866f | 2026-03-12T18:46:57.173Z
+
+### Branch Purpose
+
+Dashboard for the Ordum empire in Bitcraft, utilizing a generated TypeScript API client and static game data to provide deep insights into resources, settlement research, and crafting logistics.
+
+### Previous Progress Summary
+
+The project established a robust foundation with a custom TypeScript API client generator for REST and WebSocket interfaces, strictly typed from Rust source code. It handles 64-bit entity IDs as strings to prevent precision loss and unifies building storage, player inventories, and member skill rankings into a searchable SSR-enabled dashboard. Recent milestones include the implementation of a recursive craft planner with cycle detection, the adoption of `computedAsync` for declarative async state management, and the migration of all interactive components from Svelte 5 to Preact TSX to leverage `@nanostores/preact` for component-level reactivity.
+
+### This Commit's Contribution
+
+- Expanded the Settlement Planner to cover all tiers 1-10, implementing a filtering logic that isolates "tier-upgrade-only" items sorted by their required tier.
+- Introduced the "Group Craft" planner (`/group-craft`), a new specialized view that calculates crafting deficits by comparing targets against the entire Ordum claim inventory.
+- Implemented a seamless integration between the Settlement Planner and Group Craft by adding a "Craft Missing Items" button that deep-links to the group planner with deficit items pre-populated.
+- Resolved a UI regression from the Preact migration by consolidating all component-scoped CSS into a global `src/styles/craft.css` stylesheet, restoring styles for tier badges, timelines, and search results.
+- Verified that the keyboard-driven autocomplete and interactive dropdowns are fully functional in the new Preact architecture through headless browser testing.
+- Decided to maintain the "Group Craft" logic as a distinct page to separate individual player-context crafting from large-scale empire infrastructure projects.
+- Improved the settlement data model by mapping claim techs directly to their required item ingredients, enabling precise deficit tracking for the next settlement upgrade.

@@ -7,6 +7,7 @@ import {
 } from "../lib/craft-planner";
 import { api } from "../lib/api";
 import { ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
+import { buildClaimInventory } from "../lib/claim-inventory";
 
 export const server = {
   groupCraftPlan: defineAction({
@@ -35,34 +36,11 @@ export const server = {
         });
       }
 
-      // Build inventory from the Ordum claim's building storage + player inventories
-      const inventory = new Map<string, number>();
+      // Build inventory from the Ordum claim (excludes bank buildings — personal storage)
+      let inventory = new Map<string, number>();
       try {
         const claim = await api.getClaim(ORDUM_MAIN_CLAIM_ID);
-
-        // Building inventories
-        const buildingInv = (claim.inventorys as any)?.buildings ?? [];
-        for (const item of buildingInv) {
-          const key = `${item.item_type ?? "Item"}:${item.item_id}`;
-          inventory.set(key, (inventory.get(key) ?? 0) + (item.quantity ?? 0));
-        }
-        const buildingLocs = (claim.inventory_locations as any)?.buildings ?? [];
-        for (const loc of buildingLocs) {
-          const key = `${loc.item_type ?? "Item"}:${loc.item_id}`;
-          if (!inventory.has(key)) {
-            const total = (loc.locations ?? []).reduce((s: number, l: any) => s + (l.quantity ?? 0), 0);
-            inventory.set(key, total);
-          }
-        }
-
-        // Player inventories (online + offline)
-        for (const section of ["players", "players_offline"]) {
-          const playerInv = (claim.inventorys as any)?.[section] ?? [];
-          for (const item of playerInv) {
-            const key = `${item.item_type ?? "Item"}:${item.item_id}`;
-            inventory.set(key, (inventory.get(key) ?? 0) + (item.quantity ?? 0));
-          }
-        }
+        inventory = buildClaimInventory(claim);
       } catch {
         // Continue with empty inventory
       }

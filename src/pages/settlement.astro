@@ -4,6 +4,7 @@ import { loadGameData } from "../lib/gamedata";
 import { buildSettlementPlan } from "../lib/settlement-planner";
 import { ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
 import { api } from "../lib/api";
+import { buildClaimInventory } from "../lib/claim-inventory";
 import TierPlan from "../components/TierPlan.astro";
 
 // Load game data
@@ -17,31 +18,8 @@ const supplies = claim.supplies ?? 0;
 const learnedIds = new Set<number>(claim.learned_upgrades ?? []);
 const claimName = claim.name ?? "Unknown Claim";
 
-// Build inventory map from building storage
-const inventory = new Map<string, number>();
-const buildingInv = (claim.inventorys as any)?.buildings ?? [];
-for (const item of buildingInv) {
-  const key = `${item.item_type ?? "Item"}:${item.item_id}`;
-  inventory.set(key, (inventory.get(key) ?? 0) + (item.quantity ?? 0));
-}
-// Also include from inventory_locations buildings for more detail
-const buildingLocs = (claim.inventory_locations as any)?.buildings ?? [];
-for (const loc of buildingLocs) {
-  const key = `${loc.item_type ?? "Item"}:${loc.item_id}`;
-  if (!inventory.has(key)) {
-    const total = (loc.locations ?? []).reduce((s: number, l: any) => s + (l.quantity ?? 0), 0);
-    inventory.set(key, total);
-  }
-}
-
-// Also add player inventories (they can deposit items)
-for (const section of ["players", "players_offline"]) {
-  const playerInv = (claim.inventorys as any)?.[section] ?? [];
-  for (const item of playerInv) {
-    const key = `${item.item_type ?? "Item"}:${item.item_id}`;
-    inventory.set(key, (inventory.get(key) ?? 0) + (item.quantity ?? 0));
-  }
-}
+// Build inventory map (excludes bank buildings — personal storage)
+const inventory = buildClaimInventory(claim);
 
 // Build plan
 const plans = buildSettlementPlan(gd, currentTier, learnedIds, supplies, inventory);
