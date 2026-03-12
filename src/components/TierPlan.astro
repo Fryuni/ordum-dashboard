@@ -4,11 +4,12 @@ import type { TierPlan } from "../lib/settlement-planner";
 interface Props {
   plan: TierPlan;
   isNextTier: boolean;
+  currentTier: number;
 }
 
-const { plan, isNextTier } = Astro.props;
+const { plan, isNextTier, currentTier } = Astro.props;
 const suppliesOk = plan.supplies_available >= plan.total_supplies_needed;
-const allDone = plan.researches.every(r => r.already_researched) && plan.tier_upgrade?.already_researched;
+const isDone = plan.tier <= currentTier;
 
 // Calculate completion percentage based on total items fulfilled
 let totalReq = 0;
@@ -17,32 +18,41 @@ for (const item of plan.all_items_needed) {
   totalReq += item.total_required;
   totalAvail += Math.min(item.total_available, item.total_required);
 }
-const percentDone = totalReq > 0 ? Math.round((totalAvail / totalReq) * 100) : (allDone ? 100 : 0);
+const percentDone = totalReq > 0 ? Math.round((totalAvail / totalReq) * 100) : (isDone ? 100 : 0);
 
-// Helper for card class
-const cardClass = allDone ? 'tier-completed' : isNextTier ? 'tier-active' : 'tier-future';
+const cardClass = isDone ? 'tier-completed' : isNextTier ? 'tier-active' : 'tier-future';
 ---
 
 <div class={`tier-plan ${cardClass}`} id={`tier-${plan.tier}`}>
   <div class="tier-header">
     <div class="tier-header-left">
-      <div class={`circular-progress ${allDone ? 'progress-done' : ''}`} style={`--p: ${allDone ? 100 : percentDone}%`}>
-        <span>{allDone ? '✓' : `T${plan.tier}`}</span>
+      <div class={`circular-progress ${isDone ? 'progress-done' : ''}`} style={`--p: ${isDone ? 100 : percentDone}%`}>
+        <span>{isDone ? '✓' : `T${plan.tier}`}</span>
       </div>
       <div>
-        <h3 class="tier-title">Tier {plan.tier} {allDone && <span class="badge-done">Complete</span>}</h3>
-        <p class="tier-subtitle">
-          <span class={`supplies-status ${suppliesOk ? 'text-green' : 'text-red'}`}>
-            📦 {plan.total_supplies_needed.toLocaleString()} supplies needed
-            {!suppliesOk && ` (need ${(plan.total_supplies_needed - plan.supplies_available).toLocaleString()} more)`}
-          </span>
-        </p>
+        <h3 class="tier-title">Tier {plan.tier} {isDone && <span class="badge-done">Complete</span>}</h3>
+        {!isDone && plan.total_supplies_needed > 0 && (
+          <p class="tier-subtitle">
+            <span class={`supplies-status ${suppliesOk ? 'text-green' : 'text-red'}`}>
+              📦 {plan.total_supplies_needed.toLocaleString()} supplies needed
+              {!suppliesOk && ` (need ${(plan.total_supplies_needed - plan.supplies_available).toLocaleString()} more)`}
+            </span>
+          </p>
+        )}
       </div>
     </div>
+    {isNextTier && plan.all_items_needed.some(i => i.deficit > 0) && (
+      <a
+        href={`/group-craft?from=settlement&tier=${plan.tier}`}
+        class="btn-group-craft"
+      >
+        ⚒️ Craft Missing Items
+      </a>
+    )}
   </div>
 
   {/* Tier Upgrade Banner */}
-  {plan.tier_upgrade && (
+  {plan.tier_upgrade && !isDone && (
     <div class={`upgrade-banner ${plan.tier_upgrade.already_researched ? 'banner-done' : 'banner-pending'}`}>
       <div class="banner-header">
         <div class="banner-title-area">
@@ -57,12 +67,17 @@ const cardClass = allDone ? 'tier-completed' : isNextTier ? 'tier-active' : 'tie
       
       {!plan.tier_upgrade.already_researched && (
         <div class="req-grid">
-          {plan.tier_upgrade.items.map(item => {
+          {plan.tier_upgrade.items
+            .sort((a, b) => a.tier - b.tier || a.name.localeCompare(b.name))
+            .map(item => {
             const pct = Math.min(100, (item.quantity_available / item.quantity_required) * 100);
             return (
               <div class={`req-card ${item.fulfilled ? 'req-fulfilled' : 'req-missing'}`}>
                 <div class="req-top">
-                  <span class="req-name">{item.name}</span>
+                  <div class="req-name-area">
+                    <span class={`tier-badge tier-${item.tier}`}>T{item.tier}</span>
+                    <span class="req-name">{item.name}</span>
+                  </div>
                   <span class="req-fraction">
                     <span class={item.quantity_available >= item.quantity_required ? 'text-green' : 'text-red'}>
                       {item.quantity_available.toLocaleString()}
@@ -81,51 +96,10 @@ const cardClass = allDone ? 'tier-completed' : isNextTier ? 'tier-active' : 'tie
     </div>
   )}
 
-  {/* Research Cards */}
-  <div class="research-grid">
-    {plan.researches.map(r => (
-      <div class={`research-card ${r.already_researched ? 'research-done' : ''}`}>
-        <div class="research-header">
-          <div class="r-title-row">
-            <h5 class="r-title">
-              {r.already_researched ? '✅ ' : ''}{r.tech.name}
-            </h5>
-            <span class="r-cost">📦 {r.supplies_cost.toLocaleString()}</span>
-          </div>
-          <span class="r-type-badge">{r.tech.tech_type}</span>
-        </div>
-        
-        {!r.already_researched && (
-          <div class="req-grid mt-3">
-            {r.items.map(item => {
-              const pct = Math.min(100, (item.quantity_available / item.quantity_required) * 100);
-              return (
-                <div class={`req-card ${item.fulfilled ? 'req-fulfilled' : 'req-missing'}`}>
-                  <div class="req-top">
-                    <span class="req-name">{item.name}</span>
-                    <span class="req-fraction">
-                      <span class={item.quantity_available >= item.quantity_required ? 'text-green' : 'text-red'}>
-                        {item.quantity_available.toLocaleString()}
-                      </span>
-                      <span class="text-muted"> / {item.quantity_required.toLocaleString()}</span>
-                    </span>
-                  </div>
-                  <div class="progress-bar-bg">
-                    <div class="progress-bar-fill" style={`width: ${pct}%`}></div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    ))}
-  </div>
-
-  {/* Summary Table */}
-  {!allDone && plan.all_items_needed.length > 0 && (
+  {/* Summary Table — only for non-done tiers with items */}
+  {!isDone && plan.all_items_needed.length > 0 && (
     <div class="summary-section">
-      <h4 class="summary-title">📋 Total Items Needed for Tier {plan.tier}</h4>
+      <h4 class="summary-title">📋 Items Needed to Advance to Tier {plan.tier}</h4>
       <div class="table-wrapper">
         <table class="modern-table">
           <thead>
@@ -225,6 +199,26 @@ const cardClass = allDone ? 'tier-completed' : isNextTier ? 'tier-active' : 'tie
     letter-spacing: 0.5px;
   }
 
+  /* Group Craft Button */
+  .btn-group-craft {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: linear-gradient(135deg, var(--accent-2), var(--accent-4));
+    color: var(--bg-base);
+    font-weight: 700;
+    font-size: 0.85rem;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+  }
+  .btn-group-craft:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(255, 140, 108, 0.3);
+  }
+
   /* Circular Progress */
   .circular-progress {
     width: 40px;
@@ -284,49 +278,7 @@ const cardClass = allDone ? 'tier-completed' : isNextTier ? 'tier-active' : 'tie
   .banner-subtitle { font-size: 0.8rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; letter-spacing: 0.5px;}
   .banner-cost { font-weight: 600; color: var(--text); }
 
-  /* Grid Layouts */
-  .research-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
-    gap: 10px;
-  }
-  
-  .research-card {
-    background: var(--bg-surface-2);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 12px;
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-  .research-card:hover {
-    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-    transform: translateY(-2px);
-  }
-  .research-done {
-    opacity: 0.5;
-  }
-
-  .research-header { margin-bottom: 16px; }
-  .r-title-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 8px;
-  }
-  .r-title { font-size: 1.1rem; margin: 0; color: var(--text); }
-  .r-cost { font-size: 0.9rem; font-weight: 600; color: var(--text-muted); }
-  .r-type-badge {
-    background: var(--bg-surface-3);
-    color: var(--text-muted);
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    text-transform: uppercase;
-    font-weight: 600;
-  }
-
   /* Requirement Mini-Cards */
-  .mt-3 { margin-top: 16px; }
   .req-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -347,6 +299,11 @@ const cardClass = allDone ? 'tier-completed' : isNextTier ? 'tier-active' : 'tie
     align-items: center;
     margin-bottom: 8px;
     font-size: 0.9rem;
+  }
+  .req-name-area {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
   .req-name { font-weight: 500; }
   .req-fraction { font-family: monospace; font-size: 0.95rem; }

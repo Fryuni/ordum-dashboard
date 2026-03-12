@@ -67,8 +67,8 @@ export function buildSettlementPlan(
 ): TierPlan[] {
   const plans: TierPlan[] = [];
 
-  // Build plans for tiers from currentTier+1 up to 10
-  for (let tier = currentTier + 1; tier <= 10; tier++) {
+  // Build plans for all tiers 1-10
+  for (let tier = 1; tier <= 10; tier++) {
     const tierTechs = gd.claimTechs.filter(
       (t) => t.tier === tier && t.input.length > 0,
     );
@@ -111,22 +111,22 @@ export function buildSettlementPlan(
     };
 
     const tierUpgrade = tierUpgradeTech ? buildReq(tierUpgradeTech) : null;
-    const researches = otherTechs.map(buildReq).sort((a, b) => {
-      // Sort: unresearched first, then by type name
-      if (a.already_researched !== b.already_researched)
-        return a.already_researched ? 1 : -1;
-      return a.tech.name.localeCompare(b.tech.name);
-    });
+    // For tiers already achieved, skip detailed research listing
+    const researches = tier <= currentTier
+      ? []
+      : otherTechs.map(buildReq).sort((a, b) => {
+          if (a.already_researched !== b.already_researched)
+            return a.already_researched ? 1 : -1;
+          return a.tech.name.localeCompare(b.tech.name);
+        });
 
-    // Aggregate all items needed for this tier
+    // Only aggregate items from the TierUpgrade research (not all researches)
     const itemTotals = new Map<
       string,
       { item_id: number; item_type: "Item" | "Cargo"; total_required: number }
     >();
-    const allReqs = tierUpgrade ? [tierUpgrade, ...researches] : researches;
-    for (const req of allReqs) {
-      if (req.already_researched) continue;
-      for (const item of req.items) {
+    if (tierUpgrade && !tierUpgrade.already_researched) {
+      for (const item of tierUpgrade.items) {
         const key = `${item.item_type}:${item.item_id}`;
         const existing = itemTotals.get(key);
         if (existing) {
@@ -157,11 +157,12 @@ export function buildSettlementPlan(
           deficit: Math.max(0, val.total_required - available),
         };
       })
-      .sort((a, b) => b.deficit - a.deficit);
+      // Sort by tier first, then by deficit
+      .sort((a, b) => a.tier - b.tier || b.deficit - a.deficit);
 
-    const totalSuppliesNeeded = allReqs
-      .filter((r) => !r.already_researched)
-      .reduce((s, r) => s + r.supplies_cost, 0);
+    const totalSuppliesNeeded = tierUpgrade && !tierUpgrade.already_researched
+      ? tierUpgrade.supplies_cost
+      : 0;
 
     plans.push({
       tier,

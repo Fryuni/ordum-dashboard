@@ -70,27 +70,18 @@ const plans = buildSettlementPlan(gd, currentTier, learnedIds, supplies, invento
 
   <div class="timeline-nav-container">
     <div class="timeline-nav">
-      {plans.map((p, i) => {
-        const allDone = p.researches.every(r => r.already_researched) && p.tier_upgrade?.already_researched;
-        const isNext = i === 0;
-        
-        let stateClass = "tl-future";
-        if (allDone) stateClass = "tl-done";
-        else if (isNext) stateClass = "tl-active";
-
-        return (
-          <a href={`#tier-${p.tier}`} class={`tl-node ${stateClass}`}>
-            <span class="tl-circle">{allDone ? '✓' : p.tier}</span>
-            <span class="tl-label">Tier {p.tier}</span>
-          </a>
-        );
-      })}
+      {plans.map((p) => (
+        <a href={`#tier-${p.tier}`} class={`tl-node ${p.tier <= currentTier ? 'tl-done' : p.tier === currentTier + 1 ? 'tl-active' : 'tl-future'}`}>
+          <span class="tl-circle">{p.tier <= currentTier ? '✓' : p.tier}</span>
+          <span class="tl-label">Tier {p.tier}</span>
+        </a>
+      ))}
     </div>
   </div>
 
   <div class="plans-container">
-    {plans.map((plan, i) => (
-      <TierPlan plan={plan} isNextTier={i === 0} />
+    {plans.map((plan) => (
+      <TierPlan plan={plan} isNextTier={plan.tier === currentTier + 1} currentTier={currentTier} />
     ))}
   </div>
 </Layout>
