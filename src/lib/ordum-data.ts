@@ -17,6 +17,7 @@ import {
   type InventoryItemLocation,
   type BuildingStateModel,
 } from "../bitcraft-api-client";
+import { BANK_BUILDING_IDS } from "./claim-inventory";
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
 
@@ -188,13 +189,17 @@ export async function fetchClaimData(
 ): Promise<ClaimSummary> {
   const raw = await client.getClaim(claimIdStr);
 
-  // Parse building resources (with locations)
+  // Parse building resources (with locations), excluding bank buildings (personal storage)
   const buildingLocs: ResourceWithLocations[] = [];
   const buildingLocArray = (raw.inventory_locations as any)?.buildings ?? [];
   for (const loc of buildingLocArray) {
     const parsed = parseInventoryLocation(loc);
+    // Filter out bank building locations
+    parsed.locations = parsed.locations.filter(
+      (l) => !BANK_BUILDING_IDS.has(l.building_description_id ?? 0),
+    );
     parsed.quantity = parsed.locations.reduce((sum, l) => sum + l.quantity, 0);
-    buildingLocs.push(parsed);
+    if (parsed.quantity > 0) buildingLocs.push(parsed);
   }
 
   // Parse player resources (with locations)
