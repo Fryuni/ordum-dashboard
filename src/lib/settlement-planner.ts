@@ -120,13 +120,15 @@ export function buildSettlementPlan(
           return a.tech.name.localeCompare(b.tech.name);
         });
 
-    // Only aggregate items from the TierUpgrade research (not all researches)
+    // Aggregate items from ALL researches in this tier (TierUpgrade + others)
     const itemTotals = new Map<
       string,
       { item_id: number; item_type: "Item" | "Cargo"; total_required: number }
     >();
-    if (tierUpgrade && !tierUpgrade.already_researched) {
-      for (const item of tierUpgrade.items) {
+    const allReqs = tierUpgrade ? [tierUpgrade, ...researches] : researches;
+    for (const req of allReqs) {
+      if (req.already_researched) continue;
+      for (const item of req.items) {
         const key = `${item.item_type}:${item.item_id}`;
         const existing = itemTotals.get(key);
         if (existing) {
@@ -160,9 +162,9 @@ export function buildSettlementPlan(
       // Sort by tier first, then by deficit
       .sort((a, b) => a.tier - b.tier || b.deficit - a.deficit);
 
-    const totalSuppliesNeeded = tierUpgrade && !tierUpgrade.already_researched
-      ? tierUpgrade.supplies_cost
-      : 0;
+    const totalSuppliesNeeded = allReqs
+      .filter((r) => !r.already_researched)
+      .reduce((s, r) => s + r.supplies_cost, 0);
 
     plans.push({
       tier,
