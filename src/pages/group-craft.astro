@@ -1,0 +1,118 @@
+---
+import Layout from "../layouts/Layout.astro";
+import GroupCraftConfiguration from "../components/group-craft/GroupCraftConfiguration";
+import GroupCraftingPlan from "../components/group-craft/GroupCraftingPlan";
+import GroupCraftInit from "../components/group-craft/GroupCraftInit";
+import "../styles/craft.css";
+import { loadGameData } from "../lib/gamedata";
+import { ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
+import { api } from "../lib/api";
+import { buildSettlementPlan } from "../lib/settlement-planner";
+import type { TargetItem } from "../lib/group-craft-store";
+
+const gd = loadGameData();
+
+const itemIndex: { id: number; t: "Item" | "Cargo"; n: string; tier: number; tag: string }[] = [];
+for (const [id, item] of gd.items) {
+  if (item.name) {
+    itemIndex.push({ id, t: "Item", n: item.name, tier: item.tier, tag: item.tag });
+  }
+}
+for (const [id, c] of gd.cargo) {
+  if (c.name) {
+    itemIndex.push({ id, t: "Cargo", n: c.name, tier: c.tier, tag: c.tag });
+  }
+}
+
+// Check if we're coming from the settlement planner with pre-selected items
+const url = new URL(Astro.request.url);
+const fromSettlement = url.searchParams.get("from") === "settlement";
+const tier = parseInt(url.searchParams.get("tier") ?? "0");
+
+let initialItems: TargetItem[] = [];
+
+if (fromSettlement && tier > 0) {
+  try {
+    const claim = await api.getClaim(ORDUM_MAIN_CLAIM_ID);
+    const currentTier = claim.tier ?? 1;
+    const learnedIds = new Set<number>(claim.learned_upgrades ?? []);
+    const supplies = claim.supplies ?? 0;
+
+    // Build inventory map from building storage
+    const inventory = new Map<string, number>();
+    const buildingInv = (claim.inventorys as any)?.buildings ?? [];
+    for (const item of buildingInv) {
+      const key = `${item.item_type ?? "Item"}:${item.item_id}`;
+      inventory.set(key, (inventory.get(key) ?? 0) + (item.quantity ?? 0));
+    }
+    const buildingLocs = (claim.inventory_locations as any)?.buildings ?? [];
+    for (const loc of buildingLocs) {
+      const key = `${loc.item_type ?? "Item"}:${loc.item_id}`;
+      if (!inventory.has(key)) {
+        const total = (loc.locations ?? []).reduce((s: number, l: any) => s + (l.quantity ?? 0), 0);
+        inventory.set(key, total);
+      }
+    }
+    for (const section of ["players", "players_offline"]) {
+      const playerInv = (claim.inventorys as any)?.[section] ?? [];
+      for (const item of playerInv) {
+        const key = `${item.item_type ?? "Item"}:${item.item_id}`;
+        inventory.set(key, (inventory.get(key) ?? 0) + (item.quantity ?? 0));
+      }
+    }
+
+    const plans = buildSettlementPlan(gd, currentTier, learnedIds, supplies, inventory);
+    const targetPlan = plans.find(p => p.tier === tier);
+
+    if (targetPlan) {
+      // Only include items with a deficit
+      for (const item of targetPlan.all_items_needed) {
+        if (item.deficit > 0) {
+          initialItems.push({
+            id: item.item_id,
+            type: item.item_type,
+            name: item.name,
+            quantity: item.deficit,
+          });
+        }
+      }
+    }
+  } catch (e) {
+    // Continue without pre-populated items
+  }
+}
+---
+
+<Layout title="Group Craft Planner — Ordum" activePage="group-craft">
+  <div class="header">
+    <h1>🏰 Group Craft Planner</h1>
+    <p class="subtitle">Calculate crafting trees using the Ordum claim's combined inventory</p>
+  </div>
+
+  {initialItems.length > 0 && (
+    <GroupCraftInit client:only initialItems={initialItems} />
+  )}
+  <GroupCraftConfiguration client:only itemIndex={itemIndex} />
+  <GroupCraftingPlan client:only />
+</Layout>
+
+<style>
+  .header {
+    text-align: center;
+    padding: 8px 0 16px;
+    margin-bottom: 12px;
+  }
+  .header h1 {
+    font-size: 1.3rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent-2), var(--accent-4));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 4px;
+  }
+  .header .subtitle {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+  }
+</style>

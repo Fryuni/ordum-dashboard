@@ -632,3 +632,23 @@
 .sources-list li:last-child {
   border-bottom: none;
 }
+
+/* ─── Group Craft: Claim Context ──────────────────────────────────────── */
+.claim-context {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, rgba(108, 140, 255, 0.08), rgba(74, 222, 128, 0.05));
+  border: 1px solid rgba(108, 140, 255, 0.2);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+.claim-context strong {
+  color: var(--accent);
+}
+.claim-icon {
+  font-size: 1.2rem;
+}

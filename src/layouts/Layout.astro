@@ -1,7 +1,7 @@
 ---
 interface Props {
   title: string;
-  activePage?: 'dashboard' | 'craft' | 'settlement';
+  activePage?: 'dashboard' | 'craft' | 'settlement' | 'group-craft';
 }
 
 const { title, activePage = 'dashboard' } = Astro.props;
@@ -31,6 +31,10 @@ const { title, activePage = 'dashboard' } = Astro.props;
           <a href="/craft" class={activePage === 'craft' ? 'active' : ''}>
             <span class="icon">⚒️</span>
             Craft Planner
+          </a>
+          <a href="/group-craft" class={activePage === 'group-craft' ? 'active' : ''}>
+            <span class="icon">🏰</span>
+            Group Craft
           </a>
         </nav>
       </aside>
