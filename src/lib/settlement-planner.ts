@@ -81,7 +81,7 @@ export function buildSettlementPlan(
 
     const buildReq = (tech: GameClaimTech): ResearchRequirement => {
       const items = tech.input.map((inp) => {
-        const info = getItemInfo(gd, inp.item_type, inp.item_id);
+        const info = getItemInfo(inp.item_type, inp.item_id);
         const key = `${inp.item_type}:${inp.item_id}`;
         const available = inventory.get(key) ?? 0;
         return {
@@ -143,7 +143,7 @@ export function buildSettlementPlan(
 
     const allItemsNeeded = [...itemTotals.entries()]
       .map(([key, val]) => {
-        const info = getItemInfo(gd, val.item_type, val.item_id);
+        const info = getItemInfo(val.item_type, val.item_id);
         const available = inventory.get(key) ?? 0;
         return {
           item_id: val.item_id,
