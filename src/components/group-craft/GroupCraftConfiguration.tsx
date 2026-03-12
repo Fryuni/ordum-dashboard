@@ -24,7 +24,7 @@ export default function GroupCraftConfiguration({ itemIndex }: Props) {
     <div class="planner-card">
       <div class="claim-context">
         <span class="claim-icon">🏰</span>
-        <span>Using <strong>Ordum Claim</strong> inventory (buildings + all players)</span>
+        <span>Using <strong>Ordum Claim</strong> building storage</span>
       </div>
 
       <GroupItemPicker />

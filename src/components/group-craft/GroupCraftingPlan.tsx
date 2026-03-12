@@ -36,7 +36,7 @@ export default function GroupCraftingPlan() {
           return (
             <div class={`results ${isLoading ? "faded" : ""}`}>
               <div class="player-context">
-                🏰 Using <strong>Ordum Claim</strong> inventory
+                🏰 Using <strong>Ordum Claim</strong> building storage
                 <span class="inv-count">
                   📦 {results.inventory_size} item types
                 </span>
