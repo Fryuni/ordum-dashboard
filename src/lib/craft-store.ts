@@ -138,6 +138,9 @@ export function removeTarget(index: number) {
   $targets.set($targets.get().filter((_, i) => i !== index));
 }
 
+// Signal atom: increments to notify ItemPicker to focus the quantity input
+export const $focusQuantity = atom(0);
+
 export function editTarget(index: number) {
   const target = $targets.get()[index];
   if (!target) return;
@@ -147,6 +150,7 @@ export function editTarget(index: number) {
   $quantity.set(target.quantity);
   $dropdownOpen.set(false);
   $highlightIndex.set(-1);
+  $focusQuantity.set($focusQuantity.get() + 1);
 }
 
 export function clearAll() {

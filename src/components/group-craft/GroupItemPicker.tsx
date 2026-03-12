@@ -8,6 +8,7 @@ import {
   $groupQuantity,
   $groupSearchResults,
   $groupCanAdd,
+  $groupFocusQuantity,
   groupSelectItem,
   groupAddTarget,
 } from "../../lib/group-craft-store";
@@ -19,6 +20,7 @@ export default function GroupItemPicker() {
   const quantity = useStore($groupQuantity);
   const searchResults = useStore($groupSearchResults);
   const canAdd = useStore($groupCanAdd);
+  const focusSignal = useStore($groupFocusQuantity);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
@@ -43,6 +45,13 @@ export default function GroupItemPicker() {
     document.addEventListener("click", handleClick);
     return () => document.removeEventListener("click", handleClick);
   }, []);
+
+  useEffect(() => {
+    if (focusSignal > 0) {
+      qtyRef.current?.focus();
+      qtyRef.current?.select();
+    }
+  }, [focusSignal]);
 
   function handleSearchInput(e: Event) {
     const val = (e.target as HTMLInputElement).value;

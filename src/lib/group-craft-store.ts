@@ -131,6 +131,9 @@ export function groupRemoveTarget(index: number) {
   $groupTargets.set($groupTargets.get().filter((_, i) => i !== index));
 }
 
+// Signal atom: increments to notify GroupItemPicker to focus the quantity input
+export const $groupFocusQuantity = atom(0);
+
 export function groupEditTarget(index: number) {
   const target = $groupTargets.get()[index];
   if (!target) return;
@@ -140,6 +143,7 @@ export function groupEditTarget(index: number) {
   $groupQuantity.set(target.quantity);
   $groupDropdownOpen.set(false);
   $groupHighlightIndex.set(-1);
+  $groupFocusQuantity.set($groupFocusQuantity.get() + 1);
 }
 
 export function groupClearAll() {

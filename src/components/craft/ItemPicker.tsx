@@ -8,6 +8,7 @@ import {
   $quantity,
   $searchResults,
   $canAdd,
+  $focusQuantity,
   selectItem,
   addTarget,
 } from "../../lib/craft-store";
@@ -19,6 +20,7 @@ export default function ItemPicker() {
   const quantity = useStore($quantity);
   const searchResults = useStore($searchResults);
   const canAdd = useStore($canAdd);
+  const focusSignal = useStore($focusQuantity);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const qtyRef = useRef<HTMLInputElement>(null);
@@ -43,6 +45,13 @@ export default function ItemPicker() {
     document.addEventListener("click", handleClick);
     return () => document.removeEventListener("click", handleClick);
   }, []);
+
+  useEffect(() => {
+    if (focusSignal > 0) {
+      qtyRef.current?.focus();
+      qtyRef.current?.select();
+    }
+  }, [focusSignal]);
 
   function handleSearchInput(e: Event) {
     const val = (e.target as HTMLInputElement).value;
