@@ -54,9 +54,11 @@ const offline = members.filter((m) => !m.online);
           ].filter(Boolean);
           return (
             <tr class={m.online ? 'online' : 'offline-row'} data-name={m.user_name.toLowerCase()} data-online={m.online ? 'true' : 'false'}>
-              <td class="status-cell">
-                <span class={`status-dot ${m.online ? 'online' : 'offline'}`} />
-                <span class="status-text">{m.online ? 'Online' : 'Offline'}</span>
+              <td>
+                <div class="status-cell">
+                  <span class={`status-dot ${m.online ? 'online' : 'offline'}`} />
+                  <span class="status-text">{m.online ? 'Online' : 'Offline'}</span>
+                </div>
               </td>
               <td class="member-name">{m.user_name}</td>
               <td class="perms-cell">
