@@ -134,8 +134,10 @@ export function buildPartialPlan(
 
   let depth = initialDepth;
 
+  // Use delta() from the start so inventory is checked before resolving recipes.
+  // delta() subtracts targets from inventory, returning only unfulfilled items.
   for (
-    let [target, ...otherTargets] = targets, next = plan.delta();
+    let next = plan.delta(), [target, ...otherTargets] = next.targets;
     ;
     next = plan.delta(), [target, ...otherTargets] = next.targets
   ) {
