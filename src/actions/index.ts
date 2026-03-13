@@ -3,11 +3,30 @@ import { z } from "astro/zod";
 import {
   buildCraftPlan,
   searchItems,
+  type CraftPlan,
   type CraftTarget,
 } from "../lib/craft-planner";
 import { api } from "../lib/api";
 import { ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
 import { buildClaimInventory } from "../lib/claim-inventory";
+import { hash } from "ohash";
+import {
+  AdaptedCache,
+  LruCache,
+  SharedInFlightCache,
+  StaleWhileRevalidateCache,
+  type CacheProvider,
+} from "@croct/cache";
+
+const cache: CacheProvider<any, CraftPlan> = AdaptedCache.transformKeys(
+  new SharedInFlightCache(
+    new StaleWhileRevalidateCache({
+      freshPeriod: 20,
+      cacheProvider: LruCache.ofCapacity(4096),
+    }),
+  ),
+  hash,
+);
 
 export const server = {
   groupCraftPlan: defineAction({
@@ -45,7 +64,9 @@ export const server = {
         // Continue with empty inventory
       }
 
-      const plan = buildCraftPlan(targets, inventory);
+      const plan = await cache.get(targets, () =>
+        Promise.resolve(buildCraftPlan(targets, inventory)),
+      );
 
       return {
         player: null,
@@ -148,7 +169,9 @@ export const server = {
         }
       }
 
-      const plan = buildCraftPlan(targets, inventory);
+      const plan = await cache.get({ targets, player }, () =>
+        Promise.resolve(buildCraftPlan(targets, inventory)),
+      );
 
       return {
         player: playerInfo,
