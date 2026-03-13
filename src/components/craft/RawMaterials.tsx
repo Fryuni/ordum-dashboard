@@ -1,22 +1,4 @@
-interface RawMaterialSource {
-  resource_name: string;
-  verb: string;
-}
-
-interface RawMaterial {
-  item_id: number;
-  item_type: string;
-  name: string;
-  tier: number;
-  tag: string;
-  total_needed: number;
-  available: number;
-  deficit: number;
-  source: string;
-  skill_requirements: { skill: string; level: number }[];
-  tool_requirements: { tool: string; level: number }[];
-  resource_sources: RawMaterialSource[];
-}
+import type { RawMaterial } from "../../lib/craft-planner";
 
 export default function RawMaterials({
   materials,
