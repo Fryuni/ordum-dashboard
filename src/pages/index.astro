@@ -23,8 +23,6 @@ import ResourceTable from "../components/ResourceTable.astro";
 import MembersTable from "../components/MembersTable.astro";
 import StatCard from "../components/StatCard.astro";
 
-export const prerender = false;
-
 const empire = await fetchEmpireData();
 const mainClaim = empire.claims[0]; // Ordum City (leader)
 ---

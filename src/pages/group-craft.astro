@@ -29,6 +29,8 @@ import { buildClaimInventory } from "../lib/claim-inventory";
 import { buildSettlementPlan } from "../lib/settlement-planner";
 import type { TargetItem } from "../lib/group-craft-store";
 
+export const prerender = false;
+
 // Check if we're coming from the settlement planner with pre-selected items
 const url = new URL(Astro.request.url);
 const fromSettlement = url.searchParams.get("from") === "settlement";

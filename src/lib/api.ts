@@ -18,7 +18,9 @@
  */
 import { BitcraftApiClient } from "../bitcraft-api-client";
 
-export const API_BASE_URL = "https://craft-api.resubaka.dev";
+export const API_BASE_URL = import.meta.env.SSR
+  ? "https://craft-api.resubaka.dev"
+  : import.meta.env.BASE_URL;
 
 /** Global API client instance — used server-side by all pages and actions. */
 export const api = new BitcraftApiClient({

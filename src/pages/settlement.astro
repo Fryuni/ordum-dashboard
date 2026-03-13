@@ -23,8 +23,7 @@ import { ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
 import { api } from "../lib/api";
 import { buildClaimInventory } from "../lib/claim-inventory";
 import TierPlan from "../components/TierPlan.astro";
-
-export const prerender = false;
+import { gd } from "../lib/gamedata";
 
 // Fetch live claim data
 const claim = await api.getClaim(ORDUM_MAIN_CLAIM_ID);
