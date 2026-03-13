@@ -175,3 +175,25 @@ The project established a robust foundation with a custom TypeScript API client 
 - Verified that the keyboard-driven autocomplete and interactive dropdowns are fully functional in the new Preact architecture through headless browser testing.
 - Decided to maintain the "Group Craft" logic as a distinct page to separate individual player-context crafting from large-scale empire infrastructure projects.
 - Improved the settlement data model by mapping claim techs directly to their required item ingredients, enabling precise deficit tracking for the next settlement upgrade.
+
+---
+
+## Commit 7335153b | 2026-03-13T00:58:56.178Z
+
+### Branch Purpose
+
+Dashboard for the Ordum empire in Bitcraft, utilizing a generated TypeScript API client and static game data to provide deep insights into resources, settlement research, and crafting logistics.
+
+### Previous Progress Summary
+
+The project established a robust foundation with a custom TypeScript API client generator for REST and WebSocket interfaces, utilizing string-based IDs for data integrity. The dashboard provides unified visibility into empire resources and player inventories via an SSR-enabled interface built on Astro Actions and Preact. It features a recursive craft planner with cycle detection and a settlement planner covering all 10 tiers. Recent milestones introduced the "Empire Craft" planner, which integrates settlement deficit tracking with claim-wide building storage to automate resource planning for large-scale infrastructure projects.
+
+### This Commit's Contribution
+
+- Decided to exclude personal storage (banks) and player pocket inventories from claim-wide counts to accurately reflect empire-owned assets.
+- Centralized inventory aggregation into a shared helper to ensure consistency across the dashboard, settlement planner, and crafting actions.
+- Refined the Settlement Planner to aggregate requirements from all researches in a tier, correcting an earlier omission of prerequisite techs like Township.
+- Developed a multi-stage `Dockerfile` that automates gamedata synchronization and provides a production-ready environment for the Astro SSR server.
+- Improved planner UX by adding an item "edit" mode that auto-populates the search field and triggers an auto-focus/select on the quantity input.
+- Consolidated crafting results into a shared `PlanCard` component, adding real-time name and tier filtering to help users navigate complex plans.
+- Adopted a project-wide formatting rule: `bunx prettier -w .` must be run before every commit to ensure style consistency.

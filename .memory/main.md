@@ -54,6 +54,7 @@ src/components/                         — ResourceTable, MembersTable, StatCar
 
 ## Workflow
 
+- **Run `bunx prettier -w .` before every commit** to ensure consistent formatting
 - **Always `git commit` after completing each objective** the user gives
 
 ## Key Decisions
