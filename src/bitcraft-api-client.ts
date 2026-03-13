@@ -4,7 +4,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════
  *
  * Source: https://github.com/ResuBaka/bitcraft-hub/tree/main/rust/api-server/api/src
- * Generated: 2026-03-08T00:23:43.860Z
+ * Generated: 2026-03-13T23:09:17.400Z
  *
  * Re-generate with:
  *   bun run generate-api-client.ts
@@ -264,60 +264,34 @@ export interface MarketOrdersResponse {
   [key: string]: unknown;
 }
 
-export interface LeaderboardSkill {
-  player_id: number;
-  player_name?: string | null;
-  experience: number;
-  level: number;
-  rank: number;
+export interface RecipesAllResponse {
+  recipes: Record<number, CraftingRecipeModel>;
+  cargo_desc: Record<number, CargoDescModel>;
+  item_desc: Record<number, ItemDescModel>;
+  item_list_desc: Record<number, ItemListDescModel>;
   [key: string]: unknown;
 }
 
-export interface LeaderboardLevel {
-  player_id: number;
-  player_name?: string | null;
-  level: number;
-  rank: number;
+export interface TradeOrdersWithExpendedRefrence {
+  entity_id: number;
+  remaining_stock: number;
+  offer_items: ExpendedRefrence[];
+  offer_cargo_id: number[];
+  required_items: ExpendedRefrence[];
+  required_cargo_id: number[];
+  region: string;
+  shop_entity_id: number;
+  traveler_trade_order_id?: number | null;
   [key: string]: unknown;
 }
 
-export interface LeaderboardExperiencePerHour {
-  player_id: number;
-  player_name?: string | null;
-  experience: number;
-  rank: number;
+export interface TradeOrdersResponse {
+  trade_orders: TradeOrdersWithExpendedRefrence[];
+  total: number;
+  page: number;
+  perPage: number;
   [key: string]: unknown;
 }
-
-export interface LeaderboardExperience {
-  player_id: number;
-  player_name?: string | null;
-  experience: number;
-  experience_per_hour: number;
-  rank: number;
-  [key: string]: unknown;
-}
-
-export interface LeaderboardTime {
-  player_id: number;
-  player_name?: string | null;
-  time_played: number;
-  rank: number;
-  [key: string]: unknown;
-}
-
-export interface GetTop100Response {
-  player_map: Record<number, PlayerStateModel>;
-  leaderboard: Record<string, RankType[]>;
-  [key: string]: unknown;
-}
-
-export type RankType =
-  | LeaderboardExperience
-  | LeaderboardExperiencePerHour
-  | LeaderboardLevel
-  | LeaderboardSkill
-  | LeaderboardTime;
 
 export interface PlayerUsernameStateResponse {
   username_state: Record<string, string>;
@@ -350,93 +324,6 @@ export interface FindPlayerByIdResponse {
   player_action_state?: string | null;
   player_action_state2?: PlayerActionStateModel | null;
   current_action_state?: PlayerActionStateModel | null;
-  [key: string]: unknown;
-}
-
-export interface ExtractionRecipeResponse {
-  id: number;
-  resource_id: number;
-  tool_requirements: ToolRequirement[];
-  allow_use_hands: boolean;
-  time_requirement: number;
-  stamina_requirement: number;
-  [key: string]: unknown;
-}
-
-export interface ItemsAndCargoResponse {
-  items: ItemCargo[];
-  tags: string[];
-  tiers: number[];
-  per_page: number;
-  total: number;
-  page: number;
-  pages: number;
-  [key: string]: unknown;
-}
-
-export interface MetaResponse {
-  tags: string[];
-  tiers: number[];
-  [key: string]: unknown;
-}
-
-export interface ItemsAndCargollResponse {
-  cargo_desc: Record<number, CargoDescModel>;
-  item_desc: Record<number, ItemDescModel>;
-  [key: string]: unknown;
-}
-
-export type ItemCargo = { type: "Item" } | { type: "Cargo" };
-
-export interface PermissionEntry {
-  allowed_entity_id: number;
-  allowed_username?: string | null;
-  group: number;
-  rank: number;
-  [key: string]: unknown;
-}
-
-export interface HouseResponse {
-  entity_id: number;
-  entrance_building_entity_id: number;
-  network_entity_id: number;
-  exit_portal_entity_id: number;
-  rank: number;
-  is_empty: boolean;
-  region_index: number;
-  region: string;
-  owner_entity_id: number;
-  owner_username?: string | null;
-  permissions: PermissionEntry[];
-  [key: string]: unknown;
-}
-
-export interface HousesResponse {
-  houses: HouseResponse[];
-  page: number;
-  per_page: number;
-  total: number;
-  [key: string]: unknown;
-}
-
-export interface HouseInventoriesResponse {
-  house_entity_id: number;
-  dimension_id?: number | null;
-  inventories: ResolvedInventory[];
-  [key: string]: unknown;
-}
-
-export interface InventorysResponse {
-  inventorys: ResolvedInventory[];
-  total: number;
-  page: number;
-  perPage: number;
-  [key: string]: unknown;
-}
-
-export interface AllInventoryStatsResponse {
-  items: [number, ItemDescModel | null][];
-  cargo: [number, CargoDescModel | null][];
   [key: string]: unknown;
 }
 
@@ -585,32 +472,145 @@ export type InventoryOwnerType = "Player" | "Building" | "Unknown";
 
 export type OnlineState = "Online" | "Offline";
 
-export interface RecipesAllResponse {
-  recipes: Record<number, CraftingRecipeModel>;
+export interface LeaderboardSkill {
+  player_id: number;
+  player_name?: string | null;
+  experience: number;
+  level: number;
+  rank: number;
+  [key: string]: unknown;
+}
+
+export interface LeaderboardLevel {
+  player_id: number;
+  player_name?: string | null;
+  level: number;
+  rank: number;
+  [key: string]: unknown;
+}
+
+export interface LeaderboardExperiencePerHour {
+  player_id: number;
+  player_name?: string | null;
+  experience: number;
+  rank: number;
+  [key: string]: unknown;
+}
+
+export interface LeaderboardExperience {
+  player_id: number;
+  player_name?: string | null;
+  experience: number;
+  experience_per_hour: number;
+  rank: number;
+  [key: string]: unknown;
+}
+
+export interface LeaderboardTime {
+  player_id: number;
+  player_name?: string | null;
+  time_played: number;
+  rank: number;
+  [key: string]: unknown;
+}
+
+export interface GetTop100Response {
+  player_map: Record<number, PlayerStateModel>;
+  leaderboard: Record<string, RankType[]>;
+  [key: string]: unknown;
+}
+
+export type RankType =
+  | LeaderboardExperience
+  | LeaderboardExperiencePerHour
+  | LeaderboardLevel
+  | LeaderboardSkill
+  | LeaderboardTime;
+
+export interface ItemsAndCargoResponse {
+  items: ItemCargo[];
+  tags: string[];
+  tiers: number[];
+  per_page: number;
+  total: number;
+  page: number;
+  pages: number;
+  [key: string]: unknown;
+}
+
+export interface MetaResponse {
+  tags: string[];
+  tiers: number[];
+  [key: string]: unknown;
+}
+
+export interface ItemsAndCargollResponse {
   cargo_desc: Record<number, CargoDescModel>;
   item_desc: Record<number, ItemDescModel>;
-  item_list_desc: Record<number, ItemListDescModel>;
   [key: string]: unknown;
 }
 
-export interface TradeOrdersWithExpendedRefrence {
-  entity_id: number;
-  remaining_stock: number;
-  offer_items: ExpendedRefrence[];
-  offer_cargo_id: number[];
-  required_items: ExpendedRefrence[];
-  required_cargo_id: number[];
-  region: string;
-  shop_entity_id: number;
-  traveler_trade_order_id?: number | null;
-  [key: string]: unknown;
-}
+export type ItemCargo = { type: "Item" } | { type: "Cargo" };
 
-export interface TradeOrdersResponse {
-  trade_orders: TradeOrdersWithExpendedRefrence[];
+export interface InventorysResponse {
+  inventorys: ResolvedInventory[];
   total: number;
   page: number;
   perPage: number;
+  [key: string]: unknown;
+}
+
+export interface AllInventoryStatsResponse {
+  items: [number, ItemDescModel | null][];
+  cargo: [number, CargoDescModel | null][];
+  [key: string]: unknown;
+}
+
+export interface PermissionEntry {
+  allowed_entity_id: number;
+  allowed_username?: string | null;
+  group: number;
+  rank: number;
+  [key: string]: unknown;
+}
+
+export interface HouseResponse {
+  entity_id: number;
+  entrance_building_entity_id: number;
+  network_entity_id: number;
+  exit_portal_entity_id: number;
+  rank: number;
+  is_empty: boolean;
+  region_index: number;
+  region: string;
+  owner_entity_id: number;
+  owner_username?: string | null;
+  permissions: PermissionEntry[];
+  [key: string]: unknown;
+}
+
+export interface HousesResponse {
+  houses: HouseResponse[];
+  page: number;
+  per_page: number;
+  total: number;
+  [key: string]: unknown;
+}
+
+export interface HouseInventoriesResponse {
+  house_entity_id: number;
+  dimension_id?: number | null;
+  inventories: ResolvedInventory[];
+  [key: string]: unknown;
+}
+
+export interface ExtractionRecipeResponse {
+  id: number;
+  resource_id: number;
+  tool_requirements: ToolRequirement[];
+  allow_use_hands: boolean;
+  time_requirement: number;
+  stamina_requirement: number;
   [key: string]: unknown;
 }
 
@@ -629,27 +629,6 @@ export interface ListPlayersParams {
   online?: boolean;
 }
 
-export interface ItemsAndCargoParams {
-  page?: number;
-  per_page?: number;
-  search?: string;
-  tier?: number;
-  tag?: string;
-  no_item_list?: boolean;
-}
-
-export interface FindHousesQuery {
-  page?: number;
-  per_page?: number;
-  owner?: string;
-}
-
-export interface InventoryChangesParams {
-  item_id?: number;
-  item_type?: ItemType;
-  user_id?: number;
-}
-
 export interface BuildingStatesParams {
   page?: number;
   per_page?: number;
@@ -664,6 +643,27 @@ export interface ListClaimsParams {
   search?: string;
   research?: number;
   running_upgrade?: boolean;
+}
+
+export interface ItemsAndCargoParams {
+  page?: number;
+  per_page?: number;
+  search?: string;
+  tier?: number;
+  tag?: string;
+  no_item_list?: boolean;
+}
+
+export interface InventoryChangesParams {
+  item_id?: number;
+  item_type?: ItemType;
+  user_id?: number;
+}
+
+export interface FindHousesQuery {
+  page?: number;
+  per_page?: number;
+  owner?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -734,7 +734,7 @@ export class BitcraftApiClient {
     return parts.length > 0 ? `?${parts.join("&")}` : "";
   }
 
-  private async request<T>(path: string): Promise<T> {
+  protected async request<T>(path: string): Promise<T> {
     const url = `${this.baseUrl}${path}`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
@@ -800,28 +800,28 @@ export class BitcraftApiClient {
   }
 
   /**
-   * `GET /leaderboard`
+   * `GET /api/bitcraft/trade_orders/get_trade_orders`
    */
-  async getTop100(): Promise<GetTop100Response> {
-    return this.request<GetTop100Response>("/leaderboard");
-  }
-
-  /**
-   * `GET /experience/{player_id}`
-   */
-  async playerLeaderboard(
-    player_id: number,
-  ): Promise<PlayerLeaderboardResponse> {
-    return this.request<PlayerLeaderboardResponse>(`/experience/${player_id}`);
-  }
-
-  /**
-   * `GET /api/bitcraft/leaderboard/claims/{claim_id}`
-   */
-  async getClaimLeaderboard(claim_id: number): Promise<GetTop100Response> {
-    return this.request<GetTop100Response>(
-      `/api/bitcraft/leaderboard/claims/${claim_id}`,
+  async getTradeOrders(): Promise<TradeOrdersResponse> {
+    return this.request<TradeOrdersResponse>(
+      "/api/bitcraft/trade_orders/get_trade_orders",
     );
+  }
+
+  /**
+   * `GET /traveler_tasks`
+   */
+  async getTravelerTasks(): Promise<Record<number, TravelerTaskDescModel>> {
+    return this.request<Record<number, TravelerTaskDescModel>>(
+      "/traveler_tasks",
+    );
+  }
+
+  /**
+   * `GET /npc`
+   */
+  async getNpcAll(): Promise<Record<number, NpcDescModel>> {
+    return this.request<Record<number, NpcDescModel>>("/npc");
   }
 
   /**
@@ -845,114 +845,11 @@ export class BitcraftApiClient {
   }
 
   /**
-   * `GET /api/bitcraft/extractionRecipes/all`
+   * `GET /api/bitcraft/players/all`
    */
-  async getExtractionRecipes(): Promise<ExtractionRecipeResponse[]> {
-    return this.request<ExtractionRecipeResponse[]>(
-      "/api/bitcraft/extractionRecipes/all",
-    );
-  }
-
-  /**
-   * `GET /api/bitcraft/itemsAndCargo`
-   */
-  async listItemsAndCargo(params?: {
-    page?: number;
-    per_page?: number;
-    search?: string;
-    tier?: number;
-    tag?: string;
-    no_item_list?: boolean;
-  }): Promise<ItemsAndCargoResponse> {
-    const query = params ? this.buildQuery(params) : "";
-    return this.request<ItemsAndCargoResponse>(
-      "/api/bitcraft/itemsAndCargo" + query,
-    );
-  }
-
-  /**
-   * `GET /api/bitcraft/itemsAndCargo/all`
-   */
-  async getItemsAndCargo(): Promise<ItemsAndCargollResponse> {
-    return this.request<ItemsAndCargollResponse>(
-      "/api/bitcraft/itemsAndCargo/all",
-    );
-  }
-
-  /**
-   * `GET /houses`
-   */
-  async findHouses(params?: {
-    page?: number;
-    per_page?: number;
-    owner?: string;
-  }): Promise<HousesResponse> {
-    const query = params ? this.buildQuery(params) : "";
-    return this.request<HousesResponse>("/houses" + query);
-  }
-
-  /**
-   * `GET /houses/by_owner/{id}`
-   */
-  async findHousesByOwnerId(id: number): Promise<HouseResponse[]> {
-    return this.request<HouseResponse[]>(`/houses/by_owner/${id}`);
-  }
-
-  /**
-   * `GET /houses/{id}`
-   */
-  async findHouse(id: number): Promise<HouseResponse> {
-    return this.request<HouseResponse>(`/houses/${id}`);
-  }
-
-  /**
-   * `GET /houses/{id}/inventories`
-   */
-  async findHouseInventories(id: number): Promise<HouseInventoriesResponse> {
-    return this.request<HouseInventoriesResponse>(`/houses/${id}/inventories`);
-  }
-
-  /**
-   * `GET /inventorys/changes/{id}`
-   */
-  async readInventoryChanges(
-    id: number,
-    params?: {
-      item_id?: number;
-      item_type?: ItemType;
-      user_id?: number;
-    },
-  ): Promise<InventoryChangelogModel[]> {
-    const query = params ? this.buildQuery(params) : "";
-    return this.request<InventoryChangelogModel[]>(
-      `/inventorys/changes/${id}` + query,
-    );
-  }
-
-  /**
-   * `GET /api/bitcraft/inventorys/owner_entity_id/{id}`
-   */
-  async findInventoryByOwnerEntityId(
-    id: string | number,
-  ): Promise<InventorysResponse> {
-    return this.request<InventorysResponse>(
-      `/api/bitcraft/inventorys/owner_entity_id/${id}`,
-    );
-  }
-
-  /**
-   * `GET /inventory/{id}`
-   */
-  async findInventoryById(id: number): Promise<InventoryModel> {
-    return this.request<InventoryModel>(`/inventory/${id}`);
-  }
-
-  /**
-   * `GET /inventory/all_inventory_stats`
-   */
-  async allInventoryStats(): Promise<AllInventoryStatsResponse> {
-    return this.request<AllInventoryStatsResponse>(
-      "/inventory/all_inventory_stats",
+  async getPlayers(): Promise<PlayerUsernameStateResponse> {
+    return this.request<PlayerUsernameStateResponse>(
+      "/api/bitcraft/players/all",
     );
   }
 
@@ -997,7 +894,7 @@ export class BitcraftApiClient {
    * `GET /api/bitcraft/claims/{id}`
    */
   async getClaim(
-    id: string | number,
+    id: number,
   ): Promise<ClaimDescriptionStateWithInventoryAndPlayTime> {
     return this.request<ClaimDescriptionStateWithInventoryAndPlayTime>(
       `/api/bitcraft/claims/${id}`,
@@ -1023,44 +920,145 @@ export class BitcraftApiClient {
   }
 
   /**
+   * `GET /leaderboard`
+   */
+  async getTop100(): Promise<GetTop100Response> {
+    return this.request<GetTop100Response>("/leaderboard");
+  }
+
+  /**
+   * `GET /experience/{player_id}`
+   */
+  async playerLeaderboard(
+    player_id: number,
+  ): Promise<PlayerLeaderboardResponse> {
+    return this.request<PlayerLeaderboardResponse>(`/experience/${player_id}`);
+  }
+
+  /**
+   * `GET /api/bitcraft/leaderboard/claims/{claim_id}`
+   */
+  async getClaimLeaderboard(claim_id: number): Promise<GetTop100Response> {
+    return this.request<GetTop100Response>(
+      `/api/bitcraft/leaderboard/claims/${claim_id}`,
+    );
+  }
+
+  /**
+   * `GET /api/bitcraft/itemsAndCargo`
+   */
+  async listItemsAndCargo(params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    tier?: number;
+    tag?: string;
+    no_item_list?: boolean;
+  }): Promise<ItemsAndCargoResponse> {
+    const query = params ? this.buildQuery(params) : "";
+    return this.request<ItemsAndCargoResponse>(
+      "/api/bitcraft/itemsAndCargo" + query,
+    );
+  }
+
+  /**
+   * `GET /api/bitcraft/itemsAndCargo/all`
+   */
+  async getItemsAndCargo(): Promise<ItemsAndCargollResponse> {
+    return this.request<ItemsAndCargollResponse>(
+      "/api/bitcraft/itemsAndCargo/all",
+    );
+  }
+
+  /**
+   * `GET /inventorys/changes/{id}`
+   */
+  async readInventoryChanges(
+    id: number,
+    params?: {
+      item_id?: number;
+      item_type?: ItemType;
+      user_id?: number;
+    },
+  ): Promise<InventoryChangelogModel[]> {
+    const query = params ? this.buildQuery(params) : "";
+    return this.request<InventoryChangelogModel[]>(
+      `/inventorys/changes/${id}` + query,
+    );
+  }
+
+  /**
+   * `GET /api/bitcraft/inventorys/owner_entity_id/{id}`
+   */
+  async findInventoryByOwnerEntityId(id: number): Promise<InventorysResponse> {
+    return this.request<InventorysResponse>(
+      `/api/bitcraft/inventorys/owner_entity_id/${id}`,
+    );
+  }
+
+  /**
+   * `GET /inventory/{id}`
+   */
+  async findInventoryById(id: number): Promise<InventoryModel> {
+    return this.request<InventoryModel>(`/inventory/${id}`);
+  }
+
+  /**
+   * `GET /inventory/all_inventory_stats`
+   */
+  async allInventoryStats(): Promise<AllInventoryStatsResponse> {
+    return this.request<AllInventoryStatsResponse>(
+      "/inventory/all_inventory_stats",
+    );
+  }
+
+  /**
+   * `GET /houses`
+   */
+  async findHouses(params?: {
+    page?: number;
+    per_page?: number;
+    owner?: string;
+  }): Promise<HousesResponse> {
+    const query = params ? this.buildQuery(params) : "";
+    return this.request<HousesResponse>("/houses" + query);
+  }
+
+  /**
+   * `GET /houses/by_owner/{id}`
+   */
+  async findHousesByOwnerId(id: number): Promise<HouseResponse[]> {
+    return this.request<HouseResponse[]>(`/houses/by_owner/${id}`);
+  }
+
+  /**
+   * `GET /houses/{id}`
+   */
+  async findHouse(id: number): Promise<HouseResponse> {
+    return this.request<HouseResponse>(`/houses/${id}`);
+  }
+
+  /**
+   * `GET /houses/{id}/inventories`
+   */
+  async findHouseInventories(id: number): Promise<HouseInventoriesResponse> {
+    return this.request<HouseInventoriesResponse>(`/houses/${id}/inventories`);
+  }
+
+  /**
+   * `GET /api/bitcraft/extractionRecipes/all`
+   */
+  async getExtractionRecipes(): Promise<ExtractionRecipeResponse[]> {
+    return this.request<ExtractionRecipeResponse[]>(
+      "/api/bitcraft/extractionRecipes/all",
+    );
+  }
+
+  /**
    * `GET /recipes/get_all`
    */
   async getRecipes(): Promise<RecipesAllResponse> {
     return this.request<RecipesAllResponse>("/recipes/get_all");
-  }
-
-  /**
-   * `GET /traveler_tasks`
-   */
-  async getTravelerTasks(): Promise<Record<number, TravelerTaskDescModel>> {
-    return this.request<Record<number, TravelerTaskDescModel>>(
-      "/traveler_tasks",
-    );
-  }
-
-  /**
-   * `GET /npc`
-   */
-  async getNpcAll(): Promise<Record<number, NpcDescModel>> {
-    return this.request<Record<number, NpcDescModel>>("/npc");
-  }
-
-  /**
-   * `GET /api/bitcraft/trade_orders/get_trade_orders`
-   */
-  async getTradeOrders(): Promise<TradeOrdersResponse> {
-    return this.request<TradeOrdersResponse>(
-      "/api/bitcraft/trade_orders/get_trade_orders",
-    );
-  }
-
-  /**
-   * `GET /api/bitcraft/players/all`
-   */
-  async getPlayers(): Promise<PlayerUsernameStateResponse> {
-    return this.request<PlayerUsernameStateResponse>(
-      "/api/bitcraft/players/all",
-    );
   }
 
   /**

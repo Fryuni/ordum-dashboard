@@ -1753,7 +1753,7 @@ export class BitcraftApiClient {
     return parts.length > 0 ? \`?\${parts.join("&")}\` : "";
   }
 
-  private async request<T>(path: string): Promise<T> {
+  protected async request<T>(path: string): Promise<T> {
     const url = \`\${this.baseUrl}\${path}\`;
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeout);
