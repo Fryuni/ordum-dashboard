@@ -151,17 +151,7 @@ export function buildPartialPlan(
       continue;
     }
 
-    const name = getItemName(target.item_type, target.item_id);
-    if (initialDepth === 0)
-      console.log(
-        `#${depth} ${name} (${target.quantity}) and others:`,
-        otherTargets.map(
-          (t) => `${getItemName(t.item_type, t.item_id)} x${t.quantity}`,
-        ),
-      );
-
     if (!Number.isSafeInteger(target.quantity)) {
-      if (initialDepth === 0) console.log("Too deep, collect raw.");
       plan.addRaw(target.item_type, target.item_id, target.quantity);
       continue;
     }
@@ -171,39 +161,16 @@ export function buildPartialPlan(
     const recipes = subRecipes.get(key);
 
     if (recipes.length === 0) {
-      if (initialDepth === 0) console.log("No known recipe. Collect raw.");
       plan.addRaw(target.item_type, target.item_id, target.quantity);
       continue;
     }
     if (recipes.length === 1) {
       const { recipe, outputPerCraft } = recipes[0]!;
 
-      if (initialDepth === 0) {
-        console.log(
-          `#${initialDepth} -> #${depth} One possible recipe. Using it directly.`,
-        );
-        console.log(
-          "Inputs:",
-          recipe.consumed_item_stacks.map(
-            (item) =>
-              `${getItemName(item.item_type, item.item_id)} x${item.quantity}`,
-          ),
-        );
-        console.log(
-          "Outputs:",
-          recipe.crafted_item_stacks.map(
-            (item) =>
-              `${getItemName(item.item_type, item.item_id)} x${item.quantity}`,
-          ),
-        );
-      }
       plan.addRecipe(recipe, target.quantity / outputPerCraft, depth);
 
       continue;
     }
-
-    if (initialDepth === 0)
-      console.log(`${recipes.length} possible recipes, finding optimal path`);
 
     const branches = recipes.map(({ recipe, outputPerCraft }) => {
       const branchPlan = PartialPlan.empty(next.inventory);
