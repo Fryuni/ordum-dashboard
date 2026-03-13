@@ -16,14 +16,38 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
+import {
+  AdaptedCache,
+  LruCache,
+  SharedInFlightCache,
+  StaleWhileRevalidateCache,
+  type CacheProvider,
+} from "@croct/cache";
+import { hash } from "ohash";
 import { BitcraftApiClient } from "../bitcraft-api-client";
 
 export const API_BASE_URL = import.meta.env.SSR
   ? "https://craft-api.resubaka.dev"
   : import.meta.env.BASE_URL;
 
+const apiCache: CacheProvider<any, any> = AdaptedCache.transformKeys(
+  new SharedInFlightCache(
+    new StaleWhileRevalidateCache({
+      freshPeriod: 20,
+      cacheProvider: LruCache.ofCapacity(1 << 15),
+    }),
+  ),
+  hash,
+);
+
+class CachedClient extends BitcraftApiClient {
+  protected async request<T>(path: string): Promise<T> {
+    return apiCache.get(path, (p) => super.request(p));
+  }
+}
+
 /** Global API client instance — used server-side by all pages and actions. */
-export const api = new BitcraftApiClient({
+export const api = new CachedClient({
   baseUrl: API_BASE_URL,
   timeout: 60_000,
 });
