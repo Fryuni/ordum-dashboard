@@ -12,10 +12,20 @@ export default function ItemList() {
         <div class="target-chip" key={`${t.type}-${t.id}`}>
           <span class="name">{t.name}</span>
           <span class="qty">×{t.quantity}</span>
-          <button type="button" class="edit" onClick={() => editTarget(i)} title="Edit">
+          <button
+            type="button"
+            class="edit"
+            onClick={() => editTarget(i)}
+            title="Edit"
+          >
             ✏️
           </button>
-          <button type="button" class="remove" onClick={() => removeTarget(i)} title="Remove">
+          <button
+            type="button"
+            class="remove"
+            onClick={() => removeTarget(i)}
+            title="Remove"
+          >
             ✕
           </button>
         </div>

@@ -78,8 +78,7 @@ export default function PlanCard({
     });
   }, [plan.already_have, nameQ, hasFilters]);
 
-  const isEmpty =
-    !plan.steps?.length && !plan.raw_materials?.length;
+  const isEmpty = !plan.steps?.length && !plan.raw_materials?.length;
 
   return (
     <div class="plan-card">
@@ -109,7 +108,7 @@ export default function PlanCard({
               <option value="">All tiers</option>
               {availableTiers.map((t) => (
                 <option key={t} value={String(t)}>
-                  Tier {t}
+                  Tier {t === -1 ? "X" : t}
                 </option>
               ))}
             </select>
@@ -140,7 +139,9 @@ export default function PlanCard({
         !filteredSteps.length &&
         !filteredHave.length &&
         !isEmpty && (
-          <div class="no-filter-results">No items match the current filters</div>
+          <div class="no-filter-results">
+            No items match the current filters
+          </div>
         )}
     </div>
   );

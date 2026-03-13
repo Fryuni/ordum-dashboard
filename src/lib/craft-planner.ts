@@ -243,7 +243,7 @@ class PartialPlan {
     }
   >();
 
-  private constructor(private inventory: ReadonlyMap<string, number>) { }
+  private constructor(private inventory: ReadonlyMap<string, number>) {}
 
   static empty(inventory: ReadonlyMap<string, number>): PartialPlan {
     return new this(inventory);
@@ -360,12 +360,12 @@ class PartialPlan {
     }
     for (const { itemType, itemId, quantity } of this.rawMaterials.values()) {
       const extractionInfo = getExtractionInfo(itemType, itemId);
-      const averageProbability = extractionInfo.resource_sources.length === 0
-        ? 1
-        : extractionInfo.resource_sources
-          .map(s => s.amount_per_stamina)
-          .reduce((a, b) => a + b)
-        / extractionInfo.resource_sources.length;
+      const averageProbability =
+        extractionInfo.resource_sources.length === 0
+          ? 1
+          : extractionInfo.resource_sources
+              .map((s) => s.amount_per_stamina)
+              .reduce((a, b) => a + b) / extractionInfo.resource_sources.length;
       totalEffort += quantity / averageProbability;
     }
     return totalEffort;
@@ -466,12 +466,12 @@ class PartialPlan {
 
       const info = getItemInfo(itemType, itemId);
       const extractionInfo = getExtractionInfo(itemType, itemId);
-      const averageProbability = extractionInfo.resource_sources.length === 0
-        ? 1
-        : extractionInfo.resource_sources
-          .map(s => s.amount_per_stamina)
-          .reduce((a, b) => a + b)
-        / extractionInfo.resource_sources.length;
+      const averageProbability =
+        extractionInfo.resource_sources.length === 0
+          ? 1
+          : extractionInfo.resource_sources
+              .map((s) => s.amount_per_stamina)
+              .reduce((a, b) => a + b) / extractionInfo.resource_sources.length;
       plan.raw_materials.push({
         item_id: itemId,
         item_type: itemType,
@@ -554,12 +554,14 @@ function getExtractionInfoInner(
     const res = gd.get().resources.get(e.resource_id);
     if (res) {
       const realItemAmount = e.extracted_item_stacks
-        .flatMap(({ item_stack, probability }) => realItemStack([item_stack], probability))
-        .filter((item_stack) => (
-          item_stack.item_type === itemType
-          && item_stack.item_id === itemId
-        ))
-        .map(p => p.quantity)
+        .flatMap(({ item_stack, probability }) =>
+          realItemStack([item_stack], probability),
+        )
+        .filter(
+          (item_stack) =>
+            item_stack.item_type === itemType && item_stack.item_id === itemId,
+        )
+        .map((p) => p.quantity)
         .reduce((a, b) => a + b);
 
       resource_sources.push({

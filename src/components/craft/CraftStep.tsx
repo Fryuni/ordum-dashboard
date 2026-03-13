@@ -22,7 +22,8 @@ export default function CraftStep({ step }: { step: Step }) {
           </span>
           <span class="step-qty">
             ×{step.craft_count} craft{step.craft_count > 1 ? "s" : ""} →{" "}
-            {step.craft_count * firstOutput.quantity_per_craft} output
+            {(step.craft_count * firstOutput.quantity_per_craft).toFixed(0)}{" "}
+            output
           </span>
           <div class="badges">
             {step.building_type && (

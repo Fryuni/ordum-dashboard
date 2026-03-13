@@ -8,9 +8,9 @@
 
 /** Building description IDs for bank buildings (personal storage) */
 export const BANK_BUILDING_IDS = new Set([
-  985246037,  // Town Bank
+  985246037, // Town Bank
   1615467546, // Ancient Bank
-  969744821,  // Lost Items Chest
+  969744821, // Lost Items Chest
 ]);
 
 /**

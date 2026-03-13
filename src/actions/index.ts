@@ -157,7 +157,7 @@ export const server = {
           plan,
         };
       } catch (error) {
-        console.error('Error making plan:', error);
+        console.error("Error making plan:", error);
         throw error;
       }
     },

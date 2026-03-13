@@ -404,7 +404,9 @@
   color: var(--text);
   font-size: 0.85rem;
   outline: none;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
   width: 100%;
   padding: 0 12px 0 34px;
 }
@@ -714,7 +716,11 @@
   gap: 10px;
   padding: 10px 14px;
   margin-bottom: 12px;
-  background: linear-gradient(135deg, rgba(108, 140, 255, 0.08), rgba(74, 222, 128, 0.05));
+  background: linear-gradient(
+    135deg,
+    rgba(108, 140, 255, 0.08),
+    rgba(74, 222, 128, 0.05)
+  );
   border: 1px solid rgba(108, 140, 255, 0.2);
   border-radius: 8px;
   font-size: 0.9rem;

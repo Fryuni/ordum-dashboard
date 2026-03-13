@@ -1,5 +1,9 @@
 import { useStore } from "@nanostores/preact";
-import { $groupTargets, groupRemoveTarget, groupEditTarget } from "../../lib/group-craft-store";
+import {
+  $groupTargets,
+  groupRemoveTarget,
+  groupEditTarget,
+} from "../../lib/group-craft-store";
 
 export default function GroupItemList() {
   const targets = useStore($groupTargets);
@@ -12,10 +16,20 @@ export default function GroupItemList() {
         <div class="target-chip" key={`${t.type}-${t.id}`}>
           <span class="name">{t.name}</span>
           <span class="qty">×{t.quantity}</span>
-          <button type="button" class="edit" onClick={() => groupEditTarget(i)} title="Edit">
+          <button
+            type="button"
+            class="edit"
+            onClick={() => groupEditTarget(i)}
+            title="Edit"
+          >
             ✏️
           </button>
-          <button type="button" class="remove" onClick={() => groupRemoveTarget(i)} title="Remove">
+          <button
+            type="button"
+            class="remove"
+            onClick={() => groupRemoveTarget(i)}
+            title="Remove"
+          >
             ✕
           </button>
         </div>

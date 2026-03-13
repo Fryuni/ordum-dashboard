@@ -112,13 +112,14 @@ export function buildSettlementPlan(
 
     const tierUpgrade = tierUpgradeTech ? buildReq(tierUpgradeTech) : null;
     // For tiers already achieved, skip detailed research listing
-    const researches = tier <= currentTier
-      ? []
-      : otherTechs.map(buildReq).sort((a, b) => {
-          if (a.already_researched !== b.already_researched)
-            return a.already_researched ? 1 : -1;
-          return a.tech.name.localeCompare(b.tech.name);
-        });
+    const researches =
+      tier <= currentTier
+        ? []
+        : otherTechs.map(buildReq).sort((a, b) => {
+            if (a.already_researched !== b.already_researched)
+              return a.already_researched ? 1 : -1;
+            return a.tech.name.localeCompare(b.tech.name);
+          });
 
     // Aggregate items from ALL researches in this tier (TierUpgrade + others)
     const itemTotals = new Map<

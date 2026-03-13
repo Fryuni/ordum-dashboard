@@ -24,7 +24,9 @@ export default function GroupCraftConfiguration({ itemIndex }: Props) {
     <div class="planner-card">
       <div class="claim-context">
         <span class="claim-icon">🏰</span>
-        <span>Using <strong>Ordum Claim</strong> building storage</span>
+        <span>
+          Using <strong>Ordum Claim</strong> building storage
+        </span>
       </div>
 
       <GroupItemPicker />
@@ -32,7 +34,11 @@ export default function GroupCraftConfiguration({ itemIndex }: Props) {
 
       {targets.length > 0 && (
         <div class="form-actions">
-          <button type="button" class="btn btn-secondary" onClick={groupClearAll}>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            onClick={groupClearAll}
+          >
             Clear All
           </button>
         </div>

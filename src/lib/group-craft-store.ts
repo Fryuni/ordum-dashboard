@@ -1,9 +1,4 @@
-import {
-  atom,
-  computed,
-  computedAsync,
-  type AsyncValue,
-} from "nanostores";
+import { atom, computed, computedAsync, type AsyncValue } from "nanostores";
 import { persistentAtom } from "@nanostores/persistent";
 import { actions } from "astro:actions";
 import { $updateTimer } from "./util-store";
@@ -39,11 +34,15 @@ export const $groupSelectedItem = atom<SelectedItem | null>(null);
 export const $groupQuantity = atom(1);
 
 // Target items list
-export const $groupTargets = persistentAtom<TargetItem[]>("groupCraftItems", [], {
-  listen: true,
-  encode: JSON.stringify,
-  decode: JSON.parse,
-});
+export const $groupTargets = persistentAtom<TargetItem[]>(
+  "groupCraftItems",
+  [],
+  {
+    listen: true,
+    encode: JSON.stringify,
+    decode: JSON.parse,
+  },
+);
 
 // Computed: filtered search results (local, synchronous)
 export const $groupSearchResults = computed(
@@ -67,7 +66,10 @@ export const $groupSearchResults = computed(
 );
 
 // Computed: can add item?
-export const $groupCanAdd = computed($groupSelectedItem, (item) => item !== null);
+export const $groupCanAdd = computed(
+  $groupSelectedItem,
+  (item) => item !== null,
+);
 
 // ─── Craft Plan (async) ────────────────────────────────────────────────────────
 
@@ -83,15 +85,18 @@ export const $groupCraftRequest = computed(
  * The group craft plan result, computed asynchronously.
  * Uses the Ordum claim inventory instead of a player's inventory.
  */
-export const $groupCraftPlan = computedAsync($groupCraftRequest, async (request) => {
-  if (!request.items.length) return null;
+export const $groupCraftPlan = computedAsync(
+  $groupCraftRequest,
+  async (request) => {
+    if (!request.items.length) return null;
 
-  const { data, error } = await actions.groupCraftPlan(request);
-  if (error) {
-    throw new Error(error.message);
-  }
-  return data;
-});
+    const { data, error } = await actions.groupCraftPlan(request);
+    if (error) {
+      throw new Error(error.message);
+    }
+    return data;
+  },
+);
 
 export type { AsyncValue };
 
@@ -138,7 +143,11 @@ export function groupEditTarget(index: number) {
   const target = $groupTargets.get()[index];
   if (!target) return;
   $groupTargets.set($groupTargets.get().filter((_, i) => i !== index));
-  $groupSelectedItem.set({ id: target.id, type: target.type, name: target.name });
+  $groupSelectedItem.set({
+    id: target.id,
+    type: target.type,
+    name: target.name,
+  });
   $groupSearchQuery.set(target.name);
   $groupQuantity.set(target.quantity);
   $groupDropdownOpen.set(false);

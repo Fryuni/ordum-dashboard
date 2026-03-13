@@ -455,11 +455,14 @@ export function getBuildingTypeName(buildingTypeId: number): string {
   );
 }
 
-export function realItemStack(list: GameItemStack[], externalProbability = 1): GameItemStack[] {
+export function realItemStack(
+  list: GameItemStack[],
+  externalProbability = 1,
+): GameItemStack[] {
   const { items, itemLists } = gd.get();
 
   if (externalProbability !== 1) {
-    list = list.map(item => ({
+    list = list.map((item) => ({
       ...item,
       quantity: item.quantity * externalProbability,
     }));
