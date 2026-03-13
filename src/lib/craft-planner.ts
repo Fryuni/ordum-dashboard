@@ -432,24 +432,70 @@ class PartialPlan {
       });
     }
 
-    plan.steps
-      .sort((a, b) => b.depth - a.depth)
-      .sort((a, b) => {
-        const aMainOutput = referenceKey(a.outputs[0]!);
-        const bMainOutput = referenceKey(b.outputs[0]!);
+    // Topological sort: a step must come after all steps that produce its inputs.
+    // Build a DAG: edge from producer → consumer (producer must come first).
+    {
+      const n = plan.steps.length;
 
-        if (b.inputs.some((i) => referenceKey(i) === aMainOutput)) {
-          return -1;
+      // Map each item key to the step index that produces it
+      const producerOf = new Map<string, number>();
+      for (let i = 0; i < n; i++) {
+        for (const out of plan.steps[i]!.outputs) {
+          producerOf.set(referenceKey(out), i);
         }
-        if (a.inputs.some((i) => referenceKey(i) === bMainOutput)) {
-          return 1;
-        }
+      }
 
-        return (
-          b.effort_per_craft * b.craft_count -
-          a.effort_per_craft * a.craft_count
-        );
-      });
+      // Build adjacency list and in-degree count
+      const adj: number[][] = Array.from({ length: n }, () => []);
+      const inDeg = new Array(n).fill(0);
+      for (let i = 0; i < n; i++) {
+        for (const inp of plan.steps[i]!.inputs) {
+          const j = producerOf.get(referenceKey(inp));
+          if (j !== undefined && j !== i) {
+            adj[j]!.push(i); // j must come before i
+            inDeg[i]!++;
+          }
+        }
+      }
+
+      // Kahn's algorithm — among ready nodes, prefer higher effort first
+      // so the most significant steps appear earlier within each "level"
+      const sorted: number[] = [];
+      const queue: number[] = [];
+      for (let i = 0; i < n; i++) {
+        if (inDeg[i] === 0) queue.push(i);
+      }
+
+      while (queue.length > 0) {
+        // Sort the queue so higher-effort steps come first among peers
+        queue.sort((a, b) => {
+          const ea =
+            plan.steps[a]!.effort_per_craft * plan.steps[a]!.craft_count;
+          const eb =
+            plan.steps[b]!.effort_per_craft * plan.steps[b]!.craft_count;
+          return eb - ea;
+        });
+
+        const idx = queue.shift()!;
+        sorted.push(idx);
+
+        for (const neighbor of adj[idx]!) {
+          inDeg[neighbor]!--;
+          if (inDeg[neighbor] === 0) {
+            queue.push(neighbor);
+          }
+        }
+      }
+
+      // If there's a cycle, append any remaining steps
+      if (sorted.length < n) {
+        for (let i = 0; i < n; i++) {
+          if (!sorted.includes(i)) sorted.push(i);
+        }
+      }
+
+      plan.steps = sorted.map((i) => plan.steps[i]!);
+    }
 
     plan.steps.forEach((step, i, s) => {
       step.depth = s.length - i - 1;
