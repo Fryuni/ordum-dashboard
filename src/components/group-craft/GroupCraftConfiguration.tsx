@@ -16,27 +16,13 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { useEffect } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
-import {
-  $groupItemIndex,
-  $groupTargets,
-  groupClearAll,
-  type IndexItem,
-} from "../../lib/group-craft-store";
+import { $groupTargets, groupClearAll } from "../../lib/group-craft-store";
 import GroupItemPicker from "./GroupItemPicker";
 import GroupItemList from "./GroupItemList";
 
-interface Props {
-  itemIndex: IndexItem[];
-}
-
-export default function GroupCraftConfiguration({ itemIndex }: Props) {
+export default function GroupCraftConfiguration() {
   const targets = useStore($groupTargets);
-
-  useEffect(() => {
-    $groupItemIndex.set(itemIndex);
-  }, [itemIndex]);
 
   return (
     <div class="planner-card">

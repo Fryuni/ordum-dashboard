@@ -1,62 +1,38 @@
-<!--
-   Copyright (C) 2026 Luiz Ferraz
-  
-   This file is part of Ordum Dashboard.
-  
-   Ordum Dashboard is free software: you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
-  
-   Ordum Dashboard is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-   GNU General Public License for more details.
-  
-   You should have received a copy of the GNU General Public License
-   along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
--->
 ---
+/**
+ * Copyright (C) 2026 Luiz Ferraz
+ *
+ * This file is part of Ordum Dashboard.
+ *
+ * Ordum Dashboard is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Ordum Dashboard is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
+ */
 import Layout from "../layouts/Layout.astro";
 import CraftConfiguration from "../components/craft/CraftConfiguration";
 import CraftingPlan from "../components/craft/CraftingPlan";
 import "../styles/craft.css";
-import { loadGameData } from "../lib/gamedata";
-import { ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
-import { api } from "../lib/api";
-
-const gd = loadGameData();
-
-let members: { entity_id: number; user_name: string }[] = [];
-try {
-  const claim = await api.getClaim(ORDUM_MAIN_CLAIM_ID);
-  members = Object.values(claim.members ?? {})
-    .map((m: any) => ({ entity_id: m.entity_id, user_name: m.user_name }))
-    .sort((a: any, b: any) => a.user_name.localeCompare(b.user_name));
-} catch (e) {
-  // Continue without members
-}
-
-const itemIndex: { id: number; t: "Item" | "Cargo"; n: string; tier: number; tag: string }[] = [];
-for (const [id, item] of gd.items) {
-  if (item.name) {
-    itemIndex.push({ id, t: "Item", n: item.name, tier: item.tier, tag: item.tag });
-  }
-}
-for (const [id, c] of gd.cargo) {
-  if (c.name) {
-    itemIndex.push({ id, t: "Cargo", n: c.name, tier: c.tier, tag: c.tag });
-  }
-}
 ---
 
 <Layout title="Craft Planner — Ordum" activePage="craft">
   <div class="header">
     <h1>⚒️ Craft Planner</h1>
-    <p class="subtitle">Calculate full crafting trees from raw materials, accounting for your inventory</p>
+    <p class="subtitle">
+      Calculate full crafting trees from raw materials, accounting for your
+      inventory
+    </p>
   </div>
 
-  <CraftConfiguration client:only itemIndex={itemIndex} members={members} />
+  <CraftConfiguration client:only />
   <CraftingPlan client:only />
 </Layout>
 

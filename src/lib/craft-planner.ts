@@ -130,14 +130,14 @@ export function buildCraftPlan(
 
 const subRecipes = LazyKeyed.of((key) =>
   [
-    ...(gd.get().recipesByOutput.get(key) ?? []).map((r) => {
+    ...(gd.recipesByOutput.get(key) ?? []).map((r) => {
       const quantity =
         r.crafted_item_stacks.find((item) => referenceKey(item) === key)
           ?.quantity ?? 1;
 
       return { recipe: r, outputPerCraft: quantity };
     }),
-    ...(gd.get().recipesByResolvedOutput.get(key) ?? []),
+    ...(gd.recipesByResolvedOutput.get(key) ?? []),
   ].filter((r) => !shouldSkipRecipe(r.recipe)),
 );
 
@@ -510,7 +510,7 @@ function getExtractionInfoInner(
   resource_sources: RawMaterialSource[];
 } {
   const key = `${itemType}:${itemId}`;
-  const extractions = gd.get().extractionByOutput.get(key);
+  const extractions = gd.extractionByOutput.get(key);
   if (!extractions || extractions.length === 0) {
     return {
       source: "Obtain",
@@ -538,7 +538,7 @@ function getExtractionInfoInner(
   for (const e of extractions) {
     if (seen.has(e.resource_id)) continue;
     seen.add(e.resource_id);
-    const res = gd.get().resources.get(e.resource_id);
+    const res = gd.resources.get(e.resource_id);
     if (res) {
       const realItemAmount = e.extracted_item_stacks
         .flatMap(({ item_stack, probability }) =>
@@ -576,7 +576,7 @@ export function searchItems(query: string, limit = 20): ItemSearchResult[] {
   const q = query.toLowerCase();
   const results: ItemSearchResult[] = [];
 
-  for (const [id, item] of gd.get().items) {
+  for (const [id, item] of gd.items) {
     if (item.name.toLowerCase().includes(q)) {
       results.push({
         item_id: id,
@@ -589,7 +589,7 @@ export function searchItems(query: string, limit = 20): ItemSearchResult[] {
     if (results.length >= limit * 2) break;
   }
 
-  for (const [id, c] of gd.get().cargo) {
+  for (const [id, c] of gd.cargo) {
     if (c.name.toLowerCase().includes(q)) {
       results.push({
         item_id: id,

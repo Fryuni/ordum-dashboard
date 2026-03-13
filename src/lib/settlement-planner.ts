@@ -23,8 +23,8 @@
  * what items they require, and compares against current claim storage.
  */
 
-import type { GameData, GameClaimTech, GameItemStack } from "./gamedata";
-import { getItemName, getItemInfo } from "./gamedata";
+import type { GameClaimTech } from "./gamedata";
+import { getItemInfo, gd } from "./gamedata";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -77,7 +77,6 @@ export interface TierPlan {
  * @param inventory   Map of "Item:id" or "Cargo:id" → quantity available in buildings
  */
 export function buildSettlementPlan(
-  gd: GameData,
   currentTier: number,
   learnedIds: Set<number>,
   supplies: number,

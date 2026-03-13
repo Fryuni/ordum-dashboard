@@ -16,29 +16,17 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { useEffect } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
-import {
-  $itemIndex,
-  $targets,
-  clearAll,
-  type IndexItem,
-} from "../../lib/craft-store";
+import { $targets, clearAll } from "../../lib/craft-store";
+import { fetchClaimMembers } from "../../lib/ordum-data";
 import PlayerPicker from "./PlayerPicker";
 import ItemPicker from "./ItemPicker";
 import ItemList from "./ItemList";
 
-interface Props {
-  itemIndex: IndexItem[];
-  members: { entity_id: number; user_name: string }[];
-}
+const members = await fetchClaimMembers();
 
-export default function CraftConfiguration({ itemIndex, members = [] }: Props) {
+export default function CraftConfiguration() {
   const targets = useStore($targets);
-
-  useEffect(() => {
-    $itemIndex.set(itemIndex);
-  }, [itemIndex]);
 
   return (
     <div class="planner-card">

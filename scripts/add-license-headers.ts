@@ -45,7 +45,7 @@ const COMMENT_STYLES: Record<
   js: { start: "/**", line: " *", end: " */" },
   mjs: { start: "/**", line: " *", end: " */" },
   css: { start: "/**", line: " *", end: " */" },
-  astro: { start: "<!--", line: "  ", end: "-->" },
+  astro: { start: "/**", line: " *", end: " */" },
 };
 
 function buildHeader(ext: string): string {
@@ -67,6 +67,16 @@ function hasHeader(content: string): boolean {
   // Check the first 30 lines for the copyright signature
   const head = content.split("\n").slice(0, 30).join("\n");
   return head.includes(SIGNATURE);
+}
+
+/**
+ * Detect and strip an old-style HTML copyright comment from an .astro file.
+ * Returns the content without the header, or null if no HTML header was found.
+ */
+function stripHtmlCopyrightHeader(content: string): string | null {
+  const match = content.match(/^<!--[\s\S]*?Copyright \(C\)[\s\S]*?-->\n?/);
+  if (!match) return null;
+  return content.slice(match[0].length);
 }
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
@@ -108,12 +118,36 @@ let updated = 0;
 for (const file of uniqueFiles) {
   const content = readFileSync(file, "utf-8");
 
+  const ext = file.split(".").pop() ?? "";
+  const rel = relative(process.cwd(), file);
+
+  // For .astro files, check if there's an old HTML-style header that needs migrating
+  if (ext === "astro") {
+    const stripped = stripHtmlCopyrightHeader(content);
+    if (stripped !== null) {
+      // Has an old HTML header — migrate it to JS comment inside frontmatter
+      missing++;
+      if (checkOnly) {
+        console.log(`  MIGRATE: ${rel}`);
+        continue;
+      }
+      const header = buildHeader(ext);
+      if (stripped.startsWith("---")) {
+        const newline = stripped.indexOf("\n");
+        const rest = stripped.slice(newline + 1);
+        writeFileSync(file, "---\n" + header + rest);
+      } else {
+        writeFileSync(file, "---\n" + header + "---\n" + stripped);
+      }
+      updated++;
+      console.log(`  MIGRATED: ${rel}`);
+      continue;
+    }
+  }
+
   if (hasHeader(content)) continue;
 
   missing++;
-  const rel = relative(process.cwd(), file);
-
-  const ext = file.split(".").pop() ?? "";
 
   // Shell scripts
   if (ext === "sh") {
@@ -153,9 +187,19 @@ for (const file of uniqueFiles) {
     continue;
   }
 
-  // For .astro files, the header goes at the very top (before frontmatter ---)
-  // For other files, preserve shebang if present
-  if (content.startsWith("#!")) {
+  // For .astro files, place the JS comment inside the frontmatter fence
+  // so that Prettier doesn't move it below the frontmatter.
+  if (ext === "astro") {
+    if (content.startsWith("---")) {
+      // Insert after the opening ---
+      const newline = content.indexOf("\n");
+      const rest = content.slice(newline + 1);
+      writeFileSync(file, "---\n" + header + rest);
+    } else {
+      // No frontmatter — wrap in one
+      writeFileSync(file, "---\n" + header + "---\n" + content);
+    }
+  } else if (content.startsWith("#!")) {
     const newline = content.indexOf("\n");
     const shebang = content.slice(0, newline + 1);
     const rest = content.slice(newline + 1);

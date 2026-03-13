@@ -180,14 +180,14 @@ export default function GroupItemPicker() {
                 onMouseEnter={() => $groupHighlightIndex.set(i)}
                 role="option"
                 aria-selected={i === highlightIndex}
-                key={`${r.t}-${r.id}`}
+                key={`${r.item_type}-${r.item_id}`}
               >
                 <span class={`tier-badge tier-${r.tier}`}>
                   {r.tier >= 0 ? `T${r.tier}` : "TX"}
                 </span>
-                <span>{r.n}</span>
+                <span>{r.name}</span>
                 <span class="item-meta">
-                  {r.t}
+                  {r.item_type}
                   {r.tag ? " · " + r.tag : ""}
                 </span>
               </button>

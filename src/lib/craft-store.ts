@@ -16,24 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import {
-  atom,
-  onMount,
-  computed,
-  computedAsync,
-  type AsyncValue,
-} from "nanostores";
+import { atom, computed, computedAsync, type AsyncValue } from "nanostores";
 import { persistentAtom } from "@nanostores/persistent";
 import { actions } from "astro:actions";
 import { $updateTimer } from "./util-store";
-
-export interface IndexItem {
-  id: number;
-  t: "Item" | "Cargo";
-  n: string;
-  tier: number;
-  tag: string;
-}
+import { itemIndex, type IndexItem } from "./itemIndex";
 
 export interface SelectedItem {
   id: number;
@@ -44,9 +31,6 @@ export interface SelectedItem {
 export interface TargetItem extends SelectedItem {
   quantity: number;
 }
-
-// The full item index (set once from server data)
-export const $itemIndex = atom<IndexItem[]>([]);
 
 // Search state
 export const $searchQuery = atom("");
@@ -68,25 +52,22 @@ export const $targets = persistentAtom<TargetItem[]>("craftItems", [], {
 export const $player = persistentAtom("playerName", "");
 
 // Computed: filtered search results (local, synchronous)
-export const $searchResults = computed(
-  [$searchQuery, $itemIndex],
-  (query, index) => {
-    const q = query.toLowerCase().trim();
-    if (q.length < 2) return [];
-    return index
-      .filter((i) => i.n.toLowerCase().includes(q))
-      .sort((a, b) => {
-        const aExact = a.n.toLowerCase() === q ? 0 : 1;
-        const bExact = b.n.toLowerCase() === q ? 0 : 1;
-        if (aExact !== bExact) return aExact - bExact;
-        const aStarts = a.n.toLowerCase().startsWith(q) ? 0 : 1;
-        const bStarts = b.n.toLowerCase().startsWith(q) ? 0 : 1;
-        if (aStarts !== bStarts) return aStarts - bStarts;
-        return a.n.localeCompare(b.n);
-      })
-      .slice(0, 15);
-  },
-);
+export const $searchResults = computed([$searchQuery], (query) => {
+  const q = query.toLowerCase().trim();
+  if (q.length < 2) return [];
+  return itemIndex
+    .filter((i) => i.name.toLowerCase().includes(q))
+    .sort((a, b) => {
+      const aExact = a.name.toLowerCase() === q ? 0 : 1;
+      const bExact = b.name.toLowerCase() === q ? 0 : 1;
+      if (aExact !== bExact) return aExact - bExact;
+      const aStarts = a.name.toLowerCase().startsWith(q) ? 0 : 1;
+      const bStarts = b.name.toLowerCase().startsWith(q) ? 0 : 1;
+      if (aStarts !== bStarts) return aStarts - bStarts;
+      return a.name.localeCompare(b.name);
+    })
+    .slice(0, 15);
+});
 
 // Computed: can add item?
 export const $canAdd = computed($selectedItem, (item) => item !== null);
@@ -123,8 +104,12 @@ export type { AsyncValue };
 // ─── Actions ───────────────────────────────────────────────────────────────────
 
 export function selectItem(item: IndexItem) {
-  $selectedItem.set({ id: item.id, type: item.t, name: item.n });
-  $searchQuery.set(item.n);
+  $selectedItem.set({
+    id: item.item_id,
+    type: item.item_type,
+    name: item.name,
+  });
+  $searchQuery.set(item.name);
   $dropdownOpen.set(false);
   $highlightIndex.set(-1);
 }

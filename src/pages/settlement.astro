@@ -1,32 +1,30 @@
-<!--
-   Copyright (C) 2026 Luiz Ferraz
-  
-   This file is part of Ordum Dashboard.
-  
-   Ordum Dashboard is free software: you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
-  
-   Ordum Dashboard is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-   GNU General Public License for more details.
-  
-   You should have received a copy of the GNU General Public License
-   along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
--->
 ---
+/**
+ * Copyright (C) 2026 Luiz Ferraz
+ *
+ * This file is part of Ordum Dashboard.
+ *
+ * Ordum Dashboard is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Ordum Dashboard is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
+ */
 import Layout from "../layouts/Layout.astro";
-import { loadGameData } from "../lib/gamedata";
 import { buildSettlementPlan } from "../lib/settlement-planner";
 import { ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
 import { api } from "../lib/api";
 import { buildClaimInventory } from "../lib/claim-inventory";
 import TierPlan from "../components/TierPlan.astro";
 
-// Load game data
-const gd = loadGameData();
+export const prerender = false;
 
 // Fetch live claim data
 const claim = await api.getClaim(ORDUM_MAIN_CLAIM_ID);
@@ -40,13 +38,15 @@ const claimName = claim.name ?? "Unknown Claim";
 const inventory = buildClaimInventory(claim);
 
 // Build plan
-const plans = buildSettlementPlan(gd, currentTier, learnedIds, supplies, inventory);
+const plans = buildSettlementPlan(currentTier, learnedIds, supplies, inventory);
 ---
 
 <Layout title={`Settlement Planner — ${claimName}`} activePage="settlement">
   <div class="page-header">
     <h1>🏰 Settlement Planner</h1>
-    <p class="subtitle">Track research requirements and item availability for {claimName}</p>
+    <p class="subtitle">
+      Track research requirements and item availability for {claimName}
+    </p>
   </div>
 
   <div class="kpi-row">
@@ -60,25 +60,39 @@ const plans = buildSettlementPlan(gd, currentTier, learnedIds, supplies, invento
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Techs Researched</div>
-      <div class="kpi-value">{learnedIds.size} <span class="kpi-muted">/ {gd.claimTechs.length}</span></div>
+      <div class="kpi-value">
+        {learnedIds.size}
+        <span class="kpi-muted">/ {gd.claimTechs.length}</span>
+      </div>
     </div>
   </div>
 
   <div class="timeline-nav-container">
     <div class="timeline-nav">
-      {plans.map((p) => (
-        <a href={`#tier-${p.tier}`} class={`tl-node ${p.tier <= currentTier ? 'tl-done' : p.tier === currentTier + 1 ? 'tl-active' : 'tl-future'}`}>
-          <span class="tl-circle">{p.tier <= currentTier ? '✓' : p.tier}</span>
-          <span class="tl-label">Tier {p.tier}</span>
-        </a>
-      ))}
+      {
+        plans.map((p) => (
+          <a
+            href={`#tier-${p.tier}`}
+            class={`tl-node ${p.tier <= currentTier ? "tl-done" : p.tier === currentTier + 1 ? "tl-active" : "tl-future"}`}
+          >
+            <span class="tl-circle">
+              {p.tier <= currentTier ? "✓" : p.tier}
+            </span>
+            <span class="tl-label">Tier {p.tier}</span>
+          </a>
+        ))
+      }
     </div>
   </div>
 
   <div class="plans-container">
-    {plans.filter(p => p.tier === currentTier + 1).map((plan) => (
-      <TierPlan plan={plan} isNextTier={true} currentTier={currentTier} />
-    ))}
+    {
+      plans
+        .filter((p) => p.tier === currentTier + 1)
+        .map((plan) => (
+          <TierPlan plan={plan} isNextTier={true} currentTier={currentTier} />
+        ))
+    }
   </div>
 </Layout>
 
@@ -116,7 +130,7 @@ const plans = buildSettlementPlan(gd, currentTier, learnedIds, supplies, invento
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -135,8 +149,14 @@ const plans = buildSettlementPlan(gd, currentTier, learnedIds, supplies, invento
     font-weight: 800;
     color: var(--text);
   }
-  .text-accent { color: var(--accent); }
-  .kpi-muted { color: var(--text-muted); font-size: 1rem; font-weight: 500; }
+  .text-accent {
+    color: var(--accent);
+  }
+  .kpi-muted {
+    color: var(--text-muted);
+    font-size: 1rem;
+    font-weight: 500;
+  }
 
   /* Timeline Nav */
   .timeline-nav-container {
@@ -155,7 +175,7 @@ const plans = buildSettlementPlan(gd, currentTier, learnedIds, supplies, invento
   }
   /* The connecting line */
   .timeline-nav::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 20px;
     left: 20px;
@@ -175,7 +195,7 @@ const plans = buildSettlementPlan(gd, currentTier, learnedIds, supplies, invento
     text-decoration: none;
     cursor: pointer;
   }
-  
+
   .tl-circle {
     width: 28px;
     height: 28px;
@@ -203,7 +223,9 @@ const plans = buildSettlementPlan(gd, currentTier, learnedIds, supplies, invento
     border-color: var(--green);
     color: var(--bg-base);
   }
-  .tl-done .tl-label { color: var(--green); }
+  .tl-done .tl-label {
+    color: var(--green);
+  }
 
   .tl-active .tl-circle {
     border-color: var(--accent);
@@ -211,7 +233,10 @@ const plans = buildSettlementPlan(gd, currentTier, learnedIds, supplies, invento
     box-shadow: 0 0 0 4px var(--accent-glow);
     transform: scale(1.1);
   }
-  .tl-active .tl-label { color: var(--accent); font-weight: 700; }
+  .tl-active .tl-label {
+    color: var(--accent);
+    font-weight: 700;
+  }
 
   .tl-node:hover .tl-circle {
     border-color: var(--text);
@@ -225,6 +250,8 @@ const plans = buildSettlementPlan(gd, currentTier, learnedIds, supplies, invento
   }
 
   @media (max-width: 768px) {
-    .kpi-row { grid-template-columns: 1fr; }
+    .kpi-row {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

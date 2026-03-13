@@ -1,47 +1,33 @@
-<!--
-   Copyright (C) 2026 Luiz Ferraz
-  
-   This file is part of Ordum Dashboard.
-  
-   Ordum Dashboard is free software: you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
-  
-   Ordum Dashboard is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-   GNU General Public License for more details.
-  
-   You should have received a copy of the GNU General Public License
-   along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
--->
 ---
+/**
+ * Copyright (C) 2026 Luiz Ferraz
+ *
+ * This file is part of Ordum Dashboard.
+ *
+ * Ordum Dashboard is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Ordum Dashboard is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
+ */
 import Layout from "../layouts/Layout.astro";
 import GroupCraftConfiguration from "../components/group-craft/GroupCraftConfiguration";
 import GroupCraftingPlan from "../components/group-craft/GroupCraftingPlan";
 import GroupCraftInit from "../components/group-craft/GroupCraftInit";
 import "../styles/craft.css";
-import { loadGameData } from "../lib/gamedata";
+import { gd } from "../lib/gamedata";
 import { ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
 import { api } from "../lib/api";
 import { buildClaimInventory } from "../lib/claim-inventory";
 import { buildSettlementPlan } from "../lib/settlement-planner";
 import type { TargetItem } from "../lib/group-craft-store";
-
-const gd = loadGameData();
-
-const itemIndex: { id: number; t: "Item" | "Cargo"; n: string; tier: number; tag: string }[] = [];
-for (const [id, item] of gd.items) {
-  if (item.name) {
-    itemIndex.push({ id, t: "Item", n: item.name, tier: item.tier, tag: item.tag });
-  }
-}
-for (const [id, c] of gd.cargo) {
-  if (c.name) {
-    itemIndex.push({ id, t: "Cargo", n: c.name, tier: c.tier, tag: c.tag });
-  }
-}
 
 // Check if we're coming from the settlement planner with pre-selected items
 const url = new URL(Astro.request.url);
@@ -60,8 +46,13 @@ if (fromSettlement && tier > 0) {
     // Build inventory (excludes bank buildings — personal storage)
     const inventory = buildClaimInventory(claim);
 
-    const plans = buildSettlementPlan(gd, currentTier, learnedIds, supplies, inventory);
-    const targetPlan = plans.find(p => p.tier === tier);
+    const plans = buildSettlementPlan(
+      currentTier,
+      learnedIds,
+      supplies,
+      inventory,
+    );
+    const targetPlan = plans.find((p) => p.tier === tier);
 
     if (targetPlan) {
       // Only include items with a deficit
@@ -85,13 +76,17 @@ if (fromSettlement && tier > 0) {
 <Layout title="Empire Craft Planner — Ordum" activePage="group-craft">
   <div class="header">
     <h1>🏰 Empire Craft Planner</h1>
-    <p class="subtitle">Calculate crafting trees using the Ordum claim's building storage</p>
+    <p class="subtitle">
+      Calculate crafting trees using the Ordum claim's building storage
+    </p>
   </div>
 
-  {initialItems.length > 0 && (
-    <GroupCraftInit client:only initialItems={initialItems} />
-  )}
-  <GroupCraftConfiguration client:only itemIndex={itemIndex} />
+  {
+    initialItems.length > 0 && (
+      <GroupCraftInit client:only initialItems={initialItems} />
+    )
+  }
+  <GroupCraftConfiguration client:only />
   <GroupCraftingPlan client:only />
 </Layout>
 

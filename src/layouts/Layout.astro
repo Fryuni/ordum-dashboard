@@ -1,31 +1,31 @@
-<!--
-   Copyright (C) 2026 Luiz Ferraz
-  
-   This file is part of Ordum Dashboard.
-  
-   Ordum Dashboard is free software: you can redistribute it and/or modify
-   it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
-  
-   Ordum Dashboard is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-   GNU General Public License for more details.
-  
-   You should have received a copy of the GNU General Public License
-   along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
--->
 ---
+/**
+ * Copyright (C) 2026 Luiz Ferraz
+ *
+ * This file is part of Ordum Dashboard.
+ *
+ * Ordum Dashboard is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Ordum Dashboard is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
+ */
 interface Props {
   title: string;
-  activePage?: 'dashboard' | 'craft' | 'settlement' | 'group-craft';
+  activePage?: "dashboard" | "craft" | "settlement" | "group-craft";
 }
 
-const { title, activePage = 'dashboard' } = Astro.props;
+const { title, activePage = "dashboard" } = Astro.props;
 ---
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -38,25 +38,31 @@ const { title, activePage = 'dashboard' } = Astro.props;
       <aside class="sidebar">
         <div class="brand">ORDUM</div>
         <nav class="nav">
-          <a href="/" class={activePage === 'dashboard' ? 'active' : ''}>
+          <a href="/" class={activePage === "dashboard" ? "active" : ""}>
             <span class="icon">📊</span>
             Dashboard
           </a>
-          <a href="/settlement" class={activePage === 'settlement' ? 'active' : ''}>
+          <a
+            href="/settlement"
+            class={activePage === "settlement" ? "active" : ""}
+          >
             <span class="icon">🏰</span>
             Settlement
           </a>
-          <a href="/craft" class={activePage === 'craft' ? 'active' : ''}>
+          <a href="/craft" class={activePage === "craft" ? "active" : ""}>
             <span class="icon">⚒️</span>
             Craft Planner
           </a>
-          <a href="/group-craft" class={activePage === 'group-craft' ? 'active' : ''}>
+          <a
+            href="/group-craft"
+            class={activePage === "group-craft" ? "active" : ""}
+          >
             <span class="icon">🏰</span>
             Empire Craft
           </a>
         </nav>
       </aside>
-      
+
       <main class="main-content">
         <div class="content-wrapper">
           <slot />
@@ -91,14 +97,21 @@ const { title, activePage = 'dashboard' } = Astro.props;
     --rarity-legendary: #fbbf24;
   }
 
-  *, *::before, *::after {
+  *,
+  *::before,
+  *::after {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
   }
 
   body {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family:
+      "Inter",
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      sans-serif;
     background: var(--bg-base);
     color: var(--text);
     line-height: 1.5;

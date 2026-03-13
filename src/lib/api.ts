@@ -17,7 +17,8 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { BitcraftApiClient } from "../bitcraft-api-client";
-import { API_BASE_URL } from "./ordum-data";
+
+export const API_BASE_URL = "https://craft-api.resubaka.dev";
 
 /** Global API client instance — used server-side by all pages and actions. */
 export const api = new BitcraftApiClient({

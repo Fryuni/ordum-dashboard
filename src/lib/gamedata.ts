@@ -25,8 +25,6 @@
  */
 
 import { Lazy, LazyKeyed } from "@inox-tools/utils/lazy";
-import fs from "node:fs";
-import path from "node:path";
 
 // ─── Raw JSON Types ────────────────────────────────────────────────────────────
 
@@ -184,6 +182,33 @@ export interface GameConstructionRecipe {
   tool_requirements: GameToolReq[];
 }
 
+const { default: rawItems }: { default: GameItemDesc[] } =
+  (await import("../../gamedata/item_desc.json")) as any;
+const { default: rawCargo }: { default: GameCargoDesc[] } =
+  (await import("../../gamedata/cargo_desc.json")) as any;
+const { default: rawRecipes }: { default: GameCraftingRecipe[] } =
+  (await import("../../gamedata/crafting_recipe_desc.json")) as any;
+const { default: rawExtraction }: { default: GameExtractionRecipe[] } =
+  (await import("../../gamedata/extraction_recipe_desc.json")) as any;
+const { default: rawClaimTechs }: { default: GameClaimTech[] } =
+  (await import("../../gamedata/claim_tech_desc.json")) as any;
+const { default: rawBuildings }: { default: GameBuildingDesc[] } =
+  (await import("../../gamedata/building_desc.json")) as any;
+const { default: rawBuildingTypes }: { default: GameBuildingTypeDesc[] } =
+  (await import("../../gamedata/building_type_desc.json")) as any;
+const { default: rawSkills }: { default: GameSkillDesc[] } =
+  (await import("../../gamedata/skill_desc.json")) as any;
+const { default: rawTools }: { default: GameToolDesc[] } =
+  (await import("../../gamedata/tool_desc.json")) as any;
+const { default: rawToolTypes }: { default: GameToolTypeDesc[] } =
+  (await import("../../gamedata/tool_type_desc.json")) as any;
+const { default: rawResources }: { default: GameResourceDesc[] } =
+  (await import("../../gamedata/resource_desc.json")) as any;
+const { default: rawItemLists }: { default: GameItemListDesc[] } =
+  (await import("../../gamedata/item_list_desc.json")) as any;
+const { default: rawConstruction }: { default: GameConstructionRecipe[] } =
+  (await import("../../gamedata/construction_recipe_desc.json")) as any;
+
 // ─── Indexed Game Data ─────────────────────────────────────────────────────────
 
 /** Maps an "Output" item to its resolved real items via item_list_id */
@@ -194,72 +219,7 @@ export interface ItemListResolution {
   quantity: number; // quantity from the highest-probability possibility
 }
 
-export interface GameData {
-  items: Map<number, GameItemDesc>;
-  cargo: Map<number, GameCargoDesc>;
-  recipes: GameCraftingRecipe[];
-  recipesByOutput: Map<string, GameCraftingRecipe[]>; // "Item:id" or "Cargo:id"
-  /** Recipes that produce an item indirectly via item list resolution (Output items).
-   *  Key is "ItemType:realItemId", value is { recipe, outputQuantity per craft } */
-  recipesByResolvedOutput: Map<
-    string,
-    { recipe: GameCraftingRecipe; outputPerCraft: number }[]
-  >;
-  extractionRecipes: GameExtractionRecipe[];
-  extractionByOutput: Map<string, GameExtractionRecipe[]>;
-  claimTechs: GameClaimTech[];
-  claimTechById: Map<number, GameClaimTech>;
-  buildings: Map<number, GameBuildingDesc>;
-  buildingTypes: Map<number, GameBuildingTypeDesc>;
-  skills: Map<number, GameSkillDesc>;
-  tools: Map<number, GameToolDesc>;
-  toolTypes: Map<number, GameToolTypeDesc>;
-  resources: Map<number, GameResourceDesc>;
-  itemLists: Map<number, GameItemListDesc>;
-  constructionRecipes: GameConstructionRecipe[];
-}
-
-function loadJson<T>(filePath: string): T {
-  return JSON.parse(fs.readFileSync(filePath, "utf-8")) as T;
-}
-
-export function loadGameData(gamedataDir?: string): GameData {
-  const dir = gamedataDir ?? path.join(process.cwd(), "gamedata");
-
-  const rawItems = loadJson<GameItemDesc[]>(path.join(dir, "item_desc.json"));
-  const rawCargo = loadJson<GameCargoDesc[]>(path.join(dir, "cargo_desc.json"));
-  const rawRecipes = loadJson<GameCraftingRecipe[]>(
-    path.join(dir, "crafting_recipe_desc.json"),
-  );
-  const rawExtraction = loadJson<GameExtractionRecipe[]>(
-    path.join(dir, "extraction_recipe_desc.json"),
-  );
-  const rawClaimTechs = loadJson<GameClaimTech[]>(
-    path.join(dir, "claim_tech_desc.json"),
-  );
-  const rawBuildings = loadJson<GameBuildingDesc[]>(
-    path.join(dir, "building_desc.json"),
-  );
-  const rawBuildingTypes = loadJson<GameBuildingTypeDesc[]>(
-    path.join(dir, "building_type_desc.json"),
-  );
-  const rawSkills = loadJson<GameSkillDesc[]>(
-    path.join(dir, "skill_desc.json"),
-  );
-  const rawTools = loadJson<GameToolDesc[]>(path.join(dir, "tool_desc.json"));
-  const rawToolTypes = loadJson<GameToolTypeDesc[]>(
-    path.join(dir, "tool_type_desc.json"),
-  );
-  const rawResources = loadJson<GameResourceDesc[]>(
-    path.join(dir, "resource_desc.json"),
-  );
-  const rawItemLists = loadJson<GameItemListDesc[]>(
-    path.join(dir, "item_list_desc.json"),
-  );
-  const rawConstruction = loadJson<GameConstructionRecipe[]>(
-    path.join(dir, "construction_recipe_desc.json"),
-  );
-
+function loadGameData() {
   // Index items
   const items = new Map<number, GameItemDesc>();
   for (const i of rawItems) items.set(i.id, i);
@@ -299,12 +259,11 @@ export function loadGameData(gamedataDir?: string): GameData {
       if (!outputItem || outputItem.item_list_id === 0) continue;
 
       const itemList = itemListById.get(outputItem.item_list_id);
-      if (!itemList) continue;
+      if (!itemList || itemList.possibilities.length === 0) continue;
 
       // Take the highest-probability possibility to determine the real output
-      const bestPossibility = itemList.possibilities.reduce(
-        (best, p) => (p.probability > best.probability ? p : best),
-        itemList.possibilities[0],
+      const bestPossibility = itemList.possibilities.reduce((best, p) =>
+        p.probability > best.probability ? p : best,
       );
       if (!bestPossibility) continue;
 
@@ -383,16 +342,16 @@ export function loadGameData(gamedataDir?: string): GameData {
   };
 }
 
-export const gd = Lazy.of(loadGameData);
+export const gd = loadGameData();
 
 // ─── Utility Functions ─────────────────────────────────────────────────────────
 
 /** Get name for an item/cargo by type and ID */
 export function getItemName(itemType: ItemType, itemId: number): string {
   if (itemType === "Item") {
-    return gd.get().items.get(itemId)?.name ?? `Unknown Item #${itemId}`;
+    return gd.items.get(itemId)?.name ?? `Unknown Item #${itemId}`;
   }
-  return gd.get().cargo.get(itemId)?.name ?? `Unknown Cargo #${itemId}`;
+  return gd.cargo.get(itemId)?.name ?? `Unknown Cargo #${itemId}`;
 }
 
 /** Get item/cargo description */
@@ -401,7 +360,7 @@ export function getItemInfo(
   itemId: number,
 ): { name: string; tier: number; tag: string; icon: string; rarity: string } {
   if (itemType === "Item") {
-    const item = gd.get().items.get(itemId);
+    const item = gd.items.get(itemId);
     if (item)
       return {
         name: item.name,
@@ -411,7 +370,7 @@ export function getItemInfo(
         rarity: item.rarity,
       };
   } else {
-    const c = gd.get().cargo.get(itemId);
+    const c = gd.cargo.get(itemId);
     if (c)
       return {
         name: c.name,
@@ -459,16 +418,16 @@ export const parseReferenceKey = LazyKeyed.wrap(
 );
 
 export function getSkillName(skillId: number): string {
-  return gd.get().skills.get(skillId)?.name ?? `Skill #${skillId}`;
+  return gd.skills.get(skillId)?.name ?? `Skill #${skillId}`;
 }
 
 export function getToolTypeName(toolTypeId: number): string {
-  return gd.get().toolTypes.get(toolTypeId)?.name ?? `Tool Type #${toolTypeId}`;
+  return gd.toolTypes.get(toolTypeId)?.name ?? `Tool Type #${toolTypeId}`;
 }
 
 export function getBuildingTypeName(buildingTypeId: number): string {
   return (
-    gd.get().buildingTypes.get(buildingTypeId)?.name ??
+    gd.buildingTypes.get(buildingTypeId)?.name ??
     `Building Type #${buildingTypeId}`
   );
 }
@@ -477,7 +436,7 @@ export function realItemStack(
   list: GameItemStack[],
   externalProbability = 1,
 ): GameItemStack[] {
-  const { items, itemLists } = gd.get();
+  const { items, itemLists } = gd;
 
   if (externalProbability !== 1) {
     list = list.map((item) => ({

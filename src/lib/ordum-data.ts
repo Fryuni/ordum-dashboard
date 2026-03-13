@@ -28,18 +28,14 @@
  */
 
 import {
-  BitcraftApiClient,
-  type ClaimDescriptionStateWithInventoryAndPlayTime,
   type ClaimDescriptionStateMember,
   type ExpendedRefrence,
   type InventoryItemLocation,
-  type BuildingStateModel,
 } from "../bitcraft-api-client";
+import { api } from "./api";
 import { BANK_BUILDING_IDS } from "./claim-inventory";
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
-
-export const API_BASE_URL = "https://craft-api.resubaka.dev";
 
 /** Ordum City — the main claim and empire leader */
 export const ORDUM_MAIN_CLAIM_ID = "1224979098661645606";
@@ -168,11 +164,11 @@ function parseInventoryLocation(
     rarity: item.rarity,
     item_type: loc.item_type,
     quantity: 0, // will be summed from locations
-    durability: loc.durability,
+    durability: loc.durability ?? null,
     locations: loc.locations.map((l) => ({
       owner_type: l.owner_type,
-      owner_name: l.owner_name,
-      building_name: l.building_name,
+      owner_name: l.owner_name || "Unknown",
+      building_name: l.building_name || "Ground",
       building_description_id: l.building_description_id ?? null,
       quantity: l.quantity,
       inventory_entity_id: l.inventory_entity_id,
@@ -202,10 +198,9 @@ function mergeResources(items: ResourceItem[]): ResourceItem[] {
  * the raw string form in the URL.
  */
 export async function fetchClaimData(
-  client: BitcraftApiClient,
   claimIdStr: string,
 ): Promise<ClaimSummary> {
-  const raw = await client.getClaim(claimIdStr);
+  const raw = await api.getClaim(claimIdStr);
 
   // Parse building resources (with locations), excluding bank buildings (personal storage)
   const buildingLocs: ResourceWithLocations[] = [];
@@ -336,13 +331,12 @@ export async function fetchClaimData(
 }
 
 export async function fetchEmpireData(
-  client: BitcraftApiClient,
   claimIds: { id: string; name: string }[] = EMPIRE_CLAIM_IDS,
 ): Promise<EmpireSummary> {
   const claims: ClaimSummary[] = [];
   for (const { id } of claimIds) {
     try {
-      const claim = await fetchClaimData(client, id);
+      const claim = await fetchClaimData(id);
       claims.push(claim);
     } catch (err) {
       console.error(`Failed to fetch claim ${id}:`, err);
@@ -407,4 +401,17 @@ export async function fetchEmpireData(
     all_tool_resources: mergedTools,
     fetched_at: new Date().toISOString(),
   };
+}
+
+export async function fetchClaimMembers() {
+  let members: { entity_id: number; user_name: string }[] = [];
+  try {
+    const claim = await api.getClaim(ORDUM_MAIN_CLAIM_ID);
+    members = Object.values(claim.members ?? {})
+      .map((m: any) => ({ entity_id: m.entity_id, user_name: m.user_name }))
+      .sort((a: any, b: any) => a.user_name.localeCompare(b.user_name));
+  } catch (e) {
+    // Continue without members
+  }
+  return members;
 }
