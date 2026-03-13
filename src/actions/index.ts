@@ -148,13 +148,18 @@ export const server = {
         }
       }
 
-      const plan = buildCraftPlan(targets, inventory);
+      try {
+        const plan = buildCraftPlan(targets, inventory);
 
-      return {
-        player: playerInfo,
-        inventory_size: inventory.size,
-        plan,
-      };
+        return {
+          player: playerInfo,
+          inventory_size: inventory.size,
+          plan,
+        };
+      } catch (error) {
+        console.error('Error making plan:', error);
+        throw error;
+      }
     },
   }),
 };

@@ -59,6 +59,7 @@ export interface CraftStep {
 
 export interface RawMaterialSource {
   resource_name: string;
+  amount_per_stamina: number;
   verb: string;
 }
 
@@ -357,6 +358,16 @@ class PartialPlan {
     for (const { recipe, quantity } of this.recipes.values()) {
       totalEffort += quantity * recipe.stamina_requirement;
     }
+    for (const { itemType, itemId, quantity } of this.rawMaterials.values()) {
+      const extractionInfo = getExtractionInfo(itemType, itemId);
+      const averageProbability = extractionInfo.resource_sources.length === 0
+        ? 1
+        : extractionInfo.resource_sources
+          .map(s => s.amount_per_stamina)
+          .reduce((a, b) => a + b)
+        / extractionInfo.resource_sources.length;
+      totalEffort += quantity / averageProbability;
+    }
     return totalEffort;
   }
 
@@ -455,13 +466,19 @@ class PartialPlan {
 
       const info = getItemInfo(itemType, itemId);
       const extractionInfo = getExtractionInfo(itemType, itemId);
+      const averageProbability = extractionInfo.resource_sources.length === 0
+        ? 1
+        : extractionInfo.resource_sources
+          .map(s => s.amount_per_stamina)
+          .reduce((a, b) => a + b)
+        / extractionInfo.resource_sources.length;
       plan.raw_materials.push({
         item_id: itemId,
         item_type: itemType,
         name: info.name,
         tier: info.tier,
         tag: info.tag,
-        likely_effort: 0,
+        likely_effort: Math.ceil(quantity / averageProbability),
         available: used,
         total_needed: needed,
         source: extractionInfo.source,
@@ -536,9 +553,19 @@ function getExtractionInfoInner(
     seen.add(e.resource_id);
     const res = gd.get().resources.get(e.resource_id);
     if (res) {
+      const realItemAmount = e.extracted_item_stacks
+        .flatMap(({ item_stack, probability }) => realItemStack([item_stack], probability))
+        .filter((item_stack) => (
+          item_stack.item_type === itemType
+          && item_stack.item_id === itemId
+        ))
+        .map(p => p.quantity)
+        .reduce((a, b) => a + b);
+
       resource_sources.push({
         resource_name: res.name,
         verb: e.verb_phrase || "Gather",
+        amount_per_stamina: realItemAmount,
       });
     }
   }
