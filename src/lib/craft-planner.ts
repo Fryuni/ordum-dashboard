@@ -13,6 +13,7 @@ import type {
   ItemType,
   ItemReference,
 } from "./gamedata";
+import { topologicalSort } from "./topological-sort";
 import {
   getItemName,
   getItemInfo,
@@ -433,137 +434,24 @@ class PartialPlan {
     }
 
     // Topological sort: a step must come after all steps that produce its inputs.
-    // Uses Tarjan's SCC to handle cycles (e.g. plant→grow→harvest loops),
-    // then Kahn's algorithm on the condensed DAG of SCCs.
-    {
-      const n = plan.steps.length;
-
-      // Map each item key to the step index that produces it
-      const producerOf = new Map<string, number>();
-      for (let i = 0; i < n; i++) {
-        for (const out of plan.steps[i]!.outputs) {
-          producerOf.set(referenceKey(out), i);
+    // Uses the generic topologicalSort which handles cycles via Tarjan's SCC.
+    plan.steps = topologicalSort(plan.steps, (a, b) => {
+      // Does a produce something b needs? → a before b
+      for (const out of a.outputs) {
+        const key = referenceKey(out);
+        for (const inp of b.inputs) {
+          if (referenceKey(inp) === key) return "a->b";
         }
       }
-
-      // Build adjacency list (edge from producer → consumer)
-      const adj: Set<number>[] = Array.from({ length: n }, () => new Set());
-      for (let i = 0; i < n; i++) {
-        for (const inp of plan.steps[i]!.inputs) {
-          const j = producerOf.get(referenceKey(inp));
-          if (j !== undefined && j !== i) {
-            adj[j]!.add(i); // j must come before i
-          }
+      // Does b produce something a needs? → b before a
+      for (const out of b.outputs) {
+        const key = referenceKey(out);
+        for (const inp of a.inputs) {
+          if (referenceKey(inp) === key) return "b->a";
         }
       }
-
-      // Tarjan's SCC algorithm to find strongly connected components (cycles)
-      const sccOf = new Array<number>(n).fill(-1);
-      const sccs: number[][] = [];
-      {
-        let index = 0;
-        const stack: number[] = [];
-        const onStack = new Array<boolean>(n).fill(false);
-        const indices = new Array<number>(n).fill(-1);
-        const lowlinks = new Array<number>(n).fill(-1);
-
-        function strongconnect(v: number) {
-          indices[v] = lowlinks[v] = index++;
-          stack.push(v);
-          onStack[v] = true;
-
-          for (const w of adj[v]!) {
-            if (indices[w] === -1) {
-              strongconnect(w);
-              lowlinks[v] = Math.min(lowlinks[v]!, lowlinks[w]!);
-            } else if (onStack[w]!) {
-              lowlinks[v] = Math.min(lowlinks[v]!, indices[w]!);
-            }
-          }
-
-          if (lowlinks[v] === indices[v]) {
-            const scc: number[] = [];
-            let w: number;
-            do {
-              w = stack.pop()!;
-              onStack[w] = false;
-              sccOf[w] = sccs.length;
-              scc.push(w);
-            } while (w !== v);
-            sccs.push(scc);
-          }
-        }
-
-        for (let i = 0; i < n; i++) {
-          if (indices[i] === -1) strongconnect(i);
-        }
-      }
-
-      // Build condensed DAG over SCCs
-      const sccCount = sccs.length;
-      const sccAdj: Set<number>[] = Array.from(
-        { length: sccCount },
-        () => new Set(),
-      );
-      const sccInDeg = new Array<number>(sccCount).fill(0);
-
-      for (let i = 0; i < n; i++) {
-        for (const j of adj[i]!) {
-          const si = sccOf[i]!;
-          const sj = sccOf[j]!;
-          if (si !== sj && !sccAdj[si]!.has(sj)) {
-            sccAdj[si]!.add(sj);
-            sccInDeg[sj]!++;
-          }
-        }
-      }
-
-      // Kahn's algorithm on the condensed DAG
-      const sccOrder: number[] = [];
-      const sccQueue: number[] = [];
-      for (let i = 0; i < sccCount; i++) {
-        if (sccInDeg[i] === 0) sccQueue.push(i);
-      }
-
-      while (sccQueue.length > 0) {
-        // Among ready SCCs, prefer those with higher total effort
-        sccQueue.sort((a, b) => {
-          const effortOf = (sccIdx: number) =>
-            sccs[sccIdx]!.reduce(
-              (sum, i) =>
-                sum +
-                plan.steps[i]!.effort_per_craft * plan.steps[i]!.craft_count,
-              0,
-            );
-          return effortOf(b) - effortOf(a);
-        });
-
-        const si = sccQueue.shift()!;
-        sccOrder.push(si);
-
-        for (const sj of sccAdj[si]!) {
-          sccInDeg[sj]!--;
-          if (sccInDeg[sj] === 0) sccQueue.push(sj);
-        }
-      }
-
-      // Flatten: for each SCC in topological order, emit its steps.
-      // Within an SCC (cycle), sort by effort descending.
-      const sorted: number[] = [];
-      for (const si of sccOrder) {
-        const members = sccs[si]!;
-        members.sort((a, b) => {
-          const ea =
-            plan.steps[a]!.effort_per_craft * plan.steps[a]!.craft_count;
-          const eb =
-            plan.steps[b]!.effort_per_craft * plan.steps[b]!.craft_count;
-          return eb - ea;
-        });
-        sorted.push(...members);
-      }
-
-      plan.steps = sorted.map((i) => plan.steps[i]!);
-    }
+      return null;
+    });
 
     plan.steps.forEach((step, i, s) => {
       step.depth = s.length - i - 1;
