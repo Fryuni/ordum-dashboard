@@ -20,7 +20,9 @@ FROM base AS build
 
 # Copy source and build
 COPY . .
-RUN bun run build
+RUN --mount=type=cache,target=/app/node_modules/.astro \
+    --mount=type=cache,target=/app/node_modules/.vite \
+    bun run build
 
 # --- Production stage ---
 FROM oven/bun:1-slim AS production
