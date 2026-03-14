@@ -51,10 +51,6 @@ Call `memory_commit` when one of these is true:
 - The extension warns that `log.md` is getting large.
 - You are about to claim the task is complete or hand off to another agent.
 
-## Project-Specific Rules
-
-- **Always git-commit `.memory/` after `memory_commit`**: After every `memory_commit`, run `git add .memory/ && git commit -m "Update project memory"` so memory state is tracked in version control.
-
 ## Conventions
 
 - **Agent-driven**: You decide when to commit, branch, and merge

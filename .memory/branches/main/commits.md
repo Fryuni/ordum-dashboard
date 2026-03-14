@@ -197,3 +197,24 @@ The project established a robust foundation with a custom TypeScript API client 
 - Improved planner UX by adding an item "edit" mode that auto-populates the search field and triggers an auto-focus/select on the quantity input.
 - Consolidated crafting results into a shared `PlanCard` component, adding real-time name and tier filtering to help users navigate complex plans.
 - Adopted a project-wide formatting rule: `bunx prettier -w .` must be run before every commit to ensure style consistency.
+
+---
+
+## Commit 7d3f4a8d | 2026-03-14T15:54:22.168Z
+
+### Branch Purpose
+
+Dashboard for the Ordum empire in Bitcraft, utilizing a generated TypeScript API client and static game data to provide deep insights into resources, settlement research, and crafting logistics.
+
+### Previous Progress Summary
+
+The project began by building a robust TypeScript API client automatically generated from Bitcraft Hub's Rust source, handling 64-bit entity IDs as strings for data integrity. This foundation supported the development of an SSR-enabled dashboard featuring a recursive craft planner and a settlement upgrade tracker. The system evolved from individual player views to a unified empire-wide resource pool, integrating building storage and offline player data. Through migrations to Preact for reactivity and the implementation of advanced graph algorithms for dependency resolution (Tarjan’s SCC), the project matured into a high-performance tool with a comprehensive craft planner, a tiered settlement planner, and a clean, maintainable architecture.
+
+### This Commit's Contribution
+
+- Executed a major architectural shift by replacing Astro with a Bun-native server and Preact SPA, utilizing `Bun.serve` with HTML imports for seamless client-side bundling.
+- Restructured the codebase into focused domains: `src/client` (SPA), `src/server` (data caching), and `src/common` (shared planners and game data logic).
+- Adopted `@nanostores/router` for lightweight SPA navigation and centralized state management.
+- Replaced the craft planner's inline graph logic with a new generic `topologicalSort` utility that robustly handles recipe cycles like farming loops.
+- Standardized project licensing with GPL-3.0 headers across all source files and optimized the git repository by purging non-source state files from history.
+- Simplified the build and development process, leveraging Bun's native capabilities to eliminate complex build pipelines and reduce production image size.
