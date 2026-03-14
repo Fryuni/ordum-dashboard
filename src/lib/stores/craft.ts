@@ -50,7 +50,7 @@ const targetItemSchema = z.array(
 );
 
 // Target items list
-export const $targets = persistentAtom("craftItems", [], {
+export const $targets = persistentAtom<TargetItem[]>("craftItems", [], {
   listen: true,
   encode: JSON.stringify,
   decode: (data) => {

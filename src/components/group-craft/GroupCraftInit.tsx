@@ -17,6 +17,10 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { useEffect } from "preact/hooks";
+import { $targets, type TargetItem } from "../../lib/stores/craft";
+import { ORDUM_MAIN_CLAIM_ID } from "../../lib/ordum-data";
+import { buildSettlementPlan } from "../../lib/settlement-planner";
+import { api } from "../../lib/api";
 
 /**
  * Invisible component that initializes group craft targets from props
@@ -24,54 +28,50 @@ import { useEffect } from "preact/hooks";
  */
 export default function GroupCraftInit() {
   useEffect(() => {
-    // Compute initial item from URL
-    // if (initialItems && initialItems.length > 0) {
-    //   $groupTargets.set(initialItems);
-    // }
-    /*
-// Check if we're coming from the settlement planner with pre-selected items
-const url = new URL(Astro.request.url);
-const fromSettlement = url.searchParams.get("from") === "settlement";
-const tier = parseInt(url.searchParams.get("tier") ?? "0");
+    setTimeout(async () => {
+      // Check if we're coming from the settlement planner with pre-selected items
+      const url = new URL(window.location.href);
+      const fromSettlement = url.searchParams.get("from") === "settlement";
+      const tier = parseInt(url.searchParams.get("tier") ?? "0");
 
-let initialItems: TargetItem[] = [];
+      console.log("URL:", { fromSettlement, tier });
 
-if (fromSettlement && tier > 0) {
-  try {
-    const claim = await api.getClaim(ORDUM_MAIN_CLAIM_ID);
-    const currentTier = claim.tier ?? 1;
-    const learnedIds = new Set<number>(claim.learned_upgrades ?? []);
-    const supplies = claim.supplies ?? 0;
+      if (fromSettlement && tier > 0) {
+        try {
+          const claim = await api.getClaim(ORDUM_MAIN_CLAIM_ID);
+          const currentTier = claim.tier ?? 1;
+          const learnedIds = new Set<number>(claim.learned_upgrades ?? []);
+          const supplies = claim.supplies ?? 0;
 
-    // Build inventory (excludes bank buildings — personal storage)
-    const inventory = buildClaimInventory(claim);
+          const plans = buildSettlementPlan(
+            currentTier,
+            learnedIds,
+            supplies,
+            new Map(),
+          );
+          const targetPlan = plans.find((p) => p.tier === tier);
 
-    const plans = buildSettlementPlan(
-      currentTier,
-      learnedIds,
-      supplies,
-      inventory,
-    );
-    const targetPlan = plans.find((p) => p.tier === tier);
-
-    if (targetPlan) {
-      // Only include items with a deficit
-      for (const item of targetPlan.all_items_needed) {
-        if (item.deficit > 0) {
-          initialItems.push({
-            id: item.item_id,
-            type: item.item_type,
-            name: item.name,
-            quantity: item.deficit,
-          });
+          if (targetPlan) {
+            let initialItems: TargetItem[] = [];
+            for (const item of targetPlan.all_items_needed) {
+              if (item.deficit > 0) {
+                initialItems.push({
+                  ...item,
+                  name: item.name,
+                  quantity: item.deficit,
+                });
+              }
+            }
+            $targets.set(initialItems);
+          } else {
+            console.log("No plan.");
+          }
+        } catch (e) {
+          // Continue without pre-populated items
+          console.error("Failed to build plan:", e);
         }
       }
-    }
-  } catch (e) {
-    // Continue without pre-populated items
-  }
-}
-     */
+    });
   }, []);
 
   return null;
