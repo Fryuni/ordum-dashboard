@@ -17,6 +17,7 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { useStore } from "@nanostores/preact";
+import { useState } from "preact/hooks";
 import InventorySourcePicker from "../components/craft/InventorySourcePicker";
 import PlanCard from "../components/craft/PlanCard";
 import { $player } from "../stores/craftSource";
@@ -63,6 +64,26 @@ function TaskList({ tasks }: { tasks: TravelerTaskInfo[] }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function CollapsibleTaskList({ tasks }: { tasks: TravelerTaskInfo[] }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div class="collapsible-section">
+      <button
+        type="button"
+        class="collapsible-header"
+        onClick={() => setOpen(!open)}
+      >
+        <span class="collapsible-arrow">{open ? "▾" : "▸"}</span>
+        <span>
+          {tasks.length} open task{tasks.length !== 1 ? "s" : ""}
+        </span>
+      </button>
+      {open && <TaskList tasks={tasks} />}
     </div>
   );
 }
@@ -119,7 +140,7 @@ export default function TravelerTaskPage() {
         </div>
       )}
 
-      {tasks.length > 0 && <TaskList tasks={tasks} />}
+      {tasks.length > 0 && <CollapsibleTaskList tasks={tasks} />}
 
       {hasTargets && isLoadingPlan && (
         <div class="loading-container">

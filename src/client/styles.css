@@ -1707,6 +1707,7 @@ body {
   font-size: 0.95rem;
 }
 .traveler-task-list {
+  margin-top: 10px;
   margin-bottom: 24px;
 }
 .traveler-group {
@@ -1763,6 +1764,36 @@ body {
   font-size: 0.78rem;
   color: var(--text);
   font-variant-numeric: tabular-nums;
+}
+
+/* ─── Collapsible Sections ────────────────────────────────────────────── */
+.collapsible-section {
+  margin-bottom: 24px;
+}
+.collapsible-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+.collapsible-header:hover {
+  border-color: var(--border-hover);
+  color: var(--text);
+}
+.collapsible-arrow {
+  font-size: 0.75rem;
+  width: 1em;
+  text-align: center;
 }
 
 /* ─── Responsive ──────────────────────────────────────────────────────── */
