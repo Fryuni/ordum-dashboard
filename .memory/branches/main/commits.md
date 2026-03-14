@@ -218,3 +218,23 @@ The project began by building a robust TypeScript API client automatically gener
 - Replaced the craft planner's inline graph logic with a new generic `topologicalSort` utility that robustly handles recipe cycles like farming loops.
 - Standardized project licensing with GPL-3.0 headers across all source files and optimized the git repository by purging non-source state files from history.
 - Simplified the build and development process, leveraging Bun's native capabilities to eliminate complex build pipelines and reduce production image size.
+
+---
+
+## Commit 1e493831 | 2026-03-14T16:14:19.175Z
+
+### Branch Purpose
+
+Dashboard for the Ordum empire in Bitcraft, utilizing generated TypeScript API clients and static game data to provide deep insights into resources, settlement research, and crafting logistics.
+
+### Previous Progress Summary
+
+The project established a high-performance architecture for the Ordum Empire dashboard, transitioning from Astro to a Bun-native server with a Preact SPA and @nanostores/router. It features a robust TypeScript API client automatically generated from Bitcraft Hub's Rust source, utilizing string-based 64-bit IDs for data integrity. The system provides unified visibility into empire resources, building storage, and player inventories, supporting a recursive craft planner with cycle detection (Tarjan’s SCC) and a 10-tier settlement upgrade tracker. The codebase is organized into domain-specific layers (`src/client`, `src/server`, `src/common`) with standardized GPL-3.0 licensing and automated gamedata synchronization.
+
+### This Commit's Contribution
+
+- Renamed the core Bitcraft Hub API client to `ResubakaClient` (and its generator to `generate-resubaka-client.ts`) to clarify its origin and differentiate it from other game data sources.
+- Implemented a second automated client generator (`generate-bitjita-client.ts`) that fetches and parses the BitJita web documentation to create a strictly typed client for community-sourced API data.
+- Developed a specialized HTML/text scraper for the BitJita API docs that extracts 77 endpoints, including parameters and JSON response schemas for buildings, market history, and empire stats.
+- Updated the dependency graph across `api-server.ts`, `ordum-data.ts`, and the client-side `api.ts` to reflect the new client naming and multi-API architecture.
+- Verified that the expanded multi-client system integrates seamlessly with the Bun-native build pipeline and server-side caching layer.

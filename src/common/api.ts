@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { BitcraftApiClient } from "./bitcraft-api-client";
+import { ResubakaClient } from "./resubaka-client";
 
 /** On the server this resolves to the upstream API; on the client it proxies through our server. */
 export const API_BASE_URL =
@@ -25,7 +25,7 @@ export const API_BASE_URL =
     : `${window.location.origin}/api`;
 
 /** Global API client instance. Server-side caching is handled by the proxy layer. */
-export const api = new BitcraftApiClient({
+export const api = new ResubakaClient({
   baseUrl: API_BASE_URL,
   timeout: 60_000,
 });

@@ -97,6 +97,7 @@ const globs = [
 // Exclude test files and generated files
 const excludes = [
   "src/common/resubaka-client.ts", // auto-generated
+  "src/common/bitjita-client.ts", // auto-generated
 ];
 
 const files: string[] = [];
