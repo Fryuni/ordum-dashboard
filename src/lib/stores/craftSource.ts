@@ -1,5 +1,5 @@
 import { persistentAtom } from "@nanostores/persistent";
-import { atom, computedAsync, onMount, type AsyncValue } from "nanostores";
+import { atom, computedAsync, type AsyncValue } from "nanostores";
 import { $updateTimer } from "../util-store";
 import { api } from "../api";
 import { buildClaimInventory } from "../claim-inventory";
@@ -7,8 +7,6 @@ import { ORDUM_MAIN_CLAIM_ID } from "../ordum-data";
 
 // Player name for craft plan
 export const $player = persistentAtom<string>("playerName", "");
-
-export const $inventorySource = atom<"player" | "claim">("player");
 
 export const $claim = persistentAtom<string>("claimName", "");
 
@@ -50,28 +48,14 @@ const $playerInventory = computedAsync($playerInfo, async (player) => {
   return inventory;
 });
 
-const $ordumInventory = computedAsync($updateTimer, () =>
+const $claimInventory = computedAsync($updateTimer, () =>
   buildClaimInventory(ORDUM_MAIN_CLAIM_ID),
 );
 
-export const $inventory = atom<AsyncValue<Map<string, number>>>({
-  state: "loading",
-});
-
-if (!import.meta.env.SSR) {
-  onMount($inventory, () => {
-    let unbindInner: undefined | (() => void);
-    const unbindSelector = $inventorySource.subscribe((source) => {
-      unbindInner?.();
-      unbindInner =
-        source === "player"
-          ? $playerInventory.subscribe($inventory.set)
-          : $ordumInventory.subscribe($inventory.set);
-    });
-
-    return () => {
-      unbindSelector();
-      unbindInner?.();
-    };
-  });
-}
+export const $inventory = import.meta.env.SSR
+  ? atom<AsyncValue<Map<string, number>>>({
+    state: "loading",
+  })
+  : window.location.pathname === "/craft"
+    ? $playerInventory
+    : $claimInventory;
