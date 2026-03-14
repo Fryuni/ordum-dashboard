@@ -53,7 +53,7 @@ const makeApiCache = (): CacheProvider<
   AdaptedCache.transformKeys(
     new SharedInFlightCache(
       new StaleWhileRevalidateCache({
-        freshPeriod: 20,
+        freshPeriod: 5,
         cacheProvider: LruCache.ofCapacity(1 << 15),
       }),
     ),
