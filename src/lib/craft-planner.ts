@@ -105,7 +105,7 @@ export interface CraftPlan {
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const MAX_DEPTH = 150;
+const MAX_DEPTH = 450;
 
 /** Recipe name patterns to skip (packaging/unpackaging creates cycles) */
 function shouldSkipRecipe(recipe: GameCraftingRecipe): boolean {
