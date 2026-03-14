@@ -20,7 +20,6 @@
 import Layout from "../layouts/Layout.astro";
 import CraftingPlan from "../components/craft/CraftingPlan";
 import GroupCraftConfiguration from "../components/group-craft/GroupCraftConfiguration";
-import GroupCraftInit from "../components/group-craft/GroupCraftInit";
 import "../styles/craft.css";
 ---
 
@@ -32,7 +31,6 @@ import "../styles/craft.css";
     </p>
   </div>
 
-  <GroupCraftInit client:only />
   <GroupCraftConfiguration client:only />
   <CraftingPlan client:only />
 </Layout>

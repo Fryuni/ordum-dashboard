@@ -23,6 +23,9 @@ import { buildCraftPlan } from "../craft-planner";
 import type { ItemReference } from "../gamedata";
 import { z } from "astro/zod";
 import { $inventory } from "./craftSource";
+import { api } from "../api";
+import { ORDUM_MAIN_CLAIM_ID } from "../ordum-data";
+import { buildSettlementPlan } from "../settlement-planner";
 
 export interface SelectedItem extends ItemReference {
   name: string;
@@ -40,8 +43,8 @@ export const $dropdownOpen = atom(false);
 export const $selectedItem = atom<SelectedItem | null>(null);
 export const $quantity = atom(1);
 
-const targetItemSchema = z.array(
-  z.looseObject({
+const targetSchema = z.array(
+  z.object({
     item_id: z.number(),
     item_type: z.enum(["Item", "Cargo"]),
     name: z.string(),
@@ -54,7 +57,7 @@ export const $targets = persistentAtom<TargetItem[]>("craftItems", [], {
   listen: true,
   encode: JSON.stringify,
   decode: (data) => {
-    const res = targetItemSchema.safeParse(JSON.parse(data));
+    const res = targetSchema.safeParse(JSON.parse(data));
     return res.success ? res.data : [];
   },
 });
@@ -154,4 +157,105 @@ export function editTarget(index: number) {
 
 export function clearAll() {
   $targets.set([]);
+}
+
+export const $shareableUrl = computedAsync([$targets], async (targets) => {
+  const shareUrl = new URL("/craft", import.meta.env.SSR ? import.meta.env.SITE : window.location.href);
+
+  const compressedBuffer = await new Response(
+    new Blob([JSON.stringify(targets)])
+      .stream()
+      .pipeThrough(new CompressionStream("gzip")),
+  ).arrayBuffer();
+
+  const encoded = new Uint8Array(compressedBuffer).toBase64({
+    alphabet: "base64url",
+    omitPadding: true,
+  });
+
+  shareUrl.searchParams.set("targets", encoded);
+  return shareUrl;
+});
+
+if (!import.meta.env.SSR) {
+  async function loadStateFromUrl() {
+    // Check if we're coming from the settlement planner with pre-selected items
+    const url = new URL(window.location.href);
+    const targets = url.searchParams.get("targets");
+
+    if (targets) {
+      try {
+        const compressed = Uint8Array.fromBase64(targets, {
+          alphabet: "base64url",
+        });
+        const newTargets = new Response(
+          new Blob([compressed])
+            .stream()
+            .pipeThrough(new DecompressionStream("gzip")),
+        ).json();
+        $targets.set(targetSchema.parse(newTargets));
+
+        return;
+      } catch (error) {
+        console.error("Could not set plan.");
+        // If it fails
+      }
+    }
+
+    const fromSettlement = url.searchParams.get("from") === "settlement";
+    const tier = parseInt(url.searchParams.get("tier") ?? "0");
+
+    if (fromSettlement && tier > 0) {
+      try {
+        const claim = await api.getClaim(ORDUM_MAIN_CLAIM_ID);
+        const currentTier = claim.tier ?? 1;
+        const learnedIds = new Set<number>(claim.learned_upgrades ?? []);
+        const supplies = claim.supplies ?? 0;
+
+        const plans = buildSettlementPlan(
+          currentTier,
+          learnedIds,
+          supplies,
+          new Map(),
+        );
+        const targetPlan = plans.find((p) => p.tier === tier);
+
+        if (targetPlan) {
+          let initialItems: TargetItem[] = [];
+          for (const item of targetPlan.all_items_needed) {
+            if (item.deficit > 0) {
+              initialItems.push({
+                ...item,
+                name: item.name,
+                quantity: item.deficit,
+              });
+            }
+          }
+          $targets.set(initialItems);
+        } else {
+          console.log("No settlement plan.");
+        }
+      } catch (e) {
+        // Continue without pre-populated items
+        console.error("Failed to build plan:", e);
+      }
+    }
+  }
+
+  setTimeout(async () => {
+    await loadStateFromUrl().catch(() => { });
+    $shareableUrl.subscribe(shareUrl => {
+      if (shareUrl.state !== 'loaded') {
+        console.log('Share URL not loaded:', shareUrl);
+        return;
+      }
+      console.log('Share URL:', {
+        shareUrl: shareUrl.value.toString(),
+        pathname: window.location.pathname,
+      });
+      if (window.location.pathname === '/craft' || window.location.pathname === '/group-craft') {
+        history.replaceState({}, '', shareUrl.value.toString());
+      }
+    })
+  });
 }
