@@ -18,61 +18,10 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import Layout from "../layouts/Layout.astro";
+import CraftingPlan from "../components/craft/CraftingPlan";
 import GroupCraftConfiguration from "../components/group-craft/GroupCraftConfiguration";
-import GroupCraftingPlan from "../components/group-craft/GroupCraftingPlan";
 import GroupCraftInit from "../components/group-craft/GroupCraftInit";
 import "../styles/craft.css";
-import { gd } from "../lib/gamedata";
-import { ORDUM_MAIN_CLAIM_ID } from "../lib/ordum-data";
-import { api } from "../lib/api";
-import { buildClaimInventory } from "../lib/claim-inventory";
-import { buildSettlementPlan } from "../lib/settlement-planner";
-import type { TargetItem } from "../lib/group-craft-store";
-
-export const prerender = false;
-
-// Check if we're coming from the settlement planner with pre-selected items
-const url = new URL(Astro.request.url);
-const fromSettlement = url.searchParams.get("from") === "settlement";
-const tier = parseInt(url.searchParams.get("tier") ?? "0");
-
-let initialItems: TargetItem[] = [];
-
-if (fromSettlement && tier > 0) {
-  try {
-    const claim = await api.getClaim(ORDUM_MAIN_CLAIM_ID);
-    const currentTier = claim.tier ?? 1;
-    const learnedIds = new Set<number>(claim.learned_upgrades ?? []);
-    const supplies = claim.supplies ?? 0;
-
-    // Build inventory (excludes bank buildings — personal storage)
-    const inventory = buildClaimInventory(claim);
-
-    const plans = buildSettlementPlan(
-      currentTier,
-      learnedIds,
-      supplies,
-      inventory,
-    );
-    const targetPlan = plans.find((p) => p.tier === tier);
-
-    if (targetPlan) {
-      // Only include items with a deficit
-      for (const item of targetPlan.all_items_needed) {
-        if (item.deficit > 0) {
-          initialItems.push({
-            id: item.item_id,
-            type: item.item_type,
-            name: item.name,
-            quantity: item.deficit,
-          });
-        }
-      }
-    }
-  } catch (e) {
-    // Continue without pre-populated items
-  }
-}
 ---
 
 <Layout title="Empire Craft Planner — Ordum" activePage="group-craft">
@@ -83,13 +32,9 @@ if (fromSettlement && tier > 0) {
     </p>
   </div>
 
-  {
-    initialItems.length > 0 && (
-      <GroupCraftInit client:only initialItems={initialItems} />
-    )
-  }
+  <GroupCraftInit client:only />
   <GroupCraftConfiguration client:only />
-  <GroupCraftingPlan client:only />
+  <CraftingPlan client:only />
 </Layout>
 
 <style>

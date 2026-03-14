@@ -17,10 +17,9 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { useStore } from "@nanostores/preact";
-import { useRef, useEffect, useCallback } from "preact/hooks";
+import { useRef, useEffect, useCallback, useState } from "preact/hooks";
 import {
   $searchQuery,
-  $highlightIndex,
   $dropdownOpen,
   $selectedItem,
   $quantity,
@@ -29,11 +28,11 @@ import {
   $focusQuantity,
   selectItem,
   addTarget,
-} from "../../lib/craft-store";
+} from "../../lib/stores/craft";
 
 export default function ItemPicker() {
   const searchQuery = useStore($searchQuery);
-  const highlightIndex = useStore($highlightIndex);
+  const [highlightIndex, setHighlightIdx] = useState(-1);
   const dropdownOpen = useStore($dropdownOpen);
   const quantity = useStore($quantity);
   const searchResults = useStore($searchResults);
@@ -75,41 +74,43 @@ export default function ItemPicker() {
     const val = (e.target as HTMLInputElement).value;
     $searchQuery.set(val);
     $selectedItem.set(null);
-    $highlightIndex.set(-1);
+    setHighlightIdx(-1);
     $dropdownOpen.set(val.trim().length >= 2);
   }
 
-  function handleSearchKeydown(e: KeyboardEvent) {
-    const res = $searchResults.get();
-    const hi = $highlightIndex.get();
+  const handleSearchKeydown = useCallback(
+    (e: KeyboardEvent) => {
+      const res = $searchResults.get();
 
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      if (
-        !$dropdownOpen.get() &&
-        searchRef.current &&
-        searchRef.current.value.trim().length >= 2
-      ) {
-        $dropdownOpen.set(true);
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (
+          !$dropdownOpen.get() &&
+          searchRef.current &&
+          searchRef.current.value.trim().length >= 2
+        ) {
+          $dropdownOpen.set(true);
+        }
+        setHighlightIdx(Math.min(highlightIndex + 1, res.length - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightIdx(Math.max(highlightIndex - 1, 0));
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (highlightIndex >= 0 && highlightIndex < res.length) {
+          selectItem(res[highlightIndex]!);
+          setTimeout(() => {
+            qtyRef.current?.focus();
+            qtyRef.current?.select();
+          }, 0);
+        }
+      } else if (e.key === "Escape") {
+        $dropdownOpen.set(false);
+        setHighlightIdx(-1);
       }
-      $highlightIndex.set(Math.min(hi + 1, res.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      $highlightIndex.set(Math.max(hi - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      if (hi >= 0 && hi < res.length) {
-        selectItem(res[hi]!);
-        setTimeout(() => {
-          qtyRef.current?.focus();
-          qtyRef.current?.select();
-        }, 0);
-      }
-    } else if (e.key === "Escape") {
-      $dropdownOpen.set(false);
-      $highlightIndex.set(-1);
-    }
-  }
+    },
+    [highlightIndex],
+  );
 
   function handleSearchFocus() {
     if (
@@ -125,6 +126,7 @@ export default function ItemPicker() {
     const res = $searchResults.get();
     if (idx >= 0 && idx < res.length) {
       selectItem(res[idx]!);
+      setHighlightIdx(-1);
       setTimeout(() => {
         qtyRef.current?.focus();
         qtyRef.current?.select();
@@ -141,6 +143,7 @@ export default function ItemPicker() {
       e.preventDefault();
       if ($selectedItem.get()) {
         addTarget();
+        setHighlightIdx(-1);
         setTimeout(() => searchRef.current?.focus(), 0);
       }
     }
@@ -177,7 +180,7 @@ export default function ItemPicker() {
                 type="button"
                 class={`search-option ${i === highlightIndex ? "highlighted" : ""}`}
                 onClick={() => handleDropdownClick(i)}
-                onMouseEnter={() => $highlightIndex.set(i)}
+                onMouseEnter={() => setHighlightIdx(i)}
                 role="option"
                 aria-selected={i === highlightIndex}
                 key={`${r.item_type}-${r.item_id}`}

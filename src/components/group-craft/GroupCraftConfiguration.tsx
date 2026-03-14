@@ -17,12 +17,12 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { useStore } from "@nanostores/preact";
-import { $groupTargets, groupClearAll } from "../../lib/group-craft-store";
-import GroupItemPicker from "./GroupItemPicker";
-import GroupItemList from "./GroupItemList";
+import { $targets, clearAll } from "../../lib/stores/craft";
+import ItemPicker from "../craft/ItemPicker";
+import ItemList from "../craft/ItemList";
 
 export default function GroupCraftConfiguration() {
-  const targets = useStore($groupTargets);
+  const targets = useStore($targets);
 
   return (
     <div class="planner-card">
@@ -33,16 +33,12 @@ export default function GroupCraftConfiguration() {
         </span>
       </div>
 
-      <GroupItemPicker />
-      <GroupItemList />
+      <ItemPicker />
+      <ItemList />
 
       {targets.length > 0 && (
         <div class="form-actions">
-          <button
-            type="button"
-            class="btn btn-secondary"
-            onClick={groupClearAll}
-          >
+          <button type="button" class="btn btn-secondary" onClick={clearAll}>
             Clear All
           </button>
         </div>

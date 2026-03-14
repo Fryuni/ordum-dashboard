@@ -8,3 +8,4 @@
 /.pi/agent-sessions
 .memory/state.md
 .memory/state.yaml
+/tsconfig.tsbuildinfo

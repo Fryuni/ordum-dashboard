@@ -25,12 +25,7 @@
  */
 
 import { LazyKeyed } from "@inox-tools/utils/lazy";
-import type {
-  GameData,
-  GameCraftingRecipe,
-  ItemType,
-  ItemReference,
-} from "./gamedata";
+import type { GameCraftingRecipe, ItemType, ItemReference } from "./gamedata";
 import { topologicalSort } from "./topological-sort";
 import {
   getItemName,
@@ -560,57 +555,4 @@ function getExtractionInfoInner(
   }
 
   return { source, skill_requirements, tool_requirements, resource_sources };
-}
-
-// ─── Item Search Helper ────────────────────────────────────────────────────────
-
-export interface ItemSearchResult {
-  item_id: number;
-  item_type: ItemType;
-  name: string;
-  tier: number;
-  tag: string;
-}
-
-export function searchItems(query: string, limit = 20): ItemSearchResult[] {
-  const q = query.toLowerCase();
-  const results: ItemSearchResult[] = [];
-
-  for (const [id, item] of gd.items) {
-    if (item.name.toLowerCase().includes(q)) {
-      results.push({
-        item_id: id,
-        item_type: "Item",
-        name: item.name,
-        tier: item.tier,
-        tag: item.tag,
-      });
-    }
-    if (results.length >= limit * 2) break;
-  }
-
-  for (const [id, c] of gd.cargo) {
-    if (c.name.toLowerCase().includes(q)) {
-      results.push({
-        item_id: id,
-        item_type: "Cargo",
-        name: c.name,
-        tier: c.tier,
-        tag: c.tag,
-      });
-    }
-    if (results.length >= limit * 2) break;
-  }
-
-  return results
-    .sort((a, b) => {
-      const aExact = a.name.toLowerCase() === q ? 0 : 1;
-      const bExact = b.name.toLowerCase() === q ? 0 : 1;
-      if (aExact !== bExact) return aExact - bExact;
-      const aStarts = a.name.toLowerCase().startsWith(q) ? 0 : 1;
-      const bStarts = b.name.toLowerCase().startsWith(q) ? 0 : 1;
-      if (aStarts !== bStarts) return aStarts - bStarts;
-      return a.name.localeCompare(b.name);
-    })
-    .slice(0, limit);
 }

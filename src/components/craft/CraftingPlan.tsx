@@ -17,7 +17,7 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { useStore } from "@nanostores/preact";
-import { $craftPlan, $targets } from "../../lib/craft-store";
+import { $craftPlan, $targets } from "../../lib/stores/craft";
 import PlanCard from "./PlanCard";
 
 export default function CraftingPlan() {
@@ -50,22 +50,8 @@ export default function CraftingPlan() {
         (() => {
           const results = craftPlan.value!;
           return (
-            <div class={`results ${isLoading ? "faded" : ""}`}>
-              {results.player && (
-                <div class="player-context">
-                  👤 Player: <strong>{results.player.username}</strong>
-                  {results.player.signed_in ? (
-                    <span class="online">● Online</span>
-                  ) : (
-                    <span class="offline">○ Offline</span>
-                  )}
-                  <span class="inv-count">
-                    🎒 {results.inventory_size} item types
-                  </span>
-                </div>
-              )}
-
-              <PlanCard plan={results.plan} />
+            <div class="results">
+              <PlanCard plan={results} />
             </div>
           );
         })()}

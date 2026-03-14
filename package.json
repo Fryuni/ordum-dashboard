@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "validate": "tsc && astro check || false",
     "preview": "astro preview",
     "format": "prettier -w .",
     "astro": "astro"
@@ -14,6 +15,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@astrojs/check": "^0.9.7",
     "@astrojs/node": "^10.0.0",
     "@astrojs/preact": "^5.0.0",
     "@croct/cache": "^0.5.1",

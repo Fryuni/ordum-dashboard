@@ -24,6 +24,8 @@
  * Player pocket inventories are also personal, not claim property.
  */
 
+import { api } from "./api";
+
 /** Building description IDs for bank buildings (personal storage) */
 export const BANK_BUILDING_IDS = new Set([
   985246037, // Town Bank
@@ -36,7 +38,11 @@ export const BANK_BUILDING_IDS = new Set([
  * using only claim building storage (non-bank). Player inventories are excluded
  * since those items belong to individual players, not the claim.
  */
-export function buildClaimInventory(claim: any): Map<string, number> {
+export async function buildClaimInventory(
+  claimId: string,
+): Promise<Map<string, number>> {
+  const claim = await api.getClaim(claimId);
+
   const inventory = new Map<string, number>();
 
   // Building inventories — use inventory_locations for building-level filtering

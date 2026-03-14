@@ -39,6 +39,7 @@ export interface ItemReference {
 export interface GameItemDesc {
   id: number;
   name: string;
+  compendium_entry: boolean;
   description: string;
   volume: number;
   durability: number;

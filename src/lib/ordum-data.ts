@@ -404,7 +404,7 @@ export async function fetchEmpireData(
 }
 
 export async function fetchClaimMembers() {
-  let members: { entity_id: number; user_name: string }[] = [];
+  let members: { entity_id: string; user_name: string }[] = [];
   try {
     const claim = await api.getClaim(ORDUM_MAIN_CLAIM_ID);
     members = Object.values(claim.members ?? {})

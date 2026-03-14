@@ -44,31 +44,6 @@ const DEFAULT_OUTPUT = path.join(
   "bitcraft-api-client.ts",
 );
 
-// Modules that only contain internal/websocket/event logic, not HTTP routes
-const SKIP_MODULES = new Set([
-  "websocket",
-  "reducer_event_handler",
-  "config",
-  "cargo_desc",
-  "claim_tech_desc",
-  "claim_tech_state",
-  "collectible_desc",
-  "crafting_recipe_desc",
-  "deployable_state",
-  "item_list_desc",
-  "location_state",
-  "locations",
-  "mobile_entity_state",
-  "npc_desc",
-  "player_state", // sub-modules only, but get_routes is in mod.rs - keep if it has routes
-  "resource_desc",
-  "skill_descriptions",
-  "traveler_task_desc",
-  "traveler_task_state",
-  "user_state",
-  "vault_state",
-]);
-
 // Struct names that are internal and should not be emitted as API types
 const SKIP_STRUCTS = new Set([
   "Cli",
@@ -90,8 +65,9 @@ function parseArgs(): { output: string; branch: string } {
   let output = DEFAULT_OUTPUT;
   let branch = DEFAULT_BRANCH;
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === "--output" && args[i + 1]) output = path.resolve(args[++i]);
-    else if (args[i] === "--branch" && args[i + 1]) branch = args[++i];
+    if (args[i] === "--output" && args[i + 1])
+      output = path.resolve(args[++i]!);
+    else if (args[i] === "--branch" && args[i + 1]) branch = args[++i]!;
   }
   return { output, branch };
 }
@@ -203,6 +179,7 @@ interface ParsedRoute {
   httpMethod: string;
   path: string;
   handlerName: string;
+  moduleName?: string | undefined;
 }
 
 interface ParsedHandler {
@@ -233,34 +210,23 @@ interface ParsedQueryStruct {
   fields: { name: string; rustType: string; optional: boolean }[];
 }
 
-interface ParsedRouteWithModule extends ParsedRoute {
-  moduleName?: string;
-}
-
 function parseRoutes(src: string, prefix = ""): ParsedRoute[] {
-  return parseRoutesWithModule(src, prefix);
-}
-
-function parseRoutesWithModule(
-  src: string,
-  prefix = "",
-): ParsedRouteWithModule[] {
-  const routes: ParsedRouteWithModule[] = [];
+  const routes: ParsedRoute[] = [];
   const re =
     /\.route\(\s*"([^"]+)"\s*,\s*axum_codec::routing::(get|post|put|delete|patch)\(([^)]+)\)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(src)) !== null) {
-    const handler = m[3].trim();
+    const handler = m[3]!.trim();
     const parts = handler.split("::");
     const handlerName = parts.pop()!;
     // If handler is module::fn_name, capture the module name
     const moduleName = parts.length > 0 ? parts[0] : undefined;
 
     routes.push({
-      httpMethod: m[2].toUpperCase(),
-      path: prefix + m[1],
+      httpMethod: m[2]!.toUpperCase(),
+      path: prefix + m[1]!,
       handlerName,
-      moduleName,
+      moduleName: moduleName,
     });
   }
   return routes;
@@ -273,7 +239,7 @@ function parseHandlers(src: string): ParsedHandler[] {
   let m: RegExpExecArray | null;
 
   while ((m = fnRe.exec(src)) !== null) {
-    const name = m[1];
+    const name = m[1]!;
     const argsStart = m.index + m[0].length;
 
     // Find the matching ) for the argument list
@@ -312,17 +278,17 @@ function parseHandlers(src: string): ParsedHandler[] {
     let pathParamName: string | null = null;
     const pathMatch = /Path\((\w+)\)\s*:\s*Path<(\w+)>/.exec(args);
     if (pathMatch) {
-      pathParamName = pathMatch[1];
-      pathParamType = pathMatch[2];
+      pathParamName = pathMatch[1]!;
+      pathParamType = pathMatch[2]!;
     }
 
     // Extract Query<Type>
     let queryParamType: string | null = null;
     const queryMatch = /Query\(\w+\)\s*:\s*Query<(\w+)>/.exec(args);
-    if (queryMatch) queryParamType = queryMatch[1];
+    if (queryMatch) queryParamType = queryMatch[1]!;
     // Also handle: query: axum::extract::Query<Type>
     const queryMatch2 = /axum::extract::Query<(\w+)>/.exec(args);
-    if (!queryParamType && queryMatch2) queryParamType = queryMatch2[1];
+    if (!queryParamType && queryMatch2) queryParamType = queryMatch2[1]!;
 
     handlers.push({
       name,
@@ -346,7 +312,7 @@ function parseStructFields(body: string): ParsedField[] {
     // Capture #[serde(rename = "...")]
     const renameMatch = /serde\(rename\s*=\s*"([^"]+)"\)/.exec(line);
     if (renameMatch) {
-      pendingRename = renameMatch[1];
+      pendingRename = renameMatch[1]!;
       // If this line is ONLY the attribute, continue to the next line for the field
       if (!line.match(/^\s*(?:pub\s+)?\w+\s*:/)) continue;
     }
@@ -355,7 +321,7 @@ function parseStructFields(body: string): ParsedField[] {
     // Many Deserialize-only structs (query params) have non-pub fields
     const fieldMatch = /^(?:pub(?:\(crate\))?\s+)?(\w+)\s*:\s*(.+)/.exec(line);
     if (fieldMatch) {
-      const fieldName = fieldMatch[1];
+      const fieldName = fieldMatch[1]!;
       // Skip Rust keywords that look like field matches inside macro/impl blocks
       if (
         [
@@ -383,7 +349,7 @@ function parseStructFields(body: string): ParsedField[] {
         pendingRename = null;
         continue;
       }
-      const typeRaw = readRustType(fieldMatch[2], 0);
+      const typeRaw = readRustType(fieldMatch[2]!, 0);
       fields.push({
         name: fieldName,
         rustType: typeRaw,
@@ -415,7 +381,7 @@ function parseStructs(src: string): ParsedStruct[] {
   let m: RegExpExecArray | null;
   while ((m = structRe.exec(src)) !== null) {
     const attrs = m[1] || "";
-    const name = m[2];
+    const name = m[2]!;
     const bodyStart = m.index + m[0].length - 1; // position of {
     const body = extractBracedBody(src, bodyStart);
     if (body === null) continue;
@@ -437,7 +403,7 @@ function parseStructs(src: string): ParsedStruct[] {
     /((?:\s*#\[[^\]]*\]\s*)*)(?:pub(?:\(crate\))?\s+)?enum\s+(\w+)\s*\{/g;
   while ((m = enumRe.exec(src)) !== null) {
     const attrs = m[1] || "";
-    const name = m[2];
+    const name = m[2]!;
     if (SKIP_STRUCTS.has(name)) continue;
 
     const bodyStart = m.index + m[0].length - 1;
@@ -453,7 +419,7 @@ function parseStructs(src: string): ParsedStruct[] {
     const varRe = /(\w+)\s*(?:\(([^)]*)\)|(\{[^}]*\}))?/g;
     let vm: RegExpExecArray | null;
     while ((vm = varRe.exec(body)) !== null) {
-      const vName = vm[1];
+      const vName = vm[1]!;
       // Skip Rust keywords that might match
       if (
         ["pub", "fn", "let", "mut", "use", "crate", "self", "super"].includes(
@@ -470,7 +436,7 @@ function parseStructs(src: string): ParsedStruct[] {
       fields: [],
       isEnum: true,
       enumVariants: variants,
-      serdeTag,
+      serdeTag: serdeTag ?? null,
       serdeUntagged,
     });
   }
@@ -524,11 +490,11 @@ function parseLibRouterSetup(libSrc: string): {
 
   const mergeRe = /\.merge\((\w+)::get_routes\(\)\)/g;
   let m: RegExpExecArray | null;
-  while ((m = mergeRe.exec(libSrc)) !== null) merges.push(m[1]);
+  while ((m = mergeRe.exec(libSrc)) !== null) merges.push(m[1]!);
 
   const nestRe = /\.nest\(\s*"([^"]+)"\s*,\s*(\w+)\s*\)/g;
   while ((m = nestRe.exec(libSrc)) !== null) {
-    nests.push({ prefix: m[1], routerName: m[2] });
+    nests.push({ prefix: m[1]!, routerName: m[2]! });
   }
 
   return { merges, nests };
@@ -541,8 +507,8 @@ function parseInlineRouters(libSrc: string): Map<string, ParsedRoute[]> {
   const routerRe = /let\s+(\w+)\s*=\s*Router::new\(\)([\s\S]*?)(?:;\s*$)/gm;
   let m: RegExpExecArray | null;
   while ((m = routerRe.exec(libSrc)) !== null) {
-    const routerName = m[1];
-    const routerBody = m[2];
+    const routerName = m[1]!;
+    const routerBody = m[2]!;
     result.set(routerName, parseRoutes(routerBody));
   }
   return result;
@@ -601,7 +567,7 @@ function rustTypeToTs(rustType: string, knownStructs: Set<string>): string {
       if (inner) {
         const parts = splitTopLevel(inner);
         if (parts.length >= 2) {
-          return `Record<${rustTypeToTs(parts[0], knownStructs)}, ${rustTypeToTs(parts.slice(1).join(", "), knownStructs)}>`;
+          return `Record<${rustTypeToTs(parts[0]!, knownStructs)}, ${rustTypeToTs(parts.slice(1).join(", "), knownStructs)}>`;
         }
       }
     }
@@ -622,12 +588,12 @@ function rustTypeToTs(rustType: string, knownStructs: Set<string>): string {
   // Module-qualified types: entity::foo::Model, entity::foo::Bar, etc.
   if (t.includes("::")) {
     const segments = t.split("::");
-    const last = segments[segments.length - 1];
+    const last = segments[segments.length - 1]!;
     // entity::*::Model → use module name to disambiguate or just emit as Record<string, unknown>
     if (last === "Model") {
       // Try to make a descriptive name: entity::player_state::Model → PlayerStateModel
       if (segments.length >= 2) {
-        const modPart = segments[segments.length - 2];
+        const modPart = segments[segments.length - 2]!;
         const camel = modPart
           .split("_")
           .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
@@ -680,7 +646,7 @@ function buildEndpoint(
           ? "string"
           : "number";
     }
-    pathParams.push({ name: pp[1], tsType });
+    pathParams.push({ name: pp[1]!, tsType });
   }
 
   // Query params
@@ -716,7 +682,7 @@ function buildEndpoint(
     queryParams,
     returnType,
     handlerName: handler?.name ?? route.handlerName,
-    module: (route as ParsedRouteWithModule).moduleName ?? "",
+    module: (route as ParsedRoute).moduleName ?? "",
   };
 }
 
@@ -773,7 +739,7 @@ function deduplicateEndpoints(endpoints: Endpoint[]): Endpoint[] {
   for (const ep of byPath.values()) {
     const key = `${ep.httpMethod}:${ep.module}::${ep.handlerName}`;
     const existing = byHandler.get(key);
-    if (!existing || ep.path.length < existing.path.length) {
+    if (!existing || ep.path.length > existing.path.length) {
       byHandler.set(key, ep);
     }
   }
@@ -926,7 +892,7 @@ function parseWebSocketMessages(src: string): WsVariant[] {
   const lines = body.split("\n");
   let i = 0;
   while (i < lines.length) {
-    const line = lines[i].trim();
+    const line = lines[i]!.trim();
     // Skip comments, attributes, empty lines
     if (!line || line.startsWith("//") || line.startsWith("#")) {
       i++;
@@ -936,8 +902,8 @@ function parseWebSocketMessages(src: string): WsVariant[] {
     // Tuple variant: Name(Type) or Name(Type1, Type2),
     const tupleMatch = /^(\w+)\(([^)]+)\)\s*,?/.exec(line);
     if (tupleMatch) {
-      const name = tupleMatch[1];
-      const rawInner = tupleMatch[2].trim();
+      const name = tupleMatch[1]!;
+      const rawInner = tupleMatch[2]!.trim();
       // Multi-field tuples like (String, u64) → wrap as a Rust tuple type
       const parts = splitTopLevel(rawInner);
       const rustType = parts.length > 1 ? `(${rawInner})` : rawInner;
@@ -960,12 +926,12 @@ function parseWebSocketMessages(src: string): WsVariant[] {
     // Struct variant: Name { field: Type, ... },
     const structMatch = /^(\w+)\s*\{/.exec(line);
     if (structMatch) {
-      const name = structMatch[1];
+      const name = structMatch[1]!;
       // Collect lines until closing }
       let braceContent = "";
       let depth = 0;
       for (let j = i; j < lines.length; j++) {
-        for (const ch of lines[j]) {
+        for (const ch of lines[j]!) {
           if (ch === "{") depth++;
           if (ch === "}") depth--;
         }
@@ -989,8 +955,8 @@ function parseWebSocketMessages(src: string): WsVariant[] {
         const fieldRe = /(\w+)\s*:\s*([^,\n}]+)/g;
         let fm: RegExpExecArray | null;
         while ((fm = fieldRe.exec(braceContent)) !== null) {
-          if (!["pub", "fn", "let"].includes(fm[1])) {
-            fields.push({ name: fm[1], type: fm[2].trim() });
+          if (!["pub", "fn", "let"].includes(fm[1]!)) {
+            fields.push({ name: fm[1]!, type: fm[2]!.trim() });
           }
         }
         variants.push({ name, contentType: `{struct:${name}}`, topics: [] });
@@ -1003,7 +969,7 @@ function parseWebSocketMessages(src: string): WsVariant[] {
     // Simple variant: Name,
     const simpleMatch = /^(\w+)\s*,?$/.exec(line);
     if (simpleMatch) {
-      const name = simpleMatch[1];
+      const name = simpleMatch[1]!;
       if (
         ![
           "Subscribe",
@@ -1040,9 +1006,9 @@ function parseWebSocketMessages(src: string): WsVariant[] {
         );
         const armMatch = armRe.exec(topicsBody);
         if (armMatch) {
-          const topicStrs = armMatch[1].matchAll(/"([^"]+)"/g);
+          const topicStrs = armMatch[1]!.matchAll(/"([^"]+)"/g);
           for (const tm of topicStrs) {
-            if (!v.topics.includes(tm[1])) v.topics.push(tm[1]);
+            if (!v.topics.includes(tm[1]!)) v.topics.push(tm[1]!);
           }
         }
       }
@@ -1476,7 +1442,7 @@ async function main() {
   }
 
   // Process lib.rs top-level routes
-  const libRoutes = parseRoutesWithModule(libSrc);
+  const libRoutes = parseRoutes(libSrc);
   const libHandlers = parseHandlers(libSrc);
   const libQS = parseQueryStructs(libSrc, libHandlers);
   allQueryStructs.push(...libQS);
@@ -1513,7 +1479,7 @@ async function main() {
     const hasRoutes = modSrc.includes(".route(");
     if (!hasGetRoutes && !isMerged && !hasRoutes) continue;
 
-    const routes = parseRoutesWithModule(modSrc);
+    const routes = parseRoutes(modSrc);
     if (routes.length === 0) continue;
 
     const handlers = moduleHandlersMap.get(modName) || [];

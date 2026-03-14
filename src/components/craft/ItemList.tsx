@@ -17,7 +17,7 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { useStore } from "@nanostores/preact";
-import { $targets, removeTarget, editTarget } from "../../lib/craft-store";
+import { $targets, removeTarget, editTarget } from "../../lib/stores/craft";
 
 export default function ItemList() {
   const targets = useStore($targets);
@@ -27,7 +27,7 @@ export default function ItemList() {
   return (
     <div class="target-items">
       {targets.map((t, i) => (
-        <div class="target-chip" key={`${t.type}-${t.id}`}>
+        <div class="target-chip" key={`${t.item_type}-${t.item_id}`}>
           <span class="name">{t.name}</span>
           <span class="qty">×{t.quantity}</span>
           <button

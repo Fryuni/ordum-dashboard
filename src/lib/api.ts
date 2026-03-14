@@ -28,7 +28,7 @@ import { BitcraftApiClient } from "../bitcraft-api-client";
 
 export const API_BASE_URL = import.meta.env.SSR
   ? "https://craft-api.resubaka.dev"
-  : import.meta.env.BASE_URL;
+  : `${import.meta.env.BASE_URL.replace(/\/+$/, "")}/api`;
 
 const apiCache: CacheProvider<any, any> = AdaptedCache.transformKeys(
   new SharedInFlightCache(

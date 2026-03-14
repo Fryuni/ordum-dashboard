@@ -33,8 +33,7 @@ const supplies = claim.supplies ?? 0;
 const learnedIds = new Set<number>(claim.learned_upgrades ?? []);
 const claimName = claim.name ?? "Unknown Claim";
 
-// Build inventory map (excludes bank buildings — personal storage)
-const inventory = buildClaimInventory(claim);
+const inventory = await buildClaimInventory(ORDUM_MAIN_CLAIM_ID);
 
 // Build plan
 const plans = buildSettlementPlan(currentTier, learnedIds, supplies, inventory);

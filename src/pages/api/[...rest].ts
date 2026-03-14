@@ -2,8 +2,7 @@ import type { APIRoute } from "astro";
 import { API_BASE_URL } from "../../lib/api";
 
 export const ALL: APIRoute = async (ctx) => {
-  const requestUrl = new URL(ctx.request.url);
-  const newUrl = new URL(requestUrl.pathname, API_BASE_URL);
+  const newUrl = `${API_BASE_URL}/${ctx.params.rest}`;
   console.log("Proxying to:", newUrl.toString());
   const res = await fetch(newUrl, {
     method: ctx.request.method,

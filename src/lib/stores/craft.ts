@@ -18,13 +18,13 @@
  */
 import { atom, computed, computedAsync, type AsyncValue } from "nanostores";
 import { persistentAtom } from "@nanostores/persistent";
-import { actions } from "astro:actions";
-import { $updateTimer } from "./util-store";
-import { itemIndex, type IndexItem } from "./itemIndex";
+import { itemIndex, type IndexItem } from "../itemIndex";
+import { buildCraftPlan } from "../craft-planner";
+import type { ItemReference } from "../gamedata";
+import { z } from "astro/zod";
+import { $inventory } from "./craftSource";
 
-export interface SelectedItem {
-  id: number;
-  type: "Item" | "Cargo";
+export interface SelectedItem extends ItemReference {
   name: string;
 }
 
@@ -34,22 +34,30 @@ export interface TargetItem extends SelectedItem {
 
 // Search state
 export const $searchQuery = atom("");
-export const $highlightIndex = atom(-1);
 export const $dropdownOpen = atom(false);
 
 // Selection state
 export const $selectedItem = atom<SelectedItem | null>(null);
 export const $quantity = atom(1);
 
+const targetItemSchema = z.array(
+  z.looseObject({
+    item_id: z.number(),
+    item_type: z.enum(["Item", "Cargo"]),
+    name: z.string(),
+    quantity: z.number(),
+  }),
+);
+
 // Target items list
-export const $targets = persistentAtom<TargetItem[]>("craftItems", [], {
+export const $targets = persistentAtom("craftItems", [], {
   listen: true,
   encode: JSON.stringify,
-  decode: JSON.parse,
+  decode: (data) => {
+    const res = targetItemSchema.safeParse(JSON.parse(data));
+    return res.success ? res.data : [];
+  },
 });
-
-// Player name for craft plan
-export const $player = persistentAtom("playerName", "");
 
 // Computed: filtered search results (local, synchronous)
 export const $searchResults = computed([$searchQuery], (query) => {
@@ -74,29 +82,16 @@ export const $canAdd = computed($selectedItem, (item) => item !== null);
 
 // ─── Craft Plan (async) ────────────────────────────────────────────────────────
 
-/** Derived request object — recomputes whenever player or targets change. */
-export const $craftRequest = computed(
-  [$player, $targets, $updateTimer],
-  (player, t) => ({
-    player,
-    items: t,
-  }),
-);
-
 /**
  * The craft plan result, computed asynchronously from $craftRequest.
  * Value type follows the AsyncValue pattern from nanostores:
  *   { state: 'loading' } | { state: 'loaded', value, changing } | { state: 'failed', error, changing }
  */
-export const $craftPlan = computedAsync($craftRequest, async (request) => {
-  if (!request.items.length) return null;
-
-  const { data, error } = await actions.craftPlan(request);
-  if (error) {
-    throw new Error(error.message);
-  }
-  return data;
-});
+export const $craftPlan = computedAsync(
+  [$targets, $inventory],
+  (targets, inventory) =>
+    !targets.length ? null : buildCraftPlan(targets, inventory),
+);
 
 // Re-export the AsyncValue type for components
 export type { AsyncValue };
@@ -105,13 +100,12 @@ export type { AsyncValue };
 
 export function selectItem(item: IndexItem) {
   $selectedItem.set({
-    id: item.item_id,
-    type: item.item_type,
+    item_id: item.item_id,
+    item_type: item.item_type,
     name: item.name,
   });
   $searchQuery.set(item.name);
   $dropdownOpen.set(false);
-  $highlightIndex.set(-1);
 }
 
 export function addTarget() {
@@ -120,7 +114,7 @@ export function addTarget() {
   const qty = $quantity.get() || 1;
   const existing = $targets.get();
   const idx = existing.findIndex(
-    (t) => t.id === item.id && t.type === item.type,
+    (t) => t.item_id === item.item_id && t.item_type === item.item_type,
   );
   if (idx >= 0) {
     $targets.set(
@@ -134,7 +128,6 @@ export function addTarget() {
   $selectedItem.set(null);
   $searchQuery.set("");
   $quantity.set(1);
-  $highlightIndex.set(-1);
 }
 
 export function removeTarget(index: number) {
@@ -148,11 +141,14 @@ export function editTarget(index: number) {
   const target = $targets.get()[index];
   if (!target) return;
   $targets.set($targets.get().filter((_, i) => i !== index));
-  $selectedItem.set({ id: target.id, type: target.type, name: target.name });
+  $selectedItem.set({
+    item_id: target.item_id,
+    item_type: target.item_type,
+    name: target.name,
+  });
   $searchQuery.set(target.name);
   $quantity.set(target.quantity);
   $dropdownOpen.set(false);
-  $highlightIndex.set(-1);
   $focusQuantity.set($focusQuantity.get() + 1);
 }
 

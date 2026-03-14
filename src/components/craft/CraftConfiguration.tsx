@@ -17,7 +17,7 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { useStore } from "@nanostores/preact";
-import { $targets, clearAll } from "../../lib/craft-store";
+import { $targets, clearAll } from "../../lib/stores/craft";
 import { fetchClaimMembers } from "../../lib/ordum-data";
 import PlayerPicker from "./PlayerPicker";
 import ItemPicker from "./ItemPicker";

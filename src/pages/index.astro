@@ -555,8 +555,8 @@ const mainClaim = empire.claims[0]; // Ordum City (leader)
     th.addEventListener("click", () => {
       const table = th.closest("table")!;
       const tbody = table.querySelector("tbody")!;
-      const rows = [...tbody.querySelectorAll("tr")];
-      const colIndex = [...th.parentElement!.children].indexOf(th);
+      const rows = [...(tbody.querySelectorAll("tr") as any)];
+      const colIndex = [...(th.parentElement!.children as any)].indexOf(th);
       const isNum = th.classList.contains("num");
 
       // Toggle direction

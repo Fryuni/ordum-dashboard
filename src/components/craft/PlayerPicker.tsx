@@ -24,10 +24,10 @@ import {
   useMemo,
   useCallback,
 } from "preact/hooks";
-import { $player } from "../../lib/craft-store";
+import { $player } from "../../lib/stores/craftSource";
 
 interface Props {
-  members: { entity_id: number; user_name: string }[];
+  members: { entity_id: string; user_name: string }[];
 }
 
 export default function PlayerPicker({ members }: Props) {
