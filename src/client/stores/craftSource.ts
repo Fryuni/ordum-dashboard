@@ -22,13 +22,15 @@ import { $updateTimer } from "../util-store";
 import { resubaka } from "../../common/api";
 import { buildClaimInventory } from "../../common/claim-inventory";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
+import { selectorAtom } from "./utils";
+import { $routeName } from "./router";
 
 // Player name for craft plan
 export const $player = persistentAtom<string>("playerName", "");
 
 export const $claim = persistentAtom<string>("claimName", "");
 
-const $playerInfo = computedAsync([$player, $updateTimer], async (player) => {
+const $playerInfo = computedAsync($player, async (player) => {
   if (!player) return null;
 
   const page = await resubaka.listPlayers({
@@ -71,17 +73,7 @@ const $claimInventory = computedAsync($updateTimer, () =>
   buildClaimInventory(ORDUM_MAIN_CLAIM_ID),
 );
 
-/**
- * Inventory source depends on the current page path.
- * /craft → player inventory; /group-craft → claim inventory.
- * This is re-evaluated when the module is imported client-side.
- */
-export function getInventoryStore() {
-  if (typeof window !== "undefined" && window.location.pathname === "/craft") {
-    return $playerInventory;
-  }
-  return $claimInventory;
-}
-
-export const $inventory =
-  typeof window === "undefined" ? $claimInventory : getInventoryStore();
+export const $inventory = selectorAtom($routeName, {
+  craft: $playerInventory,
+  groupCraft: $claimInventory,
+});

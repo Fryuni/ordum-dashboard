@@ -17,6 +17,7 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { createRouter } from "@nanostores/router";
+import { computed } from "nanostores";
 
 export const $router = createRouter({
   dashboard: "/",
@@ -24,3 +25,5 @@ export const $router = createRouter({
   craft: "/craft",
   groupCraft: "/group-craft",
 });
+
+export const $routeName = computed($router, (r) => r?.route ?? "unknown");
