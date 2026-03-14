@@ -19,7 +19,7 @@
 import { persistentAtom } from "@nanostores/persistent";
 import { atom, computed, computedAsync } from "nanostores";
 import { $updateTimer } from "../util-store";
-import { resubaka } from "../../common/api";
+import { jita, resubaka } from "../../common/api";
 import { buildClaimInventory } from "../../common/claim-inventory";
 import type { EmpireClaimInfo } from "../../common/ordum-types";
 

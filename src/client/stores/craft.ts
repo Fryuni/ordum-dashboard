@@ -206,7 +206,7 @@ const $importedTargets = computedAsync(
         ).json();
         return targetSchema.parse(newTargets);
       } catch (error) {
-        console.error("Could not set plan.");
+        console.error("Could not set plan:", error);
       }
     }
 

@@ -123,8 +123,13 @@ export function buildCraftPlan(
   targets: CraftTarget[],
   inventory: Map<string, number>,
 ): CraftPlan {
-  const plan = buildPartialPlan(targets, inventory);
-  return plan.finalize();
+  try {
+    const plan = buildPartialPlan(targets, inventory);
+    return plan.finalize();
+  } catch (error) {
+    console.error("Failed to build craft plan:", error);
+    throw error;
+  }
 }
 
 const subRecipes = LazyKeyed.of((key) =>

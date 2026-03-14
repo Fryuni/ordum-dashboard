@@ -64,7 +64,7 @@ const resubakaCache = makeApiCache();
 const jitaCache = makeApiCache();
 
 export const proxyRoutes = makeRoutes({
-  "/jita/:*": async (request) => {
+  "/jita/*": async (request) => {
     const url = new URL(request.url);
     const rest = url.pathname.slice("/jita/".length);
     const newUrl = new URL(`https://bitjita.com/${rest}`);
