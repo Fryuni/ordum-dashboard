@@ -425,9 +425,7 @@ function docTypeToTs(docType: string): string {
 }
 
 /** Parse a JSON schema string from the docs into a TypeScript interface body */
-function parseResponseSchema(
-  json: string,
-): {
+function parseResponseSchema(json: string): {
   fields: { name: string; type: string; optional: boolean }[];
   isArray: boolean;
 } | null {
