@@ -25,7 +25,7 @@
 import homepage from "./client/index.html";
 import { fetchEmpireData } from "./server/ordum-data";
 import { ORDUM_MAIN_CLAIM_ID } from "./server/ordum-data";
-import { serverApi } from "./server/api-server";
+import { serverResubaka } from "./server/api-server";
 import { buildClaimInventory } from "./common/claim-inventory";
 import { buildSettlementPlan } from "./common/settlement-planner";
 import { gd } from "./common/gamedata";
@@ -37,53 +37,12 @@ import {
   type CacheProvider,
 } from "@croct/cache";
 import { hash } from "ohash";
+import { proxyRoutes } from "./server/routes/proxy";
 
 const API_BASE_URL = "https://craft-api.resubaka.dev";
 const PORT = parseInt(process.env.PORT ?? "4321", 10);
 const HOST = process.env.HOST ?? "0.0.0.0";
 const isDev = process.env.NODE_ENV !== "production";
-
-// ─── API Proxy Cache ───────────────────────────────────────────────────────────
-
-interface RequestDescription {
-  url: string;
-  method: string;
-  body?: unknown;
-}
-
-interface ResponseDescription {
-  status: number;
-  statusText: string;
-  contentType: string;
-  body: string;
-}
-
-async function makeRequest(
-  req: RequestDescription,
-): Promise<ResponseDescription> {
-  const res = await fetch(req.url, {
-    method: req.method,
-    body: req.body ? JSON.stringify(req.body) : null,
-  });
-  const body = await res.text();
-  return {
-    status: res.status,
-    statusText: res.statusText,
-    contentType: res.headers.get("Content-Type") ?? "application/json",
-    body,
-  };
-}
-
-const apiCache: CacheProvider<RequestDescription, ResponseDescription> =
-  AdaptedCache.transformKeys(
-    new SharedInFlightCache(
-      new StaleWhileRevalidateCache({
-        freshPeriod: 20,
-        cacheProvider: LruCache.ofCapacity(1 << 15),
-      }),
-    ),
-    hash,
-  );
 
 // ─── Server ────────────────────────────────────────────────────────────────────
 
@@ -93,6 +52,8 @@ Bun.serve({
   development: isDev,
 
   routes: {
+    ...proxyRoutes,
+
     // SPA — all non-API routes serve the HTML (Bun bundles the TSX/CSS automatically)
     "/*": homepage,
 
@@ -112,7 +73,7 @@ Bun.serve({
     "/api/settlement": {
       async GET() {
         try {
-          const claim = await serverApi.getClaim(ORDUM_MAIN_CLAIM_ID);
+          const claim = await serverResubaka.getClaim(ORDUM_MAIN_CLAIM_ID);
           const currentTier = claim.tier ?? 1;
           const supplies = claim.supplies ?? 0;
           const learnedIds = new Set<number>(claim.learned_upgrades ?? []);
@@ -138,35 +99,6 @@ Bun.serve({
           return Response.json({ error: String(e) }, { status: 500 });
         }
       },
-    },
-
-    // API Proxy — forward /api/* to upstream
-    "/api/*": async (request) => {
-      const url = new URL(request.url);
-      const rest = url.pathname.slice(5); // Remove "/api/"
-      const newUrl = new URL(`${API_BASE_URL}/${rest}`);
-      newUrl.search = url.search;
-
-      const req: RequestDescription = {
-        url: newUrl.toString(),
-        method: request.method,
-        body:
-          request.method !== "GET"
-            ? await request.json().catch(() => null)
-            : undefined,
-      };
-
-      try {
-        const res = await apiCache.get(req, makeRequest);
-        return new Response(res.body, {
-          status: res.status,
-          statusText: res.statusText,
-          headers: { "Content-Type": res.contentType },
-        });
-      } catch (error) {
-        console.error("API proxy error:", error);
-        return Response.json({ error: "API proxy error" }, { status: 502 });
-      }
     },
   },
 

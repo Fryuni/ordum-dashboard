@@ -32,7 +32,7 @@ import {
   type ExpendedRefrence,
   type InventoryItemLocation,
 } from "../common/resubaka-client";
-import { serverApi as api } from "./api-server";
+import { serverResubaka as api } from "./api-server";
 import { BANK_BUILDING_IDS } from "../common/claim-inventory";
 
 // ─── Configuration ─────────────────────────────────────────────────────────────

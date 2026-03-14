@@ -23,7 +23,7 @@ import { buildCraftPlan } from "../../common/craft-planner";
 import type { ItemReference } from "../../common/gamedata";
 import { z } from "zod";
 import { $inventory } from "./craftSource";
-import { api } from "../../common/api";
+import { resubaka } from "../../common/api";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import { buildSettlementPlan } from "../../common/settlement-planner";
 
@@ -202,7 +202,7 @@ if (typeof window !== "undefined") {
 
     if (fromSettlement && tier > 0) {
       try {
-        const claim = await api.getClaim(ORDUM_MAIN_CLAIM_ID);
+        const claim = await resubaka.getClaim(ORDUM_MAIN_CLAIM_ID);
         const currentTier = claim.tier ?? 1;
         const learnedIds = new Set<number>(claim.learned_upgrades ?? []);
         const supplies = claim.supplies ?? 0;

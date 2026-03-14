@@ -16,16 +16,19 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
+import BitJitaClient from "./bitjita-client";
 import { ResubakaClient } from "./resubaka-client";
 
-/** On the server this resolves to the upstream API; on the client it proxies through our server. */
-export const API_BASE_URL =
-  typeof window === "undefined"
-    ? "https://craft-api.resubaka.dev"
-    : `${window.location.origin}/api`;
-
 /** Global API client instance. Server-side caching is handled by the proxy layer. */
-export const api = new ResubakaClient({
-  baseUrl: API_BASE_URL,
-  timeout: 60_000,
+export const resubaka = new ResubakaClient({
+  baseUrl:
+    typeof window === "undefined"
+      ? "https://craft-api.resubaka.dev"
+      : `${window.location.origin}/resubaka`,
+  timeout: 15_000,
+});
+
+export const jita = new BitJitaClient({
+  baseUrl: "https://bitjita.com",
+  timeout: 15_000,
 });

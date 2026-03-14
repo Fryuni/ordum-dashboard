@@ -24,7 +24,7 @@
  * Player pocket inventories are also personal, not claim property.
  */
 
-import { api } from "./api";
+import { resubaka } from "./api";
 
 /** Building description IDs for bank buildings (personal storage) */
 export const BANK_BUILDING_IDS = new Set([
@@ -41,7 +41,7 @@ export const BANK_BUILDING_IDS = new Set([
 export async function buildClaimInventory(
   claimId: string,
 ): Promise<Map<string, number>> {
-  const claim = await api.getClaim(claimId);
+  const claim = await resubaka.getClaim(claimId);
 
   const inventory = new Map<string, number>();
 

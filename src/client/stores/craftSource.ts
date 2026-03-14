@@ -19,7 +19,7 @@
 import { persistentAtom } from "@nanostores/persistent";
 import { computedAsync } from "nanostores";
 import { $updateTimer } from "../util-store";
-import { api } from "../../common/api";
+import { resubaka } from "../../common/api";
 import { buildClaimInventory } from "../../common/claim-inventory";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 
@@ -31,7 +31,7 @@ export const $claim = persistentAtom<string>("claimName", "");
 const $playerInfo = computedAsync([$player, $updateTimer], async (player) => {
   if (!player) return null;
 
-  const page = await api.listPlayers({
+  const page = await resubaka.listPlayers({
     search: player,
     page: 1,
     per_page: 5,
@@ -39,27 +39,33 @@ const $playerInfo = computedAsync([$player, $updateTimer], async (player) => {
   return page.players.find((p) => p.username === player) ?? null;
 });
 
-const $playerInventory = computedAsync($playerInfo, async (player) => {
-  const inventory = new Map<string, number>();
-  if (player) {
-    try {
-      const invData = await api.findInventoryByOwnerEntityId(player.entity_id);
-      for (const inv of invData.inventorys ?? []) {
-        for (const pocket of inv.pockets ?? []) {
-          const p = pocket as any;
-          if (p?.contents) {
-            const c = p.contents;
-            const key = `${c.item_type ?? "Item"}:${c.item_id}`;
-            inventory.set(key, (inventory.get(key) ?? 0) + (c.quantity ?? 1));
+const $playerInventory = computedAsync(
+  [$playerInfo, $updateTimer],
+  async (player) => {
+    const inventory = new Map<string, number>();
+    if (player) {
+      try {
+        const invData = await resubaka.findInventoryByOwnerEntityId(
+          player.entity_id,
+        );
+        for (const inv of invData.inventorys ?? []) {
+          for (const pocket of inv.pockets ?? []) {
+            const p = pocket as any;
+            if (p?.contents) {
+              const c = p.contents;
+              const key = `${c.item_type ?? "Item"}:${c.item_id}`;
+              inventory.set(key, (inventory.get(key) ?? 0) + (c.quantity ?? 1));
+            }
           }
         }
+      } catch (error) {
+        console.error("Failed to retrieve player inventory:", error);
+        // Continue without player data
       }
-    } catch {
-      // Continue without player data
     }
-  }
-  return inventory;
-});
+    return inventory;
+  },
+);
 
 const $claimInventory = computedAsync($updateTimer, () =>
   buildClaimInventory(ORDUM_MAIN_CLAIM_ID),

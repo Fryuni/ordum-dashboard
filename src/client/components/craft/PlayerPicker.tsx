@@ -19,7 +19,7 @@
 import { useStore } from "@nanostores/preact";
 import { useRef, useState, useEffect, useCallback } from "preact/hooks";
 import { $player } from "../../stores/craftSource";
-import { api } from "../../../common/api";
+import { resubaka } from "../../../common/api";
 
 interface PlayerResult {
   entity_id: number;
@@ -49,7 +49,7 @@ export default function PlayerPicker() {
     setLoading(true);
     debounceRef.current = setTimeout(async () => {
       try {
-        const page = await api.listPlayers({
+        const page = await resubaka.listPlayers({
           search: q,
           page: 1,
           per_page: 10,
