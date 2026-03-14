@@ -17,18 +17,58 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { persistentAtom } from "@nanostores/persistent";
-import { computedAsync } from "nanostores";
+import { atom, computed, computedAsync } from "nanostores";
 import { $updateTimer } from "../util-store";
 import { resubaka } from "../../common/api";
 import { buildClaimInventory } from "../../common/claim-inventory";
-import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
-import { selectorAtom } from "./utils";
-import { $routeName } from "./router";
+import type { EmpireClaimInfo } from "../../common/ordum-types";
 
-// Player name for craft plan
+// ─── Inventory Source ──────────────────────────────────────────────────────────
+
+/**
+ * Inventory source: "player" uses the selected player's inventory,
+ * any other string is a claim entity ID.
+ */
+export const $inventorySource = persistentAtom<string>(
+  "craftInventorySource",
+  "player",
+);
+
+// Player name — always visible regardless of source
 export const $player = persistentAtom<string>("playerName", "");
 
-export const $claim = persistentAtom<string>("claimName", "");
+// ─── Empire Claims ─────────────────────────────────────────────────────────────
+
+/** Fetched list of empire claims from the server */
+export const $empireClaims = atom<EmpireClaimInfo[]>([]);
+export const $empireClaimsLoading = atom(false);
+
+/** Fetch empire claims from the /api/empire-claims endpoint */
+export async function fetchEmpireClaims() {
+  if ($empireClaims.get().length > 0) return; // already loaded
+  $empireClaimsLoading.set(true);
+  try {
+    const res = await fetch("/api/empire-claims");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    $empireClaims.set(data.claims ?? []);
+  } catch (e) {
+    console.error("Failed to fetch empire claims:", e);
+  } finally {
+    $empireClaimsLoading.set(false);
+  }
+}
+
+/** The currently selected claim name (for display) */
+export const $selectedClaimName = computed(
+  [$inventorySource, $empireClaims],
+  (source, claims) => {
+    if (source === "player") return null;
+    return claims.find((c) => c.id === source)?.name ?? "Unknown Claim";
+  },
+);
+
+// ─── Player Inventory ──────────────────────────────────────────────────────────
 
 const $playerInfo = computedAsync($player, async (player) => {
   if (!player) return null;
@@ -62,18 +102,40 @@ const $playerInventory = computedAsync(
         }
       } catch (error) {
         console.error("Failed to retrieve player inventory:", error);
-        // Continue without player data
       }
     }
     return inventory;
   },
 );
 
-const $claimInventory = computedAsync($updateTimer, () =>
-  buildClaimInventory(ORDUM_MAIN_CLAIM_ID),
+// ─── Claim Inventory ───────────────────────────────────────────────────────────
+
+/** The claim ID to fetch inventory for (null when using player source) */
+const $activeClaimId = computed($inventorySource, (source) =>
+  source === "player" ? null : source,
 );
 
-export const $inventory = selectorAtom($routeName, {
-  craft: $playerInventory,
-  groupCraft: $claimInventory,
-});
+const $claimInventory = computedAsync(
+  [$activeClaimId, $updateTimer],
+  async (claimId) => {
+    if (!claimId) return new Map<string, number>();
+    return buildClaimInventory(claimId);
+  },
+);
+
+// ─── Combined Inventory ────────────────────────────────────────────────────────
+
+/**
+ * The active inventory based on the selected source.
+ * When using a claim, returns the claim's building inventory.
+ * When using player, returns the player's personal inventory.
+ */
+export const $inventory = computed(
+  [$inventorySource, $playerInventory, $claimInventory],
+  (source, playerInv, claimInv) => {
+    if (source === "player") {
+      return playerInv ?? new Map<string, number>();
+    }
+    return claimInv ?? new Map<string, number>();
+  },
+);

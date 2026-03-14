@@ -74,7 +74,7 @@ export default function TierPlanCard({ plan, isNextTier, currentTier }: Props) {
         </div>
         {isNextTier && plan.all_items_needed.some((i) => i.deficit > 0) && (
           <a
-            href={`/group-craft?from=settlement&tier=${plan.tier}`}
+            href={`/craft?from=settlement&tier=${plan.tier}`}
             class="btn-group-craft"
           >
             ⚒️ Craft Missing Items

@@ -25,8 +25,8 @@ export default function CraftPage() {
       <div class="header">
         <h1>⚒️ Craft Planner</h1>
         <p class="subtitle">
-          Calculate full crafting trees from raw materials, accounting for your
-          inventory
+          Calculate full crafting trees from raw materials, using your player or
+          claim inventory
         </p>
       </div>
 

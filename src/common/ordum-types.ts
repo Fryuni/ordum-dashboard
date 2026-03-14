@@ -26,12 +26,21 @@
 /** Ordum City — the main claim and empire leader */
 export const ORDUM_MAIN_CLAIM_ID = "1224979098661645606";
 
+/** Ordum empire name for BitJita lookups */
+export const ORDUM_EMPIRE_NAME = "Ordum";
+
 /**
  * All claims in the Ordum empire.
  */
 export const EMPIRE_CLAIM_IDS: { id: string; name: string }[] = [
   { id: "1224979098661645606", name: "Ordum City" },
 ];
+
+/** A claim entry as returned by the /api/empire-claims endpoint */
+export interface EmpireClaimInfo {
+  id: string;
+  name: string;
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 

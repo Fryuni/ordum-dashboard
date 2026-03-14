@@ -25,7 +25,8 @@
 import homepage from "./client/index.html";
 import { fetchEmpireData } from "./server/ordum-data";
 import { ORDUM_MAIN_CLAIM_ID } from "./server/ordum-data";
-import { serverResubaka } from "./server/api-server";
+import { serverResubaka, serverJita } from "./server/api-server";
+import { ORDUM_EMPIRE_NAME } from "./common/ordum-types";
 import { buildClaimInventory } from "./common/claim-inventory";
 import { buildSettlementPlan } from "./common/settlement-planner";
 import { gd } from "./common/gamedata";
@@ -65,6 +66,38 @@ Bun.serve({
           return Response.json(empire);
         } catch (e) {
           console.error("Failed to fetch empire data:", e);
+          return Response.json({ error: String(e) }, { status: 500 });
+        }
+      },
+    },
+
+    "/api/empire-claims": {
+      async GET() {
+        try {
+          // Look up the Ordum empire by name via BitJita
+          const empires = await serverJita.listEmpires({
+            q: ORDUM_EMPIRE_NAME,
+          });
+          const empire = (empires.empires as any[]).find(
+            (e: any) =>
+              e.name?.toLowerCase() === ORDUM_EMPIRE_NAME.toLowerCase(),
+          );
+          if (!empire) {
+            return Response.json(
+              { error: "Empire not found" },
+              { status: 404 },
+            );
+          }
+
+          const claimsData = await serverJita.getEmpireClaims(empire.entityId);
+          const claims = (claimsData.claims as any[]).map((c: any) => ({
+            id: c.entityId,
+            name: c.name,
+          }));
+
+          return Response.json({ claims });
+        } catch (e) {
+          console.error("Failed to fetch empire claims:", e);
           return Response.json({ error: String(e) }, { status: 500 });
         }
       },

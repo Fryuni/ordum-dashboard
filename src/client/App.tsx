@@ -21,9 +21,8 @@ import { $router } from "./stores/router";
 import DashboardPage from "./pages/DashboardPage";
 import SettlementPage from "./pages/SettlementPage";
 import CraftPage from "./pages/CraftPage";
-import GroupCraftPage from "./pages/GroupCraftPage";
 
-type RouteName = "dashboard" | "settlement" | "craft" | "groupCraft";
+type RouteName = "dashboard" | "settlement" | "craft";
 
 function PageContent({ route }: { route: RouteName | null }) {
   switch (route) {
@@ -33,8 +32,6 @@ function PageContent({ route }: { route: RouteName | null }) {
       return <SettlementPage />;
     case "craft":
       return <CraftPage />;
-    case "groupCraft":
-      return <GroupCraftPage />;
     default:
       return (
         <div class="page-header">
@@ -60,12 +57,6 @@ const NAV_ITEMS = [
     href: "/craft",
     icon: "⚒️",
     label: "Craft Planner",
-  },
-  {
-    route: "groupCraft" as const,
-    href: "/group-craft",
-    icon: "🏰",
-    label: "Empire Craft",
   },
 ];
 

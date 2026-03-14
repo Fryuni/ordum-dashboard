@@ -18,7 +18,7 @@
  */
 import { useStore } from "@nanostores/preact";
 import { $targets, clearAll } from "../../stores/craft";
-import PlayerPicker from "./PlayerPicker";
+import InventorySourcePicker from "./InventorySourcePicker";
 import ItemPicker from "./ItemPicker";
 import ItemList from "./ItemList";
 
@@ -27,9 +27,7 @@ export default function CraftConfiguration() {
 
   return (
     <div class="planner-card">
-      <div class="form-row">
-        <PlayerPicker />
-      </div>
+      <InventorySourcePicker />
 
       <ItemPicker />
       <ItemList />
