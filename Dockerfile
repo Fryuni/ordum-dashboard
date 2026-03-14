@@ -21,22 +21,16 @@ FROM base AS build
 
 # Copy source and build
 COPY . .
-RUN --mount=type=cache,target=/app/node_modules/.astro \
-    --mount=type=cache,target=/app/node_modules/.vite \
-    bun run build
+COPY --from=gamedata /app/gamedata ./gamedata
+RUN bun run build
 
 # --- Production stage ---
 FROM oven/bun:1-slim AS production
 
-WORKDIR /app
+WORKDIR /app/dist
 
-COPY --from=base /app/node_modules ./node_modules
-
-# Copy static game data (loaded at runtime)
-COPY --from=gamedata /app/gamedata ./gamedata
-
-# Copy built output and runtime dependencies
-COPY --from=build /app/dist ./dist
+# Copy built output (server + client bundle, all self-contained)
+COPY --from=build /app/dist .
 
 ENV HOST=0.0.0.0
 ENV PORT=4321
@@ -44,4 +38,4 @@ ENV NODE_ENV=production
 
 EXPOSE 4321
 
-CMD ["bun", "run", "dist/server/entry.mjs"]
+CMD ["bun", "run", "server.js"]
