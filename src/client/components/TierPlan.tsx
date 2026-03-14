@@ -25,7 +25,12 @@ interface Props {
   claimId?: string;
 }
 
-export default function TierPlanCard({ plan, isNextTier, currentTier, claimId }: Props) {
+export default function TierPlanCard({
+  plan,
+  isNextTier,
+  currentTier,
+  claimId,
+}: Props) {
   const suppliesOk = plan.supplies_available >= plan.total_supplies_needed;
   const isDone = plan.tier <= currentTier;
 

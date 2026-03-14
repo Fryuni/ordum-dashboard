@@ -140,15 +140,27 @@ export const $travelerTasks = computedAsync(
 /** Targets derived from open traveler tasks — used to compute the craft plan */
 export const $travelerTargets = computedAsync(
   $travelerTasks,
-  async (tasks): Promise<
-    { item_id: number; item_type: "Item" | "Cargo"; name: string; quantity: number }[]
+  async (
+    tasks,
+  ): Promise<
+    {
+      item_id: number;
+      item_type: "Item" | "Cargo";
+      name: string;
+      quantity: number;
+    }[]
   > => {
     if (!tasks || tasks.length === 0) return [];
 
     // Merge all required items across all open tasks
     const merged = new Map<
       string,
-      { item_id: number; item_type: "Item" | "Cargo"; name: string; quantity: number }
+      {
+        item_id: number;
+        item_type: "Item" | "Cargo";
+        name: string;
+        quantity: number;
+      }
     >();
 
     for (const task of tasks) {

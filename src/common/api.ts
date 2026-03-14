@@ -29,8 +29,9 @@ export const resubaka = new ResubakaClient({
 });
 
 export const jita = new BitJitaClient({
-  baseUrl: typeof window === "undefined"
-    ? "https://bitjita.com"
-    : `${window.location.origin}/jita`,
+  baseUrl:
+    typeof window === "undefined"
+      ? "https://bitjita.com"
+      : `${window.location.origin}/jita`,
   timeout: 15_000,
 });

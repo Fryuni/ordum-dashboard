@@ -16,7 +16,14 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { atom, computed, computedAsync, effect, onMount, type AsyncValue } from "nanostores";
+import {
+  atom,
+  computed,
+  computedAsync,
+  effect,
+  onMount,
+  type AsyncValue,
+} from "nanostores";
 import { persistentAtom } from "@nanostores/persistent";
 import { itemIndex, type IndexItem } from "../../common/itemIndex";
 import { buildCraftPlan } from "../../common/craft-planner";
@@ -178,76 +185,81 @@ export const $shareableUrl = computedAsync([$targets], async (targets) => {
 
 const $loadedTargets = atom(false);
 
-const $importedTargets = computedAsync($router, async (route): Promise<TargetItem[] | undefined> => {
-  if (route?.route !== 'craft') {
-    $loadedTargets.set(false);
-    return;
-  };
-
-  const { targets } = route.search;
-  if (targets) {
-    try {
-      const compressed = Uint8Array.fromBase64(targets, {
-        alphabet: "base64url",
-      });
-      const newTargets = await new Response(
-        new Blob([compressed])
-          .stream()
-          .pipeThrough(new DecompressionStream("gzip")),
-      ).json();
-      return targetSchema.parse(newTargets)
-    } catch (error) {
-      console.error("Could not set plan.");
+const $importedTargets = computedAsync(
+  $router,
+  async (route): Promise<TargetItem[] | undefined> => {
+    if (route?.route !== "craft") {
+      $loadedTargets.set(false);
+      return;
     }
-  }
 
-  const fromSettlement = route.search.from === "settlement";
-  const tier = parseInt(route.search.tier || "0");
-  const claimParam = route.search.claim;
-
-  if (fromSettlement && tier > 0) {
-    try {
-      // Auto-select the claim inventory from the URL, or fall back to main
-      const claimId = claimParam || ORDUM_MAIN_CLAIM_ID;
-      $inventorySource.set(claimId);
-      const claim = await resubaka.getClaim(claimId);
-      const currentTier = claim.tier ?? 1;
-      const learnedIds = new Set<number>(claim.learned_upgrades ?? []);
-      const supplies = claim.supplies ?? 0;
-
-      const plans = buildSettlementPlan(
-        currentTier,
-        learnedIds,
-        supplies,
-        new Map(),
-      );
-      const targetPlan = plans.find((p) => p.tier === tier);
-
-      if (targetPlan) {
-        let initialItems: TargetItem[] = [];
-        for (const item of targetPlan.all_items_needed) {
-          if (item.deficit > 0) {
-            initialItems.push({
-              ...item,
-              name: item.name,
-              quantity: item.deficit,
-            });
-          }
-        }
-        return initialItems;
+    const { targets } = route.search;
+    if (targets) {
+      try {
+        const compressed = Uint8Array.fromBase64(targets, {
+          alphabet: "base64url",
+        });
+        const newTargets = await new Response(
+          new Blob([compressed])
+            .stream()
+            .pipeThrough(new DecompressionStream("gzip")),
+        ).json();
+        return targetSchema.parse(newTargets);
+      } catch (error) {
+        console.error("Could not set plan.");
       }
-    } catch (e) {
-      console.error("Failed to build plan:", e);
     }
-  }
-})
 
-onMount($targets, () => effect([$importedTargets, $loadedTargets], (newTargets, loadedTargets) => {
-  if (newTargets.state !== 'loaded' || newTargets.changing) return;
-  if (newTargets.value) {
-    if (!loadedTargets) {
-      $loadedTargets.set(true);
-      $targets.set(newTargets.value);
+    const fromSettlement = route.search.from === "settlement";
+    const tier = parseInt(route.search.tier || "0");
+    const claimParam = route.search.claim;
+
+    if (fromSettlement && tier > 0) {
+      try {
+        // Auto-select the claim inventory from the URL, or fall back to main
+        const claimId = claimParam || ORDUM_MAIN_CLAIM_ID;
+        $inventorySource.set(claimId);
+        const claim = await resubaka.getClaim(claimId);
+        const currentTier = claim.tier ?? 1;
+        const learnedIds = new Set<number>(claim.learned_upgrades ?? []);
+        const supplies = claim.supplies ?? 0;
+
+        const plans = buildSettlementPlan(
+          currentTier,
+          learnedIds,
+          supplies,
+          new Map(),
+        );
+        const targetPlan = plans.find((p) => p.tier === tier);
+
+        if (targetPlan) {
+          let initialItems: TargetItem[] = [];
+          for (const item of targetPlan.all_items_needed) {
+            if (item.deficit > 0) {
+              initialItems.push({
+                ...item,
+                name: item.name,
+                quantity: item.deficit,
+              });
+            }
+          }
+          return initialItems;
+        }
+      } catch (e) {
+        console.error("Failed to build plan:", e);
+      }
     }
-  }
-}));
+  },
+);
+
+onMount($targets, () =>
+  effect([$importedTargets, $loadedTargets], (newTargets, loadedTargets) => {
+    if (newTargets.state !== "loaded" || newTargets.changing) return;
+    if (newTargets.value) {
+      if (!loadedTargets) {
+        $loadedTargets.set(true);
+        $targets.set(newTargets.value);
+      }
+    }
+  }),
+);
