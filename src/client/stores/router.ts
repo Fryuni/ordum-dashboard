@@ -23,6 +23,7 @@ export const $router = createRouter({
   dashboard: "/",
   settlement: "/settlement",
   craft: "/craft",
+  travelerTask: "/traveler-task",
 });
 
 export const $routeName = computed($router, (r) => r?.route ?? "unknown");

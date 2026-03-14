@@ -21,8 +21,9 @@ import { $router } from "./stores/router";
 import DashboardPage from "./pages/DashboardPage";
 import SettlementPage from "./pages/SettlementPage";
 import CraftPage from "./pages/CraftPage";
+import TravelerTaskPage from "./pages/TravelerTaskPage";
 
-type RouteName = "dashboard" | "settlement" | "craft";
+type RouteName = "dashboard" | "settlement" | "craft" | "travelerTask";
 
 function PageContent({ route }: { route: RouteName | null }) {
   switch (route) {
@@ -32,6 +33,8 @@ function PageContent({ route }: { route: RouteName | null }) {
       return <SettlementPage />;
     case "craft":
       return <CraftPage />;
+    case "travelerTask":
+      return <TravelerTaskPage />;
     default:
       return (
         <div class="page-header">
@@ -57,6 +60,12 @@ const NAV_ITEMS = [
     href: "/craft",
     icon: "⚒️",
     label: "Craft Planner",
+  },
+  {
+    route: "travelerTask" as const,
+    href: "/traveler-task",
+    icon: "🧳",
+    label: "Traveler Tasks",
   },
 ];
 
