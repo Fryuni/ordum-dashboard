@@ -104,14 +104,16 @@ Bun.serve({
     },
 
     "/api/settlement": {
-      async GET() {
+      async GET(request) {
         try {
-          const claim = await serverResubaka.getClaim(ORDUM_MAIN_CLAIM_ID);
+          const url = new URL(request.url);
+          const claimId = url.searchParams.get("claim") || ORDUM_MAIN_CLAIM_ID;
+          const claim = await serverResubaka.getClaim(claimId);
           const currentTier = claim.tier ?? 1;
           const supplies = claim.supplies ?? 0;
           const learnedIds = new Set<number>(claim.learned_upgrades ?? []);
           const claimName = claim.name ?? "Unknown Claim";
-          const inventory = await buildClaimInventory(ORDUM_MAIN_CLAIM_ID);
+          const inventory = await buildClaimInventory(claimId);
           const plans = buildSettlementPlan(
             currentTier,
             learnedIds,

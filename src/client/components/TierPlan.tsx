@@ -22,9 +22,10 @@ interface Props {
   plan: TierPlan;
   isNextTier: boolean;
   currentTier: number;
+  claimId?: string;
 }
 
-export default function TierPlanCard({ plan, isNextTier, currentTier }: Props) {
+export default function TierPlanCard({ plan, isNextTier, currentTier, claimId }: Props) {
   const suppliesOk = plan.supplies_available >= plan.total_supplies_needed;
   const isDone = plan.tier <= currentTier;
 
@@ -74,7 +75,7 @@ export default function TierPlanCard({ plan, isNextTier, currentTier }: Props) {
         </div>
         {isNextTier && plan.all_items_needed.some((i) => i.deficit > 0) && (
           <a
-            href={`/craft?from=settlement&tier=${plan.tier}`}
+            href={`/craft?from=settlement&tier=${plan.tier}${claimId ? `&claim=${claimId}` : ""}`}
             class="btn-group-craft"
           >
             ⚒️ Craft Missing Items

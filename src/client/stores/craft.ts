@@ -203,12 +203,14 @@ const $importedTargets = computedAsync($router, async (route): Promise<TargetIte
 
   const fromSettlement = route.search.from === "settlement";
   const tier = parseInt(route.search.tier || "0");
+  const claimParam = route.search.claim;
 
   if (fromSettlement && tier > 0) {
     try {
-      // Auto-select the main claim inventory when coming from settlement
-      $inventorySource.set(ORDUM_MAIN_CLAIM_ID);
-      const claim = await resubaka.getClaim(ORDUM_MAIN_CLAIM_ID);
+      // Auto-select the claim inventory from the URL, or fall back to main
+      const claimId = claimParam || ORDUM_MAIN_CLAIM_ID;
+      $inventorySource.set(claimId);
+      const claim = await resubaka.getClaim(claimId);
       const currentTier = claim.tier ?? 1;
       const learnedIds = new Set<number>(claim.learned_upgrades ?? []);
       const supplies = claim.supplies ?? 0;
