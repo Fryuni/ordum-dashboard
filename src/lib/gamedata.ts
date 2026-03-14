@@ -26,6 +26,20 @@
 
 import { Lazy, LazyKeyed } from "@inox-tools/utils/lazy";
 
+import _rawItems from "../../gamedata/item_desc.json";
+import _rawCargo from "../../gamedata/cargo_desc.json";
+import _rawRecipes from "../../gamedata/crafting_recipe_desc.json";
+import _rawExtraction from "../../gamedata/extraction_recipe_desc.json";
+import _rawClaimTechs from "../../gamedata/claim_tech_desc.json";
+import _rawBuildings from "../../gamedata/building_desc.json";
+import _rawBuildingTypes from "../../gamedata/building_type_desc.json";
+import _rawSkills from "../../gamedata/skill_desc.json";
+import _rawTools from "../../gamedata/tool_desc.json";
+import _rawToolTypes from "../../gamedata/tool_type_desc.json";
+import _rawResources from "../../gamedata/resource_desc.json";
+import _rawItemLists from "../../gamedata/item_list_desc.json";
+import _rawConstruction from "../../gamedata/construction_recipe_desc.json";
+
 // ─── Raw JSON Types ────────────────────────────────────────────────────────────
 
 export type ItemType = "Item" | "Cargo";
@@ -183,32 +197,21 @@ export interface GameConstructionRecipe {
   tool_requirements: GameToolReq[];
 }
 
-const { default: rawItems }: { default: GameItemDesc[] } =
-  (await import("../../gamedata/item_desc.json")) as any;
-const { default: rawCargo }: { default: GameCargoDesc[] } =
-  (await import("../../gamedata/cargo_desc.json")) as any;
-const { default: rawRecipes }: { default: GameCraftingRecipe[] } =
-  (await import("../../gamedata/crafting_recipe_desc.json")) as any;
-const { default: rawExtraction }: { default: GameExtractionRecipe[] } =
-  (await import("../../gamedata/extraction_recipe_desc.json")) as any;
-const { default: rawClaimTechs }: { default: GameClaimTech[] } =
-  (await import("../../gamedata/claim_tech_desc.json")) as any;
-const { default: rawBuildings }: { default: GameBuildingDesc[] } =
-  (await import("../../gamedata/building_desc.json")) as any;
-const { default: rawBuildingTypes }: { default: GameBuildingTypeDesc[] } =
-  (await import("../../gamedata/building_type_desc.json")) as any;
-const { default: rawSkills }: { default: GameSkillDesc[] } =
-  (await import("../../gamedata/skill_desc.json")) as any;
-const { default: rawTools }: { default: GameToolDesc[] } =
-  (await import("../../gamedata/tool_desc.json")) as any;
-const { default: rawToolTypes }: { default: GameToolTypeDesc[] } =
-  (await import("../../gamedata/tool_type_desc.json")) as any;
-const { default: rawResources }: { default: GameResourceDesc[] } =
-  (await import("../../gamedata/resource_desc.json")) as any;
-const { default: rawItemLists }: { default: GameItemListDesc[] } =
-  (await import("../../gamedata/item_list_desc.json")) as any;
-const { default: rawConstruction }: { default: GameConstructionRecipe[] } =
-  (await import("../../gamedata/construction_recipe_desc.json")) as any;
+// ─── Typed raw data (cast from JSON imports) ───────────────────────────────────
+
+const rawItems = _rawItems as unknown as GameItemDesc[];
+const rawCargo = _rawCargo as unknown as GameCargoDesc[];
+const rawRecipes = _rawRecipes as unknown as GameCraftingRecipe[];
+const rawExtraction = _rawExtraction as unknown as GameExtractionRecipe[];
+const rawClaimTechs = _rawClaimTechs as unknown as GameClaimTech[];
+const rawBuildings = _rawBuildings as unknown as GameBuildingDesc[];
+const rawBuildingTypes = _rawBuildingTypes as unknown as GameBuildingTypeDesc[];
+const rawSkills = _rawSkills as unknown as GameSkillDesc[];
+const rawTools = _rawTools as unknown as GameToolDesc[];
+const rawToolTypes = _rawToolTypes as unknown as GameToolTypeDesc[];
+const rawResources = _rawResources as unknown as GameResourceDesc[];
+const rawItemLists = _rawItemLists as unknown as GameItemListDesc[];
+const rawConstruction = _rawConstruction as unknown as GameConstructionRecipe[];
 
 // ─── Indexed Game Data ─────────────────────────────────────────────────────────
 

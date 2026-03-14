@@ -9,3 +9,4 @@
 .memory/state.md
 .memory/state.yaml
 /tsconfig.tsbuildinfo
+/test-results
