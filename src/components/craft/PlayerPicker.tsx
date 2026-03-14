@@ -17,31 +17,60 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { useStore } from "@nanostores/preact";
-import {
-  useRef,
-  useState,
-  useEffect,
-  useMemo,
-  useCallback,
-} from "preact/hooks";
+import { useRef, useState, useEffect, useCallback } from "preact/hooks";
 import { $player } from "../../lib/stores/craftSource";
+import { api } from "../../lib/api";
 
-interface Props {
-  members: { entity_id: string; user_name: string }[];
+interface PlayerResult {
+  entity_id: number;
+  username: string;
 }
 
-export default function PlayerPicker({ members }: Props) {
+export default function PlayerPicker() {
   const player = useStore($player);
   const [open, setOpen] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
+  const [results, setResults] = useState<PlayerResult[]>([]);
+  const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
-  const filtered = useMemo(() => {
-    const q = player.toLowerCase().trim();
-    if (q.length === 0) return members;
-    return members.filter((m) => m.user_name.toLowerCase().includes(q));
-  }, [player, members]);
+  // Debounced API search whenever the player input changes
+  useEffect(() => {
+    if (debounceRef.current != null) clearTimeout(debounceRef.current);
+
+    const q = player.trim();
+    if (q.length < 2) {
+      setResults([]);
+      return;
+    }
+
+    setLoading(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const page = await api.listPlayers({
+          search: q,
+          page: 1,
+          per_page: 10,
+        });
+        setResults(
+          page.players.map((p) => ({
+            entity_id: p.entity_id,
+            username: p.username,
+          })),
+        );
+      } catch {
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 300);
+
+    return () => {
+      if (debounceRef.current != null) clearTimeout(debounceRef.current);
+    };
+  }, [player]);
 
   useEffect(() => {
     if (highlightIdx >= 0 && dropdownRef.current) {
@@ -79,14 +108,14 @@ export default function PlayerPicker({ members }: Props) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
       if (!open) setOpen(true);
-      setHighlightIdx((i) => Math.min(i + 1, filtered.length - 1));
+      setHighlightIdx((i) => Math.min(i + 1, results.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setHighlightIdx((i) => Math.max(i - 1, 0));
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (highlightIdx >= 0 && highlightIdx < filtered.length) {
-        pickPlayer(filtered[highlightIdx]!.user_name);
+      if (highlightIdx >= 0 && highlightIdx < results.length) {
+        pickPlayer(results[highlightIdx]!.username);
       }
     } else if (e.key === "Escape") {
       setOpen(false);
@@ -95,7 +124,7 @@ export default function PlayerPicker({ members }: Props) {
   }
 
   function handleFocus() {
-    if (filtered.length > 0) setOpen(true);
+    if (results.length > 0) setOpen(true);
   }
 
   return (
@@ -128,19 +157,22 @@ export default function PlayerPicker({ members }: Props) {
           </button>
         )}
       </div>
-      {open && filtered.length > 0 && (
+      {open && (results.length > 0 || loading) && (
         <div class="search-dropdown" ref={dropdownRef}>
-          {filtered.map((m, i) => (
+          {loading && results.length === 0 && (
+            <div class="dropdown-loading">Searching…</div>
+          )}
+          {results.map((m, i) => (
             <button
               type="button"
               class={`search-option ${i === highlightIdx ? "highlighted" : ""}`}
-              onClick={() => pickPlayer(m.user_name)}
+              onClick={() => pickPlayer(m.username)}
               onMouseEnter={() => setHighlightIdx(i)}
               role="option"
               aria-selected={i === highlightIdx}
               key={m.entity_id}
             >
-              <span>{m.user_name}</span>
+              <span>{m.username}</span>
             </button>
           ))}
         </div>

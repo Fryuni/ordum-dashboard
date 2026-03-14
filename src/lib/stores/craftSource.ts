@@ -54,8 +54,8 @@ const $claimInventory = computedAsync($updateTimer, () =>
 
 export const $inventory = import.meta.env.SSR
   ? atom<AsyncValue<Map<string, number>>>({
-    state: "loading",
-  })
+      state: "loading",
+    })
   : window.location.pathname === "/craft"
     ? $playerInventory
     : $claimInventory;

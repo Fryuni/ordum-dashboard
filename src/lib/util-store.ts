@@ -17,7 +17,8 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { persistentAtom } from "@nanostores/persistent";
-import { atom, onMount } from "nanostores";
+import { atom, onMount, type ReadableAtom } from "nanostores";
+import { hash } from "ohash";
 
 export const $pageActive = atom(false);
 
@@ -27,6 +28,21 @@ export const $updateTimer = persistentAtom("updateTimer", Date.now(), {
   encode: (n) => n.toFixed(0),
   decode: (n) => Number.parseInt(n, 10),
 });
+
+export function skipShallowChange<T>($atom: ReadableAtom<T>): ReadableAtom<T> {
+  const noShallow = atom<T>($atom.value!);
+  let lastHash = "";
+  onMount(noShallow, () =>
+    $atom.subscribe((newValue) => {
+      const newHash = hash(newValue);
+      if (newHash !== lastHash) {
+        noShallow.set(newValue);
+        lastHash = newHash;
+      }
+    }),
+  );
+  return noShallow;
+}
 
 if (!import.meta.env.SSR) {
   onMount($pageActive, () => {

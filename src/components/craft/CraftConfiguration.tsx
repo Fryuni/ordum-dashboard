@@ -18,12 +18,9 @@
  */
 import { useStore } from "@nanostores/preact";
 import { $targets, clearAll } from "../../lib/stores/craft";
-import { fetchClaimMembers } from "../../lib/ordum-data";
 import PlayerPicker from "./PlayerPicker";
 import ItemPicker from "./ItemPicker";
 import ItemList from "./ItemList";
-
-const members = await fetchClaimMembers();
 
 export default function CraftConfiguration() {
   const targets = useStore($targets);
@@ -31,7 +28,7 @@ export default function CraftConfiguration() {
   return (
     <div class="planner-card">
       <div class="form-row">
-        <PlayerPicker members={members} />
+        <PlayerPicker />
       </div>
 
       <ItemPicker />
