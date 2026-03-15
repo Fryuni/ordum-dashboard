@@ -20,7 +20,7 @@ import { computed, computedAsync } from "nanostores";
 import { resubaka } from "../../common/api";
 import { getItemName, getSkillName } from "../../common/gamedata";
 import { buildCraftPlan } from "../../common/craft-planner";
-import { $inventory } from "./craftSource";
+import { $inventoryTotals } from "./craftSource";
 import { $playerData } from "./player";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -170,7 +170,7 @@ export const $travelerTargets = computedAsync(
 
 /** Craft plan for all traveler task items */
 export const $travelerCraftPlan = computedAsync(
-  [$travelerTargets, $inventory],
+  [$travelerTargets, $inventoryTotals],
   (targets, inventory) => {
     if (!targets || targets.length === 0) return null;
     return buildCraftPlan(targets, inventory);

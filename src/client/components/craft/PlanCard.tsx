@@ -17,9 +17,12 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { useState, useMemo } from "preact/hooks";
+import { useStore } from "@nanostores/preact";
 import RawMaterials from "./RawMaterials";
 import CraftingSteps from "./CraftingSteps";
 import type { CraftPlan } from "../../../common/craft-planner";
+import { $inventory } from "../../stores/craftSource";
+import { referenceKey } from "../../../common/gamedata";
 
 interface Props {
   plan: CraftPlan;
@@ -30,6 +33,7 @@ export default function PlanCard({
   plan,
   allDoneMessage = "✅ You already have everything needed!",
 }: Props) {
+  const inventory = useStore($inventory);
   const [nameFilter, setNameFilter] = useState("");
   const [tierFilter, setTierFilter] = useState("");
 
@@ -138,11 +142,28 @@ export default function PlanCard({
         <div class="already-have">
           <h4>✅ Already Have</h4>
           <div class="have-chips">
-            {filteredHave.map((item: any) => (
-              <span class="have-chip" key={item.name}>
-                {item.name} <strong>×{item.quantity}</strong>
-              </span>
-            ))}
+            {filteredHave.map((item: any) => {
+              const key = referenceKey(item);
+              const places = inventory.get(key);
+              return (
+                <span class="have-chip" key={item.name}>
+                  {item.name} <strong>×{item.quantity}</strong>
+                  {places && places.length > 0 && (
+                    <div class="have-chip-tooltip">
+                      <div class="sources-header">Found in</div>
+                      <ul class="sources-list">
+                        {places.map((p) => (
+                          <li key={p.name}>
+                            <span>{p.name}</span>
+                            <span class="source-qty">×{p.quantity}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}

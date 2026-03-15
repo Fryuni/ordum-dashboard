@@ -33,30 +33,44 @@ export const BANK_BUILDING_IDS = new Set([
   969744821, // Lost Items Chest
 ]);
 
+export interface ItemPlace {
+  name: string;
+  quantity: number;
+}
+
 /**
- * Build a Map<"ItemType:id", quantity> from a claim's API response,
+ * Build a Map<"ItemType:id", ItemPlace[]> from a claim's API response,
  * using only claim building storage (non-bank). Player inventories are excluded
  * since those items belong to individual players, not the claim.
+ *
+ * Each ItemPlace records the building name and the quantity found there.
  */
 export async function buildClaimInventory(
   claimId: string,
-): Promise<Map<string, number>> {
+): Promise<Map<string, ItemPlace[]>> {
   const claim = await resubaka.getClaim(claimId);
 
-  const inventory = new Map<string, number>();
+  const inventory = new Map<string, ItemPlace[]>();
 
   // Building inventories — use inventory_locations for building-level filtering
   const buildingLocs = (claim.inventory_locations as any)?.buildings ?? [];
   for (const loc of buildingLocs) {
     const key = `${loc.item_type ?? "Item"}:${loc.item_id}`;
-    let total = 0;
     for (const l of loc.locations ?? []) {
       // Skip bank buildings (personal storage)
       if (BANK_BUILDING_IDS.has(l.building_description_id)) continue;
-      total += l.quantity ?? 0;
-    }
-    if (total > 0) {
-      inventory.set(key, (inventory.get(key) ?? 0) + total);
+      const qty = l.quantity ?? 0;
+      if (qty <= 0) continue;
+      const name: string = l.building_name ?? "Unknown Building";
+      const places = inventory.get(key) ?? [];
+      // Merge into existing place with the same name
+      const existing = places.find((p) => p.name === name);
+      if (existing) {
+        existing.quantity += qty;
+      } else {
+        places.push({ name, quantity: qty });
+      }
+      inventory.set(key, places);
     }
   }
 

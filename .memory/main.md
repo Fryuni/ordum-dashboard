@@ -54,8 +54,8 @@ scripts/
 **Four pages**:
 1. **Dashboard** (`/`) — empire overview: stats, building/player/tool resources, members. Data fetched client-side from `/api/empire`.
 2. **Settlement** (`/settlement`) — tier timeline, upgrade requirements, item availability. Data fetched from `/api/settlement`.
-3. **Craft Planner** (`/craft`) — recursive crafting tree calculator with player inventory awareness.
-4. **Empire Craft** (`/group-craft`) — same as craft planner but using claim building storage.
+3. **Craft Planner** (`/craft`) — recursive crafting tree calculator with inventory awareness (player or claim). "Already have" chips show inventory location tooltips on hover.
+4. **Traveler Tasks** (`/traveler-tasks`) — traveler task management with craft planning.
 
 ## Key Decisions
 
@@ -80,8 +80,9 @@ scripts/
 - [x] Game data download + update script
 - [x] Settlement planner (tiers 1-10, tier-upgrade-only)
 - [x] Craft planner with recursive recipe resolution
-- [x] Group Craft planner with claim inventory
-- [x] Settlement → Group Craft integration (pre-populated deficit items)
+- [x] Group Craft planner with claim inventory (merged into Craft Planner)
+- [x] Settlement → Craft integration (pre-populated deficit items)
+- [x] Inventory stores refactored to track item locations (ItemPlace[]) with tooltips
 - [x] Migrate from Svelte to Preact (TSX)
 - [x] Adopt computedAsync for async state management
 - [x] **Rewrite: Astro → Bun server + Preact SPA** (HTML imports, @nanostores/router)

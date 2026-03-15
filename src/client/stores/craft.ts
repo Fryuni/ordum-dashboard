@@ -29,7 +29,7 @@ import { itemIndex, type IndexItem } from "../../common/itemIndex";
 import { buildCraftPlan } from "../../common/craft-planner";
 import type { ItemReference } from "../../common/gamedata";
 import { z } from "zod";
-import { $inventory, $inventorySource } from "./craftSource";
+import { $inventoryTotals, $inventorySource } from "./craftSource";
 import { resubaka } from "../../common/api";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import { buildSettlementPlan } from "../../common/settlement-planner";
@@ -94,7 +94,7 @@ export const $canAdd = computed($selectedItem, (item) => item !== null);
 // ─── Craft Plan (async) ────────────────────────────────────────────────────────
 
 export const $craftPlan = computedAsync(
-  [$targets, $inventory],
+  [$targets, $inventoryTotals],
   (targets, inventory) =>
     !targets.length ? null : buildCraftPlan(targets, inventory),
 );

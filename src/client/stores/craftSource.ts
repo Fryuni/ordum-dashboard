@@ -20,7 +20,7 @@ import { persistentAtom } from "@nanostores/persistent";
 import { atom, computed, computedAsync } from "nanostores";
 import { $updateTimer } from "../util-store";
 import { resubaka } from "../../common/api";
-import { buildClaimInventory } from "../../common/claim-inventory";
+import { buildClaimInventory, type ItemPlace } from "../../common/claim-inventory";
 import type { EmpireClaimInfo } from "../../common/ordum-types";
 import { $playerInfo } from "./player";
 
@@ -71,19 +71,28 @@ export const $selectedClaimName = computed(
 const $playerInventory = computedAsync(
   [$playerInfo, $updateTimer],
   async (player) => {
-    const inventory = new Map<string, number>();
+    const inventory = new Map<string, ItemPlace[]>();
     if (player) {
       try {
         const invData = await resubaka.findInventoryByOwnerEntityId(
           player.entity_id,
         );
         for (const inv of invData.inventorys ?? []) {
+          const invName = inv.nickname ?? "Backpack";
           for (const pocket of inv.pockets ?? []) {
             const p = pocket as any;
             if (p?.contents) {
               const c = p.contents;
               const key = `${c.item_type ?? "Item"}:${c.item_id}`;
-              inventory.set(key, (inventory.get(key) ?? 0) + (c.quantity ?? 1));
+              const qty = c.quantity ?? 1;
+              const places = inventory.get(key) ?? [];
+              const existing = places.find((pl) => pl.name === invName);
+              if (existing) {
+                existing.quantity += qty;
+              } else {
+                places.push({ name: invName, quantity: qty });
+              }
+              inventory.set(key, places);
             }
           }
         }
@@ -105,7 +114,7 @@ const $activeClaimId = computed($inventorySource, (source) =>
 const $claimInventory = computedAsync(
   [$activeClaimId, $updateTimer],
   async (claimId) => {
-    if (!claimId) return new Map<string, number>();
+    if (!claimId) return new Map<string, ItemPlace[]>();
     return buildClaimInventory(claimId);
   },
 );
@@ -113,16 +122,47 @@ const $claimInventory = computedAsync(
 // ─── Combined Inventory ────────────────────────────────────────────────────────
 
 /**
- * The active inventory based on the selected source.
- * When using a claim, returns the claim's building inventory.
- * When using player, returns the player's personal inventory.
+ * Unwrap a value that may be a raw value or an AsyncValue from computedAsync.
+ * When a computedAsync store is used as input to a plain computed,
+ * .get() returns the AsyncValue wrapper rather than the resolved value.
+ */
+function unwrapAsync<T>(value: unknown, fallback: T): T {
+  if (value instanceof Map) return value as T;
+  if (value && typeof value === "object" && "state" in value) {
+    const av = value as { state: string; value?: T };
+    if (av.state === "loaded" && av.value !== undefined) return av.value;
+  }
+  return fallback;
+}
+
+const emptyInventory = new Map<string, ItemPlace[]>();
+
+/**
+ * The detailed inventory with item locations.
+ * Each item key maps to an array of ItemPlace entries recording
+ * where the item can be found and how many are at each location.
  */
 export const $inventory = computed(
   [$inventorySource, $playerInventory, $claimInventory],
   (source, playerInv, claimInv) => {
     if (source === "player") {
-      return playerInv ?? new Map<string, number>();
+      return unwrapAsync(playerInv, emptyInventory);
     }
-    return claimInv ?? new Map<string, number>();
+    return unwrapAsync(claimInv, emptyInventory);
   },
 );
+
+/**
+ * Flattened inventory totals for the craft planner.
+ * Collapses ItemPlace[] into a single total quantity per item key.
+ */
+export const $inventoryTotals = computed($inventory, (inv) => {
+  const totals = new Map<string, number>();
+  if (!(inv instanceof Map)) return totals;
+  for (const [key, places] of inv) {
+    let total = 0;
+    for (const p of places) total += p.quantity;
+    totals.set(key, total);
+  }
+  return totals;
+});
