@@ -1766,6 +1766,46 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* ─── Traveler Config Row ─────────────────────────────────────────────── */
+.traveler-config-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.traveler-config-row > *:first-child {
+  flex: 1;
+  min-width: 300px;
+}
+.traveler-config-row .form-row {
+  margin-bottom: 0;
+  align-items: center;
+}
+.reset-countdown {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  padding: 0;
+  flex-shrink: 0;
+}
+.countdown-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.countdown-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  font-family: "JetBrains Mono", "Fira Code", monospace;
+}
+
 /* ─── Collapsible Sections ────────────────────────────────────────────── */
 .collapsible-section {
   margin-bottom: 24px;

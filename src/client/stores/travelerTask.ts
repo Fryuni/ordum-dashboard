@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { computedAsync } from "nanostores";
+import { computed, computedAsync } from "nanostores";
 import { resubaka } from "../../common/api";
 import { getItemName, getSkillName } from "../../common/gamedata";
 import { buildCraftPlan } from "../../common/craft-planner";
@@ -116,6 +116,15 @@ export const $travelerTasks = computedAsync($playerData, async (playerData) => {
 
   return tasks;
 });
+
+/** Traveler tasks expiration timestamp (seconds since epoch) */
+export const $travelerTasksExpiration = computedAsync(
+  $playerData,
+  async (playerData): Promise<number | null> => {
+    if (!playerData) return null;
+    return (playerData as any).traveler_tasks_expiration ?? null;
+  },
+);
 
 /** Targets derived from open traveler tasks — used to compute the craft plan */
 export const $travelerTargets = computedAsync(

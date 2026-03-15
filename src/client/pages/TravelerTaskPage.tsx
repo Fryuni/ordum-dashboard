@@ -17,13 +17,14 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { useStore } from "@nanostores/preact";
-import { useState } from "preact/hooks";
+import { useState, useEffect, useRef } from "preact/hooks";
 import InventorySourcePicker from "../components/craft/InventorySourcePicker";
 import PlanCard from "../components/craft/PlanCard";
 import {
   $travelerTasks,
   $travelerTargets,
   $travelerCraftPlan,
+  $travelerTasksExpiration,
   type TravelerTaskInfo,
 } from "../stores/travelerTask";
 import { $player } from "../stores/player";
@@ -64,6 +65,54 @@ function TaskList({ tasks }: { tasks: TravelerTaskInfo[] }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function ResetCountdown() {
+  const expiration = useStore($travelerTasksExpiration);
+  const [remaining, setRemaining] = useState("");
+  const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
+
+  const expirationSecs =
+    expiration.state === "loaded" ? expiration.value : null;
+
+  useEffect(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
+    if (!expirationSecs) {
+      setRemaining("");
+      return;
+    }
+
+    function update() {
+      const now = Math.floor(Date.now() / 1000);
+      const diff = expirationSecs! - now;
+      if (diff <= 0) {
+        setRemaining("Tasks have reset!");
+        return;
+      }
+      const h = Math.floor(diff / 3600);
+      const m = Math.floor((diff % 3600) / 60);
+      const s = diff % 60;
+      setRemaining(
+        `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`,
+      );
+    }
+
+    update();
+    intervalRef.current = setInterval(update, 1000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [expirationSecs]);
+
+  if (!remaining) return null;
+
+  return (
+    <div class="reset-countdown">
+      <span class="countdown-label">⏳ Resets in</span>
+      <span class="countdown-value">{remaining}</span>
     </div>
   );
 }
@@ -114,7 +163,10 @@ export default function TravelerTaskPage() {
       </div>
 
       <div class="planner-card">
-        <InventorySourcePicker />
+        <div class="traveler-config-row">
+          <InventorySourcePicker />
+          <ResetCountdown />
+        </div>
       </div>
 
       {!player && (
