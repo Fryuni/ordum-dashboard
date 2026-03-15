@@ -1882,3 +1882,22 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+.bitjita-link {
+  text-decoration: none;
+  opacity: 0.6;
+  margin-left: 0.5rem;
+  transition: opacity 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.bitjita-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.bitjita-link:hover {
+  opacity: 1;
+}

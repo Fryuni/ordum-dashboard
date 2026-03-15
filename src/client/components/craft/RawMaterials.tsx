@@ -43,6 +43,19 @@ export default function RawMaterials({
                     {r.tier >= 0 ? `T${r.tier}` : "TX"}
                   </span>
                   <span class="raw-title">{r.name}</span>
+                  <a
+                    href={`https://bitjita.com/${r.item_type.toLowerCase()}/${r.item_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="bitjita-link"
+                    title="View on BitJita"
+                  >
+                    <img
+                      src="https://bitjita.com/bitjitalogo.webp"
+                      alt="BitJita"
+                      class="bitjita-icon"
+                    />
+                  </a>
                 </div>
                 <span class="raw-source">{r.source || "Gather"}</span>
               </div>
