@@ -1,6 +1,7 @@
 import { persistentAtom } from "@nanostores/persistent";
 import { computedAsync } from "nanostores";
 import { resubaka } from "../../common/api";
+import { $updateTimer } from "../util-store";
 
 // Player name — always visible regardless of source
 export const $player = persistentAtom<string>("playerName", "");
@@ -17,6 +18,6 @@ export const $playerInfo = computedAsync($player, async (player) => {
 });
 
 export const $playerData = computedAsync(
-  $playerInfo,
+  [$playerInfo, $updateTimer],
   (info) => info && resubaka.findPlayerById(info.entity_id),
 );
