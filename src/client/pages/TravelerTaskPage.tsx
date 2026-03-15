@@ -20,13 +20,13 @@ import { useStore } from "@nanostores/preact";
 import { useState } from "preact/hooks";
 import InventorySourcePicker from "../components/craft/InventorySourcePicker";
 import PlanCard from "../components/craft/PlanCard";
-import { $player } from "../stores/craftSource";
 import {
   $travelerTasks,
   $travelerTargets,
   $travelerCraftPlan,
   type TravelerTaskInfo,
 } from "../stores/travelerTask";
+import { $player } from "../stores/player";
 
 function TaskList({ tasks }: { tasks: TravelerTaskInfo[] }) {
   // Group by traveler

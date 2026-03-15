@@ -19,9 +19,10 @@
 import { persistentAtom } from "@nanostores/persistent";
 import { atom, computed, computedAsync } from "nanostores";
 import { $updateTimer } from "../util-store";
-import { jita, resubaka } from "../../common/api";
+import { resubaka } from "../../common/api";
 import { buildClaimInventory } from "../../common/claim-inventory";
 import type { EmpireClaimInfo } from "../../common/ordum-types";
+import { $playerInfo } from "./player";
 
 // ─── Inventory Source ──────────────────────────────────────────────────────────
 
@@ -33,9 +34,6 @@ export const $inventorySource = persistentAtom<string>(
   "craftInventorySource",
   "player",
 );
-
-// Player name — always visible regardless of source
-export const $player = persistentAtom<string>("playerName", "");
 
 // ─── Empire Claims ─────────────────────────────────────────────────────────────
 
@@ -69,17 +67,6 @@ export const $selectedClaimName = computed(
 );
 
 // ─── Player Inventory ──────────────────────────────────────────────────────────
-
-const $playerInfo = computedAsync($player, async (player) => {
-  if (!player) return null;
-
-  const page = await resubaka.listPlayers({
-    search: player,
-    page: 1,
-    per_page: 5,
-  });
-  return page.players.find((p) => p.username === player) ?? null;
-});
 
 const $playerInventory = computedAsync(
   [$playerInfo, $updateTimer],

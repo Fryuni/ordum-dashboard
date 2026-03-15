@@ -18,8 +18,8 @@
  */
 import { useStore } from "@nanostores/preact";
 import { useRef, useState, useEffect, useCallback } from "preact/hooks";
-import { $player } from "../../stores/craftSource";
 import { resubaka } from "../../../common/api";
+import { $player } from "../../stores/player";
 
 interface PlayerResult {
   entity_id: number;

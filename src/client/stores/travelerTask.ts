@@ -16,12 +16,12 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { atom, computed, computedAsync } from "nanostores";
+import { computedAsync } from "nanostores";
 import { resubaka } from "../../common/api";
 import { getItemName, getSkillName } from "../../common/gamedata";
-import type { ItemReference } from "../../common/gamedata";
 import { buildCraftPlan } from "../../common/craft-planner";
-import { $player, $inventory } from "./craftSource";
+import { $inventory } from "./craftSource";
+import { $playerData } from "./player";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -74,68 +74,48 @@ async function getTaskDescs() {
   return taskDescCache;
 }
 
-// ─── Player lookup ─────────────────────────────────────────────────────────────
-
-const $playerInfo = computedAsync($player, async (player) => {
-  if (!player || player.trim().length < 2) return null;
-
-  const page = await resubaka.listPlayers({
-    search: player,
-    page: 1,
-    per_page: 5,
-  });
-  return page.players.find((p) => p.username === player) ?? null;
-});
-
 // ─── Traveler Tasks ────────────────────────────────────────────────────────────
 
 /** All traveler tasks for the selected player */
-export const $travelerTasks = computedAsync(
-  $playerInfo,
-  async (playerInfo): Promise<TravelerTaskInfo[]> => {
-    if (!playerInfo) return [];
+export const $travelerTasks = computedAsync($playerData, async (playerData) => {
+  if (!playerData) return [];
 
-    const [playerData, npcs, taskDescs] = await Promise.all([
-      resubaka.findPlayerById(playerInfo.entity_id),
-      getNpcs(),
-      getTaskDescs(),
-    ]);
+  const [npcs, taskDescs] = await Promise.all([getNpcs(), getTaskDescs()]);
 
-    const tasks: TravelerTaskInfo[] = [];
-    const travelerTasks = playerData.traveler_tasks ?? {};
+  const tasks: TravelerTaskInfo[] = [];
+  const travelerTasks = playerData.traveler_tasks ?? {};
 
-    for (const [travelerId, taskStates] of Object.entries(travelerTasks)) {
-      const tid = Number(travelerId);
-      const travelerName = npcs[tid]?.name ?? `Traveler #${tid}`;
+  for (const [travelerId, taskStates] of Object.entries(travelerTasks)) {
+    const tid = Number(travelerId);
+    const travelerName = npcs[tid]?.name ?? `Traveler #${tid}`;
 
-      for (const state of taskStates as any[]) {
-        if (state.completed) continue; // skip completed tasks
+    for (const state of taskStates as any[]) {
+      if (state.completed) continue; // skip completed tasks
 
-        const desc = taskDescs[state.task_id];
-        if (!desc) continue;
+      const desc = taskDescs[state.task_id];
+      if (!desc) continue;
 
-        const requiredItems = (desc.required_items ?? []).map((ri: any) => ({
-          item_id: ri.item_id,
-          item_type: (ri.item_type ?? "Item") as "Item" | "Cargo",
-          name: getItemName(ri.item_type ?? "Item", ri.item_id),
-          quantity: ri.quantity,
-        }));
+      const requiredItems = (desc.required_items ?? []).map((ri: any) => ({
+        item_id: ri.item_id,
+        item_type: (ri.item_type ?? "Item") as "Item" | "Cargo",
+        name: getItemName(ri.item_type ?? "Item", ri.item_id),
+        quantity: ri.quantity,
+      }));
 
-        tasks.push({
-          travelerId: tid,
-          travelerName,
-          taskId: state.task_id,
-          description: desc.description ?? "",
-          skillName: getSkillName(desc.skill_id),
-          completed: false,
-          requiredItems,
-        });
-      }
+      tasks.push({
+        travelerId: tid,
+        travelerName,
+        taskId: state.task_id,
+        description: desc.description ?? "",
+        skillName: getSkillName(desc.skill_id),
+        completed: false,
+        requiredItems,
+      });
     }
+  }
 
-    return tasks;
-  },
-);
+  return tasks;
+});
 
 /** Targets derived from open traveler tasks — used to compute the craft plan */
 export const $travelerTargets = computedAsync(
