@@ -110,11 +110,7 @@ const MAX_DEPTH = 450;
 /** Recipe name patterns to skip (packaging/unpackaging creates cycles) */
 function shouldSkipRecipe(recipe: GameCraftingRecipe): boolean {
   const name = recipe.name.toLowerCase();
-  return (
-    name.startsWith("unpack ") ||
-    name.startsWith("package ") ||
-    name.startsWith("recraft ")
-  );
+  return name.startsWith("unpack ") || name.startsWith("recraft ");
 }
 
 // ─── Main Function ─────────────────────────────────────────────────────────────
