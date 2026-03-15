@@ -20,9 +20,13 @@ import { persistentAtom } from "@nanostores/persistent";
 import { atom, computed, computedAsync } from "nanostores";
 import { $updateTimer } from "../util-store";
 import { resubaka } from "../../common/api";
-import { buildClaimInventory, type ItemPlace } from "../../common/claim-inventory";
+import {
+  buildClaimInventory,
+  type ItemPlace,
+} from "../../common/claim-inventory";
 import type { EmpireClaimInfo } from "../../common/ordum-types";
 import { $playerInfo } from "./player";
+import { asyncDefaultValue, selectorAtom } from "./utils";
 
 // ─── Inventory Source ──────────────────────────────────────────────────────────
 
@@ -121,35 +125,12 @@ const $claimInventory = computedAsync(
 
 // ─── Combined Inventory ────────────────────────────────────────────────────────
 
-/**
- * Unwrap a value that may be a raw value or an AsyncValue from computedAsync.
- * When a computedAsync store is used as input to a plain computed,
- * .get() returns the AsyncValue wrapper rather than the resolved value.
- */
-function unwrapAsync<T>(value: unknown, fallback: T): T {
-  if (value instanceof Map) return value as T;
-  if (value && typeof value === "object" && "state" in value) {
-    const av = value as { state: string; value?: T };
-    if (av.state === "loaded" && av.value !== undefined) return av.value;
-  }
-  return fallback;
-}
+const $emptyInventory = atom(new Map<string, ItemPlace[]>());
 
-const emptyInventory = new Map<string, ItemPlace[]>();
-
-/**
- * The detailed inventory with item locations.
- * Each item key maps to an array of ItemPlace entries recording
- * where the item can be found and how many are at each location.
- */
-export const $inventory = computed(
-  [$inventorySource, $playerInventory, $claimInventory],
-  (source, playerInv, claimInv) => {
-    if (source === "player") {
-      return unwrapAsync(playerInv, emptyInventory);
-    }
-    return unwrapAsync(claimInv, emptyInventory);
-  },
+export const $inventory = selectorAtom(
+  $inventorySource,
+  { player: asyncDefaultValue($playerInventory, $emptyInventory) },
+  asyncDefaultValue($claimInventory, $emptyInventory),
 );
 
 /**
