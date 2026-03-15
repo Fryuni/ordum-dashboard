@@ -323,10 +323,16 @@ function loadGameData() {
     return extractionByOutput;
   });
 
+  const recipesById = new Map<number, GameCraftingRecipe>();
+  for (const recipe of rawRecipes) {
+    recipesById.set(recipe.id, recipe);
+  }
+
   return {
     items,
     cargo,
     recipes: rawRecipes,
+    recipesById,
     recipesByOutput,
     recipesByResolvedOutput,
     extractionRecipes: rawExtraction,
@@ -438,14 +444,14 @@ export function getBuildingTypeName(buildingTypeId: number): string {
 
 export function realItemStack(
   list: GameItemStack[],
-  externalProbability = 1,
+  externalMultiplier = 1,
 ): GameItemStack[] {
   const { items, itemLists } = gd;
 
-  if (externalProbability !== 1) {
+  if (externalMultiplier !== 1) {
     list = list.map((item) => ({
       ...item,
-      quantity: item.quantity * externalProbability,
+      quantity: item.quantity * externalMultiplier,
     }));
   }
 

@@ -24,7 +24,9 @@
  * Player pocket inventories are also personal, not claim property.
  */
 
-import { resubaka } from "./api";
+import z from "zod";
+import { jita, resubaka } from "./api";
+import { gd, realItemStack, referenceKey } from "./gamedata";
 
 /** Building description IDs for bank buildings (personal storage) */
 export const BANK_BUILDING_IDS = new Set([
@@ -37,6 +39,19 @@ export interface ItemPlace {
   name: string;
   quantity: number;
 }
+
+const jitaCraftSchema = z.array(
+  z.object({
+    recipeId: z.int(),
+    buildingName: z.string(),
+    actionsRequiredPerItem: z.int(),
+    craftCount: z.int(),
+    progress: z.int(),
+    totalActionsRequired: z.int(),
+    ownerEntityId: z.string(),
+    ownerUsername: z.string(),
+  }),
+);
 
 /**
  * Build a Map<"ItemType:id", ItemPlace[]> from a claim's API response,
@@ -71,6 +86,55 @@ export async function buildClaimInventory(
         places.push({ name, quantity: qty });
       }
       inventory.set(key, places);
+    }
+  }
+
+  const { claim: claimJita } = await jita.getClaim(claimId);
+
+  const [{ craftResults: completedCrafts }, { craftResults: ongoingCrafts }] =
+    await Promise.all([
+      jita.listCrafts({
+        claimEntityId: claimJita.entityId,
+        regionId: claimJita.regionId,
+        completed: true,
+      }),
+      jita.listCrafts({
+        claimEntityId: claimJita.entityId,
+        regionId: claimJita.regionId,
+        completed: false,
+      }),
+    ]);
+
+  const crafts =
+    jitaCraftSchema.safeParse([...completedCrafts, ...ongoingCrafts]).data ??
+    [];
+
+  for (const craft of crafts) {
+    const recipe = gd.recipesById.get(craft.recipeId);
+    if (!recipe) continue;
+
+    const completed = Math.floor(craft.progress / craft.actionsRequiredPerItem);
+    const remaining = craft.craftCount - completed;
+
+    const items = [
+      ...realItemStack(recipe.consumed_item_stacks, remaining).map((item) => ({
+        item,
+        verb: "consumed",
+      })),
+      ...realItemStack(recipe.crafted_item_stacks, completed).map((item) => ({
+        item,
+        verb: "crafted",
+      })),
+    ];
+
+    for (const { item, verb } of items) {
+      const key = referenceKey(item);
+      const list = inventory.get(key) ?? [];
+      if (!list.length) inventory.set(key, list);
+      list.push({
+        name: `Being ${verb} by "${craft.ownerUsername}"`,
+        quantity: item.quantity,
+      });
     }
   }
 
