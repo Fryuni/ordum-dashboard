@@ -21,7 +21,9 @@ import { atom, computed, computedAsync } from "nanostores";
 import { $updateTimer } from "../util-store";
 import { jita } from "../../common/api";
 import {
+  addCraftsToInventory,
   buildClaimInventory,
+  jitaCraftSchema,
   type ItemPlace,
 } from "../../common/claim-inventory";
 import type { EmpireClaimInfo } from "../../common/ordum-types";
@@ -78,7 +80,13 @@ const $playerInventory = computedAsync(
     const inventory = new Map<string, ItemPlace[]>();
     if (player) {
       try {
-        const invData = await jita.getPlayerInventories(player.entityId);
+        const [invData, { craftResults: completedCrafts }, { craftResults: ongoingCrafts }] =
+          await Promise.all([
+            jita.getPlayerInventories(player.entityId),
+            jita.listCrafts({ playerEntityId: player.entityId, completed: true }),
+            jita.listCrafts({ playerEntityId: player.entityId, completed: false }),
+          ]);
+
         for (const inv of invData.inventories ?? []) {
           const invName = inv.inventoryName ?? inv.buildingName ?? "Backpack";
           for (const pocket of inv.pockets ?? []) {
@@ -99,6 +107,11 @@ const $playerInventory = computedAsync(
             }
           }
         }
+
+        // Add items being crafted by this player
+        const crafts =
+          jitaCraftSchema.safeParse([...completedCrafts, ...ongoingCrafts]).data ?? [];
+        addCraftsToInventory(inventory, crafts);
       } catch (error) {
         console.error("Failed to retrieve player inventory:", error);
       }

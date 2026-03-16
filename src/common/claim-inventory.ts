@@ -40,7 +40,7 @@ export interface ItemPlace {
   quantity: number;
 }
 
-const jitaCraftSchema = z.array(
+export const jitaCraftSchema = z.array(
   z.object({
     recipeId: z.int(),
     buildingName: z.string(),
@@ -52,6 +52,47 @@ const jitaCraftSchema = z.array(
     ownerUsername: z.string(),
   }),
 );
+
+export type JitaCraft = z.infer<typeof jitaCraftSchema>[number];
+
+/**
+ * Add crafting-in-progress items to an inventory map.
+ * For each craft, consumed items (remaining) and crafted items (completed)
+ * are added with descriptive labels.
+ */
+export function addCraftsToInventory(
+  inventory: Map<string, ItemPlace[]>,
+  crafts: JitaCraft[],
+): void {
+  for (const craft of crafts) {
+    const recipe = gd.recipesById.get(craft.recipeId);
+    if (!recipe) continue;
+
+    const completed = Math.floor(craft.progress / craft.actionsRequiredPerItem);
+    const remaining = craft.craftCount - completed;
+
+    const items = [
+      ...realItemStack(recipe.consumed_item_stacks, remaining).map((item) => ({
+        item,
+        verb: "consumed",
+      })),
+      ...realItemStack(recipe.crafted_item_stacks, completed).map((item) => ({
+        item,
+        verb: "crafted",
+      })),
+    ];
+
+    for (const { item, verb } of items) {
+      const key = referenceKey(item);
+      const list = inventory.get(key) ?? [];
+      if (!list.length) inventory.set(key, list);
+      list.push({
+        name: `Being ${verb} by "${craft.ownerUsername}"`,
+        quantity: item.quantity,
+      });
+    }
+  }
+}
 
 /**
  * Build a Map<"ItemType:id", ItemPlace[]> from a claim's API response,
@@ -115,34 +156,7 @@ export async function buildClaimInventory(
     jitaCraftSchema.safeParse([...completedCrafts, ...ongoingCrafts]).data ??
     [];
 
-  for (const craft of crafts) {
-    const recipe = gd.recipesById.get(craft.recipeId);
-    if (!recipe) continue;
-
-    const completed = Math.floor(craft.progress / craft.actionsRequiredPerItem);
-    const remaining = craft.craftCount - completed;
-
-    const items = [
-      ...realItemStack(recipe.consumed_item_stacks, remaining).map((item) => ({
-        item,
-        verb: "consumed",
-      })),
-      ...realItemStack(recipe.crafted_item_stacks, completed).map((item) => ({
-        item,
-        verb: "crafted",
-      })),
-    ];
-
-    for (const { item, verb } of items) {
-      const key = referenceKey(item);
-      const list = inventory.get(key) ?? [];
-      if (!list.length) inventory.set(key, list);
-      list.push({
-        name: `Being ${verb} by "${craft.ownerUsername}"`,
-        quantity: item.quantity,
-      });
-    }
-  }
+  addCraftsToInventory(inventory, crafts);
 
   return inventory;
 }
