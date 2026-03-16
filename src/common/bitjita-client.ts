@@ -64,40 +64,70 @@ export interface ClaimsResponse {
   [key: string]: unknown;
 }
 
+export interface JitaClaimTech {
+  id: string;
+  name: string;
+  description: string;
+  tier: number;
+  techType: string;
+  unlocksTechs: number[];
+  suppliesCost: string;
+  researchTime: number;
+  requirements: number[];
+  members: number;
+  area: number;
+  input?: unknown[];
+  isResearched?: boolean;
+}
+
+export interface JitaClaimDetail {
+  entityId: string;
+  ownerPlayerEntityId: string;
+  ownerBuildingEntityId: string;
+  name: string;
+  neutral: boolean;
+  regionId: number;
+  regionName: string;
+  supplies: string;
+  buildingMaintenance: number;
+  numTiles: number;
+  locationX: number;
+  locationZ: number;
+  locationDimension: number;
+  treasury: string;
+  ownerPlayerUsername: string;
+  techResearching: number;
+  techStartTimestamp: string;
+  tileCost: number;
+  empireEntityId: string;
+  empireName: string;
+  upkeepCost: number;
+  suppliesRunOut: number;
+  tier: number;
+  researchedTechs: JitaClaimTech[];
+}
+
 export interface ClaimResponse {
-  claim: {
-    entityId: string;
-    ownerPlayerEntityId: string;
-    ownerBuildingEntityId: string;
-    name: string;
-    neutral: boolean;
-    regionId: number;
-    regionName: string;
-    supplies: number;
-    buildingMaintenance: number;
-    numTiles: number;
-    locationX: number;
-    locationZ: number;
-    locationDimension: number;
-    treasury: string;
-    ownerPlayerUsername: string;
-    techResearching: number;
-    techStartTimestamp: string;
-    tileCost: number;
-    upkeepCost: number;
-    suppliesRunOut: number;
-    tier: number;
-    researchedTechs: unknown[];
-  };
+  claim: JitaClaimDetail;
   [key: string]: unknown;
 }
 
 export type ClaimBuildingsResponse = unknown;
 
+export interface JitaClaimCitizen {
+  entityId: string;
+  playerEntityId: string;
+  claimEntityId: string;
+  userName: string;
+  signedIn: boolean;
+  timePlayed: number;
+  [key: string]: unknown;
+}
+
 export interface ClaimCitizensResponse {
-  citizens: unknown[];
+  citizens: JitaClaimCitizen[];
   count: number;
-  skillNames: Record<string, unknown>;
+  skillNames: Record<string, string>;
   [key: string]: unknown;
 }
 
@@ -108,10 +138,41 @@ export interface ClaimConstructionResponse {
   [key: string]: unknown;
 }
 
+export interface JitaClaimBuildingInventoryPocketContents {
+  item_id: number;
+  quantity: number;
+  item_type: string;
+}
+
+export interface JitaClaimBuildingInventoryPocket {
+  locked: boolean;
+  volume: number;
+  contents: JitaClaimBuildingInventoryPocketContents | null;
+}
+
+export interface JitaClaimBuildingInventory {
+  entityId: string;
+  buildingDescriptionId: number;
+  buildingName: string;
+  buildingNickname: string | null;
+  iconAssetName: string;
+  inventory: JitaClaimBuildingInventoryPocket[];
+}
+
+export interface JitaClaimInventoryItemInfo {
+  id: number;
+  name: string;
+  iconAssetName: string;
+  rarity: number;
+  rarityStr: string;
+  tier: number;
+  tag: string;
+}
+
 export interface ClaimInventoriesResponse {
-  buildings: unknown[];
-  items: unknown[];
-  cargos: unknown[];
+  buildings: JitaClaimBuildingInventory[];
+  items: JitaClaimInventoryItemInfo[];
+  cargos: JitaClaimInventoryItemInfo[];
   [key: string]: unknown;
 }
 
@@ -125,8 +186,22 @@ export interface ClaimLayoutResponse {
   [key: string]: unknown;
 }
 
+export interface JitaClaimMember {
+  entityId: string;
+  claimEntityId: string;
+  playerEntityId: string;
+  userName: string;
+  inventoryPermission: number;
+  buildPermission: number;
+  officerPermission: number;
+  coOwnerPermission: number;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginTimestamp: string | null;
+}
+
 export interface ClaimMembersResponse {
-  members: unknown[];
+  members: JitaClaimMember[];
   count: number;
   [key: string]: unknown;
 }
@@ -138,12 +213,24 @@ export interface ClaimRecruitmentResponse {
 }
 
 export interface ClaimResearchResponse {
-  technologies: unknown[];
+  technologies: JitaClaimTech[];
+  [key: string]: unknown;
+}
+
+export interface JitaCraftResult {
+  recipeId: number;
+  buildingName: string;
+  actionsRequiredPerItem: number;
+  craftCount: number;
+  progress: number;
+  totalActionsRequired: number;
+  ownerEntityId: string;
+  ownerUsername: string;
   [key: string]: unknown;
 }
 
 export interface CraftsResponse {
-  craftResults: unknown[];
+  craftResults: JitaCraftResult[];
   items: unknown[];
   cargos: unknown[];
   claims: unknown[];
@@ -222,8 +309,27 @@ export interface DeployableResponse {
   [key: string]: unknown;
 }
 
+export interface JitaEmpireSummary {
+  entityId: string;
+  capitalBuildingEntityId: string;
+  name: string;
+  shardTreasury: string;
+  empireCurrencyTreasury: string;
+  nobilityThreshold: string;
+  numClaims: number;
+  ownerType: string;
+  locationX: number;
+  locationZ: number;
+  locationDimension: number;
+  memberCount: string;
+  leader: string;
+  leaderEntityId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface EmpiresResponse {
-  empires: unknown[];
+  empires: JitaEmpireSummary[];
   totalClaims: number;
   totalMembers: number;
   totalTreasury: string;
@@ -237,8 +343,27 @@ export interface EmpireResponse {
   [key: string]: unknown;
 }
 
+export interface JitaEmpireClaim {
+  entityId: string;
+  ownerPlayerEntityId: string;
+  name: string;
+  neutral: boolean;
+  regionId: number;
+  regionName: string;
+  supplies: string;
+  buildingMaintenance: number;
+  numTiles: number;
+  locationX: number;
+  locationZ: number;
+  locationDimension: number;
+  treasury: string;
+  tileCost: number;
+  upkeepCost: number;
+  suppliesRunOut: number;
+}
+
 export interface EmpireClaimsResponse {
-  claims: unknown[];
+  claims: JitaEmpireClaim[];
   count: number;
   [key: string]: unknown;
 }
@@ -438,18 +563,110 @@ export interface PostMarketPricesBulkResponse {
   [key: string]: unknown;
 }
 
+export interface JitaPlayerSummary {
+  entityId: string;
+  username: string;
+  signedIn: boolean;
+  timePlayed: number;
+  timeSignedIn: number;
+  createdAt: string;
+  updatedAt: string;
+  lastLoginTimestamp: string | null;
+}
+
 export interface PlayersResponse {
-  players: unknown[];
+  players: JitaPlayerSummary[];
   total: number;
   [key: string]: unknown;
 }
 
+export interface JitaPlayerExperience {
+  quantity: number;
+  skill_id: number;
+}
+
+export interface JitaPlayerLocation {
+  entityId: string;
+  name: string;
+  regionId: number;
+  locationX: number;
+  locationZ: number;
+}
+
+export interface JitaPlayerClaimMembership {
+  entityId: string;
+  name: string;
+  neutral: boolean;
+  regionId: number;
+  regionName: string;
+  supplies: string;
+  numTiles: number;
+  locationX: number;
+  locationZ: number;
+  locationDimension: number;
+  treasury: string;
+  isOwner: boolean;
+  memberPermissions: {
+    inventoryPermission: number;
+    buildPermission: number;
+    officerPermission: number;
+    coOwnerPermission: number;
+  };
+  [key: string]: unknown;
+}
+
+export interface JitaPlayerEmpireMembership {
+  empireEntityId: string;
+  empireName: string;
+  rank: number;
+  rankTitle: string;
+  donatedShards: string;
+  donatedEmpireCurrency: string;
+  [key: string]: unknown;
+}
+
+export interface JitaSkillDesc {
+  id: number;
+  name: string;
+  title: string;
+  skillCategoryStr: string;
+}
+
+export interface JitaPlayerDetail {
+  entityId: string;
+  username: string;
+  signedIn: boolean;
+  timePlayed: number;
+  timeSignedIn: number;
+  teleportLocationX: number;
+  teleportLocationZ: number;
+  teleportLocationDimension: number;
+  teleportLocationType: string;
+  sessionStartTimestamp: string;
+  signInTimestamp: string;
+  travelerTasksExpiration: string;
+  createdAt: string;
+  updatedAt: string;
+  experience: JitaPlayerExperience[];
+  lastLoginTimestamp: string | null;
+  locationX: number;
+  locationZ: number;
+  regionId: number;
+  location: JitaPlayerLocation | null;
+  skillMap: Record<string, JitaSkillDesc>;
+  claims: JitaPlayerClaimMembership[];
+  empireMemberships: JitaPlayerEmpireMembership[];
+  exploration: {
+    totalExploredChunks: number;
+    totalPercentageExplored: number;
+    totalChunks: number;
+    regionCount: number;
+  };
+  [key: string]: unknown;
+}
+
 export interface PlayerResponse {
-  player: Record<string, unknown>;
-  claims: unknown[];
-  empires: unknown[];
-  marketOrders: unknown[];
-  skills: unknown[];
+  player: JitaPlayerDetail;
   [key: string]: unknown;
 }
 
@@ -501,10 +718,49 @@ export interface PlayerHousingDetailResponse {
   [key: string]: unknown;
 }
 
+export interface JitaPocketContents {
+  itemId: number;
+  /** 0 = Item, 1 = Cargo */
+  itemType: number;
+  quantity: number;
+}
+
+export interface JitaPocket {
+  locked: boolean;
+  volume: number;
+  contents: JitaPocketContents | null;
+}
+
+export interface JitaPlayerInventory {
+  entityId: string;
+  playerOwnerEntityId: string;
+  ownerEntityId: string;
+  pockets: JitaPocket[];
+  inventoryIndex: number;
+  cargoIndex: number;
+  buildingName: string | null;
+  claimEntityId: string | null;
+  claimName: string | null;
+  claimLocationX: number | null;
+  claimLocationZ: number | null;
+  claimLocationDimension: number | null;
+  regionId: number | null;
+  inventoryName: string | null;
+}
+
+export interface JitaItemInfo {
+  name: string;
+  iconAssetName: string;
+  tier: number;
+  rarityStr: string;
+  tag: string;
+}
+
 export interface PlayerInventoriesResponse {
-  inventories: unknown[];
-  items: unknown[];
-  cargos: unknown[];
+  inventories: JitaPlayerInventory[];
+  items: Record<string, JitaItemInfo>;
+  cargos: Record<string, JitaItemInfo>;
+  availableRegions?: unknown[];
   [key: string]: unknown;
 }
 
@@ -545,10 +801,42 @@ export interface PlayerStatsResponse {
   [key: string]: unknown;
 }
 
+export interface JitaTravelerTask {
+  entityId: string;
+  taskId: number;
+  travelerId: number;
+  completed: boolean;
+  regionId: number;
+  description: string;
+  levelRequirement: {
+    skill_id: number;
+    max_level: number;
+    min_level: number;
+  };
+  requiredItems: {
+    item_id: number;
+    quantity: number;
+    item_type: string;
+    durability: number;
+  }[];
+  rewardedItems: {
+    item_id: number;
+    quantity: number;
+    item_type: string;
+    durability: number;
+  }[];
+  rewardedExperience: {
+    quantity: number;
+    skill_id: number;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PlayerTravelerTasksResponse {
-  tasks: unknown[];
-  items: Record<string, unknown>;
-  cargo: Record<string, unknown>;
+  tasks: JitaTravelerTask[];
+  items: Record<string, JitaItemInfo>;
+  cargo: Record<string, JitaItemInfo>;
   expirationTimestamp?: number;
   [key: string]: unknown;
 }

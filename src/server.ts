@@ -25,7 +25,7 @@
 import homepage from "./client/index.html";
 import { fetchEmpireData } from "./server/ordum-data";
 import { ORDUM_MAIN_CLAIM_ID } from "./server/ordum-data";
-import { serverResubaka, serverJita } from "./server/api-server";
+import { serverJita } from "./server/api-server";
 import { ORDUM_EMPIRE_NAME } from "./common/ordum-types";
 import { buildClaimInventory } from "./common/claim-inventory";
 import { buildSettlementPlan } from "./common/settlement-planner";
@@ -40,7 +40,6 @@ import {
 import { hash } from "ohash";
 import { proxyRoutes } from "./server/routes/proxy";
 
-const API_BASE_URL = "https://craft-api.resubaka.dev";
 const PORT = parseInt(process.env.PORT ?? "4321", 10);
 const HOST = process.env.HOST ?? "0.0.0.0";
 const isDev = process.env.NODE_ENV !== "production";
@@ -108,12 +107,22 @@ Bun.serve({
         try {
           const url = new URL(request.url);
           const claimId = url.searchParams.get("claim") || ORDUM_MAIN_CLAIM_ID;
-          const claim = await serverResubaka.getClaim(claimId);
+          const { claim } = await serverJita.getClaim(claimId);
           const currentTier = claim.tier ?? 1;
-          const supplies = claim.supplies ?? 0;
-          const learnedIds = new Set<number>(claim.learned_upgrades ?? []);
+          const supplies = Number(claim.supplies) || 0;
+          const learnedIds = new Set<number>(
+            (claim.researchedTechs ?? []).map((t: any) => Number(t.id)),
+          );
           const claimName = claim.name ?? "Unknown Claim";
-          const inventory = await buildClaimInventory(claimId);
+          const rawInventory = await buildClaimInventory(claimId);
+          // Convert ItemPlace[] map to totals map for the settlement planner
+          const inventory = new Map<string, number>();
+          for (const [key, places] of rawInventory) {
+            inventory.set(
+              key,
+              places.reduce((sum, p) => sum + p.quantity, 0),
+            );
+          }
           const plans = buildSettlementPlan(
             currentTier,
             learnedIds,

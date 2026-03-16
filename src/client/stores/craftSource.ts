@@ -19,7 +19,7 @@
 import { persistentAtom } from "@nanostores/persistent";
 import { atom, computed, computedAsync } from "nanostores";
 import { $updateTimer } from "../util-store";
-import { resubaka } from "../../common/api";
+import { jita } from "../../common/api";
 import {
   buildClaimInventory,
   type ItemPlace,
@@ -78,16 +78,15 @@ const $playerInventory = computedAsync(
     const inventory = new Map<string, ItemPlace[]>();
     if (player) {
       try {
-        const invData = await resubaka.findInventoryByOwnerEntityId(
-          player.entity_id,
-        );
-        for (const inv of invData.inventorys ?? []) {
-          const invName = inv.nickname ?? "Backpack";
+        const invData = await jita.getPlayerInventories(player.entityId);
+        for (const inv of invData.inventories ?? []) {
+          const invName = inv.inventoryName ?? inv.buildingName ?? "Backpack";
           for (const pocket of inv.pockets ?? []) {
-            const p = pocket as any;
-            if (p?.contents) {
-              const c = p.contents;
-              const key = `${c.item_type ?? "Item"}:${c.item_id}`;
+            if (pocket?.contents) {
+              const c = pocket.contents;
+              // BitJita uses numeric itemType: 0 = Item, 1 = Cargo
+              const itemType = c.itemType === 1 ? "Cargo" : "Item";
+              const key = `${itemType}:${c.itemId}`;
               const qty = c.quantity ?? 1;
               const places = inventory.get(key) ?? [];
               const existing = places.find((pl) => pl.name === invName);

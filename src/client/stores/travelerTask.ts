@@ -17,11 +17,11 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { computed, computedAsync } from "nanostores";
-import { resubaka } from "../../common/api";
+import { jita } from "../../common/api";
 import { getItemName, getSkillName } from "../../common/gamedata";
 import { buildCraftPlan } from "../../common/craft-planner";
 import { $inventoryTotals } from "./craftSource";
-import { $playerData } from "./player";
+import { $playerInfo } from "./player";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -40,78 +40,53 @@ export interface TravelerTaskInfo {
   }[];
 }
 
-// ─── Cached reference data ─────────────────────────────────────────────────────
+// ─── NPC Names ─────────────────────────────────────────────────────────────────
 
-let npcCache: Record<number, { name: string }> | null = null;
-let taskDescCache: Record<
-  number,
-  {
-    description: string;
-    skill_id: number;
-    required_items: { item_id: number; quantity: number; item_type: string }[];
-  }
-> | null = null;
+/** Known traveler NPCs — fixed game characters */
+const TRAVELER_NAMES: Record<number, string> = {
+  1: "Rumbagh",
+  2: "Svim",
+  3: "Heimlich",
+  4: "Brumgar",
+  5: "Jasper",
+  6: "Alesi",
+  7: "Fern",
+};
 
-async function getNpcs() {
-  if (!npcCache) {
-    const raw = await resubaka.getNpcAll();
-    npcCache = {};
-    for (const [id, npc] of Object.entries(raw)) {
-      npcCache[Number(id)] = { name: (npc as any).name ?? `NPC #${id}` };
-    }
-  }
-  return npcCache;
-}
-
-async function getTaskDescs() {
-  if (!taskDescCache) {
-    const raw = await resubaka.getTravelerTasks();
-    taskDescCache = {};
-    for (const [id, task] of Object.entries(raw)) {
-      taskDescCache[Number(id)] = task as any;
-    }
-  }
-  return taskDescCache;
+function getNpcName(travelerId: number): string {
+  return TRAVELER_NAMES[travelerId] ?? `Traveler #${travelerId}`;
 }
 
 // ─── Traveler Tasks ────────────────────────────────────────────────────────────
 
 /** All traveler tasks for the selected player */
-export const $travelerTasks = computedAsync($playerData, async (playerData) => {
-  if (!playerData) return [];
+export const $travelerTasks = computedAsync($playerInfo, async (playerInfo) => {
+  if (!playerInfo) return [];
 
-  const [npcs, taskDescs] = await Promise.all([getNpcs(), getTaskDescs()]);
+  const data = await jita.getPlayerTravelerTasks(playerInfo.entityId);
 
   const tasks: TravelerTaskInfo[] = [];
-  const travelerTasks = playerData.traveler_tasks ?? {};
+  for (const task of data.tasks) {
+    if (task.completed) continue; // skip completed tasks
 
-  for (const [travelerId, taskStates] of Object.entries(travelerTasks)) {
-    const tid = Number(travelerId);
-    const travelerName = npcs[tid]?.name ?? `Traveler #${tid}`;
+    const requiredItems = (task.requiredItems ?? []).map((ri) => ({
+      item_id: ri.item_id,
+      item_type: (ri.item_type === "cargo" ? "Cargo" : "Item") as
+        | "Item"
+        | "Cargo",
+      name: getItemName(ri.item_type === "cargo" ? "Cargo" : "Item", ri.item_id),
+      quantity: ri.quantity,
+    }));
 
-    for (const state of taskStates as any[]) {
-      if (state.completed) continue; // skip completed tasks
-
-      const desc = taskDescs[state.task_id];
-      if (!desc) continue;
-
-      const requiredItems = (desc.required_items ?? []).map((ri: any) => ({
-        item_id: ri.item_id,
-        item_type: (ri.item_type ?? "Item") as "Item" | "Cargo",
-        name: getItemName(ri.item_type ?? "Item", ri.item_id),
-        quantity: ri.quantity,
-      }));
-
-      tasks.push({
-        travelerId: tid,
-        travelerName,
-        taskId: state.task_id,
-        description: desc.description ?? "",
-        skillName: getSkillName(desc.skill_id),
-        completed: false,
-        requiredItems,
-      });
-    }
+    tasks.push({
+      travelerId: task.travelerId,
+      travelerName: getNpcName(task.travelerId),
+      taskId: task.taskId,
+      description: task.description ?? "",
+      skillName: getSkillName(task.rewardedExperience?.skill_id ?? 0),
+      completed: false,
+      requiredItems,
+    });
   }
 
   return tasks;
@@ -119,10 +94,11 @@ export const $travelerTasks = computedAsync($playerData, async (playerData) => {
 
 /** Traveler tasks expiration timestamp (seconds since epoch) */
 export const $travelerTasksExpiration = computedAsync(
-  $playerData,
-  async (playerData): Promise<number | null> => {
-    if (!playerData) return null;
-    return (playerData as any).traveler_tasks_expiration ?? null;
+  $playerInfo,
+  async (playerInfo): Promise<number | null> => {
+    if (!playerInfo) return null;
+    const data = await jita.getPlayerTravelerTasks(playerInfo.entityId);
+    return data.expirationTimestamp ?? null;
   },
 );
 

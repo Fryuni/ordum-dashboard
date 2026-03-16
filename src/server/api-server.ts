@@ -29,24 +29,7 @@ import {
   type CacheProvider,
 } from "@croct/cache";
 import { hash } from "ohash";
-import { ResubakaClient } from "../common/resubaka-client";
 import BitJitaClient from "../common/bitjita-client";
-
-class CachedResubaka extends ResubakaClient {
-  #apiCache: CacheProvider<any, any> = AdaptedCache.transformKeys(
-    new SharedInFlightCache(
-      new StaleWhileRevalidateCache({
-        freshPeriod: 20,
-        cacheProvider: LruCache.ofCapacity(1 << 15),
-      }),
-    ),
-    hash,
-  );
-
-  protected async request<T>(path: string): Promise<T> {
-    return this.#apiCache.get(path, (p) => super.request(p));
-  }
-}
 
 class CachedBitJita extends BitJitaClient {
   #apiCache: CacheProvider<any, any> = AdaptedCache.transformKeys(
@@ -64,12 +47,7 @@ class CachedBitJita extends BitJitaClient {
   }
 }
 
-/** Server-side cached API client for direct upstream calls. */
-export const serverResubaka = new CachedResubaka({
-  baseUrl: "https://craft-api.resubaka.dev",
-  timeout: 60_000,
-});
-
+/** Server-side cached BitJita API client for direct upstream calls. */
 export const serverJita = new CachedBitJita({
   baseUrl: "https://bitjita.com",
   timeout: 15_000,

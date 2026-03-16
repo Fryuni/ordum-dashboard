@@ -20,19 +20,16 @@
  * Ordum Empire Data Fetcher
  *
  * Fetches and aggregates resource data across all claims in the Ordum empire.
- * Uses the ResubakaClient to pull claim details including:
+ * Uses the BitJita API to pull claim details including:
  *  - Building inventories (resources stored in claim buildings)
- *  - Player inventories (online + offline members)
- *  - Tool inventories
  *  - Member details
  */
 
-import {
-  type ClaimDescriptionStateMember,
-  type ExpendedRefrence,
-  type InventoryItemLocation,
-} from "../common/resubaka-client";
-import { serverResubaka as api } from "./api-server";
+import type {
+  JitaClaimBuildingInventory,
+  JitaClaimMember,
+} from "../common/bitjita-client";
+import { serverJita as api } from "./api-server";
 import { BANK_BUILDING_IDS } from "../common/claim-inventory";
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
@@ -82,7 +79,7 @@ export interface ResourceLocation {
 }
 
 export interface MemberInfo {
-  entity_id: number;
+  entity_id: string;
   user_name: string;
   online: boolean;
   inventory_permission: boolean;
@@ -95,7 +92,7 @@ export interface MemberInfo {
 }
 
 export interface ClaimSummary {
-  entity_id: number;
+  entity_id: string;
   name: string;
   region: string;
   tier: number | null;
@@ -134,48 +131,6 @@ export interface EmpireSummary {
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
-function parseExpendedRef(ref: ExpendedRefrence): ResourceItem {
-  const item = (ref as any).item ?? {};
-  return {
-    item_id: ref.item_id,
-    name: ref.name ?? item.name ?? `Item #${ref.item_id}`,
-    description: item.description ?? "",
-    icon_asset_name: ref.icon_asset_name ?? item.icon_asset_name ?? "",
-    tier: item.tier ?? 0,
-    tag: item.tag ?? "",
-    rarity: item.rarity,
-    item_type: (ref as any).item_type ?? "Item",
-    quantity: ref.quantity ?? 0,
-    durability: (ref as any).durability ?? null,
-  };
-}
-
-function parseInventoryLocation(
-  loc: InventoryItemLocation,
-): ResourceWithLocations {
-  const item = (loc as any).item ?? {};
-  return {
-    item_id: loc.item_id,
-    name: item.name ?? `Item #${loc.item_id}`,
-    description: item.description ?? "",
-    icon_asset_name: item.icon_asset_name ?? "",
-    tier: item.tier ?? 0,
-    tag: item.tag ?? "",
-    rarity: item.rarity,
-    item_type: loc.item_type,
-    quantity: 0, // will be summed from locations
-    durability: loc.durability ?? null,
-    locations: loc.locations.map((l) => ({
-      owner_type: l.owner_type,
-      owner_name: l.owner_name || "Unknown",
-      building_name: l.building_name || "Ground",
-      building_description_id: l.building_description_id ?? null,
-      quantity: l.quantity,
-      inventory_entity_id: l.inventory_entity_id,
-    })),
-  };
-}
-
 function mergeResources(items: ResourceItem[]): ResourceItem[] {
   const map = new Map<string, ResourceItem>();
   for (const item of items) {
@@ -190,140 +145,142 @@ function mergeResources(items: ResourceItem[]): ResourceItem[] {
   return [...map.values()].sort((a, b) => b.quantity - a.quantity);
 }
 
+/**
+ * Build ResourceWithLocations from BitJita claim building inventories,
+ * using the items/cargos lookup dictionaries for names.
+ */
+function parseBuildingInventories(
+  buildings: JitaClaimBuildingInventory[],
+  itemsDict: Record<string, { name: string; iconAssetName: string; tier: number; tag: string; rarityStr: string }>,
+  cargosDict: Record<string, { name: string; iconAssetName: string; tier: number; tag: string; rarityStr: string }>,
+): ResourceWithLocations[] {
+  // Aggregate by item key, collecting locations
+  const byKey = new Map<string, ResourceWithLocations>();
+
+  for (const building of buildings) {
+    // Skip bank buildings (personal storage)
+    if (BANK_BUILDING_IDS.has(building.buildingDescriptionId)) continue;
+
+    const buildingLabel =
+      building.buildingNickname ?? building.buildingName ?? "Unknown Building";
+
+    for (const pocket of building.inventory ?? []) {
+      if (!pocket.contents) continue;
+      const c = pocket.contents;
+      const isCargo = c.item_type === "cargo";
+      const itemType = isCargo ? "Cargo" : "Item";
+      const key = `${itemType}:${c.item_id}`;
+      const qty = c.quantity ?? 0;
+      if (qty <= 0) continue;
+
+      const desc = isCargo
+        ? cargosDict[String(c.item_id)]
+        : itemsDict[String(c.item_id)];
+
+      let entry = byKey.get(key);
+      if (!entry) {
+        entry = {
+          item_id: c.item_id,
+          name: desc?.name ?? `${itemType} #${c.item_id}`,
+          description: "",
+          icon_asset_name: desc?.iconAssetName ?? "",
+          tier: desc?.tier ?? 0,
+          tag: desc?.tag ?? "",
+          rarity: desc?.rarityStr,
+          item_type: itemType,
+          quantity: 0,
+          durability: null,
+          locations: [],
+        };
+        byKey.set(key, entry);
+      }
+
+      entry.quantity += qty;
+
+      // Check if there's already a location for this building
+      const existingLoc = entry.locations.find(
+        (l) => l.building_name === buildingLabel,
+      );
+      if (existingLoc) {
+        existingLoc.quantity += qty;
+      } else {
+        entry.locations.push({
+          owner_type: "Building",
+          owner_name: buildingLabel,
+          building_name: buildingLabel,
+          building_description_id: building.buildingDescriptionId,
+          quantity: qty,
+          inventory_entity_id: Number(building.entityId) || 0,
+        });
+      }
+    }
+  }
+
+  return [...byKey.values()].sort((a, b) => b.quantity - a.quantity);
+}
+
 // ─── Main Fetch ────────────────────────────────────────────────────────────────
 
 /**
- * Fetch claim data using string-based ID to avoid JS number precision loss.
- * The Bitcraft entity IDs exceed Number.MAX_SAFE_INTEGER, so we must use
- * the raw string form in the URL.
+ * Fetch claim data using the BitJita API.
  */
 export async function fetchClaimData(
   claimIdStr: string,
 ): Promise<ClaimSummary> {
-  const raw = await api.getClaim(claimIdStr);
+  const [{ claim }, claimInv, claimMembers] = await Promise.all([
+    api.getClaim(claimIdStr),
+    api.getClaimInventories(claimIdStr),
+    api.getClaimMembers(claimIdStr),
+  ]);
 
-  // Parse building resources (with locations), excluding bank buildings (personal storage)
-  const buildingLocs: ResourceWithLocations[] = [];
-  const buildingLocArray = (raw.inventory_locations as any)?.buildings ?? [];
-  for (const loc of buildingLocArray) {
-    const parsed = parseInventoryLocation(loc);
-    // Filter out bank building locations
-    parsed.locations = parsed.locations.filter(
-      (l) => !BANK_BUILDING_IDS.has(l.building_description_id ?? 0),
-    );
-    parsed.quantity = parsed.locations.reduce((sum, l) => sum + l.quantity, 0);
-    if (parsed.quantity > 0) buildingLocs.push(parsed);
+  // Build item/cargo lookup dicts from the inventories response
+  const itemsDict: Record<string, any> = {};
+  for (const item of claimInv.items ?? []) {
+    itemsDict[String(item.id)] = item;
+  }
+  const cargosDict: Record<string, any> = {};
+  for (const cargo of claimInv.cargos ?? []) {
+    cargosDict[String(cargo.id)] = cargo;
   }
 
-  // Parse player resources (with locations)
-  const playerLocs: ResourceWithLocations[] = [];
-  const playerLocArray = (raw.inventory_locations as any)?.players ?? [];
-  for (const loc of playerLocArray) {
-    const parsed = parseInventoryLocation(loc);
-    parsed.quantity = parsed.locations.reduce((sum, l) => sum + l.quantity, 0);
-    playerLocs.push(parsed);
-  }
+  // Parse building resources (with locations), excluding bank buildings
+  const buildingResources = parseBuildingInventories(
+    claimInv.buildings ?? [],
+    itemsDict,
+    cargosDict,
+  );
 
-  // Parse offline player resources
-  const offlineLocs: ResourceWithLocations[] = [];
-  const offlineLocArray =
-    (raw.inventory_locations as any)?.players_offline ?? [];
-  for (const loc of offlineLocArray) {
-    const parsed = parseInventoryLocation(loc);
-    parsed.quantity = parsed.locations.reduce((sum, l) => sum + l.quantity, 0);
-    offlineLocs.push(parsed);
-  }
-
-  // Parse tools
-  const toolItems: ResourceItem[] = [];
-  const toolArray = (raw.tool_inventorys as any)?.players ?? [];
-  for (const ref of toolArray) {
-    toolItems.push(parseExpendedRef(ref));
-  }
-
-  const toolOfflineItems: ResourceItem[] = [];
-  const toolOfflineArray = (raw.tool_inventorys as any)?.players_offline ?? [];
-  for (const ref of toolOfflineArray) {
-    toolOfflineItems.push(parseExpendedRef(ref));
-  }
-
-  // Parse members
-  const members: MemberInfo[] = [];
-  const rawMembers = raw.members ?? {};
-  for (const [, m] of Object.entries(rawMembers) as [
-    string,
-    ClaimDescriptionStateMember,
-  ][]) {
-    const skills: Record<
-      string,
-      { level: number; experience: number; rank: number }
-    > = {};
-    const rawSkills = (m as any).skills_ranks ?? {};
-    for (const [skillName, s] of Object.entries(rawSkills) as [string, any][]) {
-      skills[skillName] = {
-        level: s.level ?? 0,
-        experience: s.experience ?? 0,
-        rank: s.rank ?? 0,
-      };
-    }
-
-    // Extract inventory items from member's resolved inventory
-    const inv_items: ResourceItem[] = [];
-    const tool_items: ResourceItem[] = [];
-    if (m.inventory) {
-      const pockets = (m.inventory as any).pockets ?? [];
-      for (const pocket of pockets) {
-        if (pocket.contents) {
-          const c = pocket.contents;
-          inv_items.push({
-            item_id: c.item_id,
-            name: c.item?.name ?? `Item #${c.item_id}`,
-            description: c.item?.description ?? "",
-            icon_asset_name: c.item?.icon_asset_name ?? "",
-            tier: c.item?.tier ?? 0,
-            tag: c.item?.tag ?? "",
-            rarity: c.item?.rarity,
-            item_type: c.item_type ?? "Item",
-            quantity: c.quantity ?? 1,
-            durability: c.durability,
-          });
-        }
-      }
-    }
-
-    members.push({
-      entity_id: m.entity_id,
-      user_name: m.user_name,
-      online: m.online_state === "Online",
-      inventory_permission: m.inventory_permission,
-      build_permission: m.build_permission,
-      officer_permission: m.officer_permission,
-      co_owner_permission: m.co_owner_permission,
-      skills,
-      inventory_items: inv_items,
-      tool_items: tool_items,
-    });
-  }
+  // Parse members from BitJita claim members endpoint
+  const members: MemberInfo[] = (claimMembers.members ?? []).map(
+    (m: JitaClaimMember) => ({
+      entity_id: m.playerEntityId,
+      user_name: m.userName,
+      online: false, // BitJita members endpoint doesn't include online status
+      inventory_permission: m.inventoryPermission === 1,
+      build_permission: m.buildPermission === 1,
+      officer_permission: m.officerPermission === 1,
+      co_owner_permission: m.coOwnerPermission === 1,
+      skills: {},
+      inventory_items: [],
+      tool_items: [],
+    }),
+  );
 
   return {
-    entity_id: raw.entity_id,
-    name: raw.name,
-    region: raw.region,
-    tier: raw.tier ?? null,
-    supplies: raw.supplies,
-    treasury: raw.treasury,
-    num_tiles: raw.num_tiles,
+    entity_id: claim.entityId,
+    name: claim.name,
+    region: claim.regionName,
+    tier: claim.tier ?? null,
+    supplies: Number(claim.supplies) || 0,
+    treasury: Number(claim.treasury) || 0,
+    num_tiles: claim.numTiles,
     member_count: members.length,
-    building_count: (raw.building_states ?? []).length,
-    building_resources: buildingLocs.sort((a, b) => b.quantity - a.quantity),
-    player_resources: playerLocs.sort((a, b) => b.quantity - a.quantity),
-    player_offline_resources: offlineLocs.sort(
-      (a, b) => b.quantity - a.quantity,
-    ),
-    tool_resources: toolItems.sort((a, b) => b.quantity - a.quantity),
-    tool_offline_resources: toolOfflineItems.sort(
-      (a, b) => b.quantity - a.quantity,
-    ),
+    building_count: (claimInv.buildings ?? []).length,
+    building_resources: buildingResources,
+    player_resources: [], // BitJita doesn't aggregate player inventories at claim level
+    player_offline_resources: [],
+    tool_resources: [],
+    tool_offline_resources: [],
     members: members.sort((a, b) =>
       a.online === b.online ? 0 : a.online ? -1 : 1,
     ),
@@ -406,10 +363,10 @@ export async function fetchEmpireData(
 export async function fetchClaimMembers() {
   let members: { entity_id: string; user_name: string }[] = [];
   try {
-    const claim = await api.getClaim(ORDUM_MAIN_CLAIM_ID);
-    members = Object.values(claim.members ?? {})
-      .map((m: any) => ({ entity_id: m.entity_id, user_name: m.user_name }))
-      .sort((a: any, b: any) => a.user_name.localeCompare(b.user_name));
+    const claimMembers = await api.getClaimMembers(ORDUM_MAIN_CLAIM_ID);
+    members = (claimMembers.members ?? [])
+      .map((m) => ({ entity_id: m.playerEntityId, user_name: m.userName }))
+      .sort((a, b) => a.user_name.localeCompare(b.user_name));
   } catch (e) {
     // Continue without members
   }

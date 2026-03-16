@@ -30,7 +30,7 @@ import { buildCraftPlan } from "../../common/craft-planner";
 import type { ItemReference } from "../../common/gamedata";
 import { z } from "zod";
 import { $inventoryTotals, $inventorySource } from "./craftSource";
-import { resubaka } from "../../common/api";
+import { jita } from "../../common/api";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import { buildSettlementPlan } from "../../common/settlement-planner";
 import { $router } from "./router";
@@ -219,10 +219,12 @@ const $importedTargets = computedAsync(
         // Auto-select the claim inventory from the URL, or fall back to main
         const claimId = claimParam || ORDUM_MAIN_CLAIM_ID;
         $inventorySource.set(claimId);
-        const claim = await resubaka.getClaim(claimId);
+        const { claim } = await jita.getClaim(claimId);
         const currentTier = claim.tier ?? 1;
-        const learnedIds = new Set<number>(claim.learned_upgrades ?? []);
-        const supplies = claim.supplies ?? 0;
+        const learnedIds = new Set<number>(
+          (claim.researchedTechs ?? []).map((t) => Number(t.id)),
+        );
+        const supplies = Number(claim.supplies) || 0;
 
         const plans = buildSettlementPlan(
           currentTier,

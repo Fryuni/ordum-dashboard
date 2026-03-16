@@ -60,7 +60,6 @@ const makeApiCache = (): CacheProvider<
     hash,
   );
 
-const resubakaCache = makeApiCache();
 const jitaCache = makeApiCache();
 
 export const proxyRoutes = makeRoutes({
@@ -92,32 +91,5 @@ export const proxyRoutes = makeRoutes({
     }
   },
 
-  // API Proxy — forward /api/* to upstream
-  "/resubaka/*": async (request) => {
-    const url = new URL(request.url);
-    const rest = url.pathname.slice("/resubaka/".length);
-    const newUrl = new URL(`https://craft-api.resubaka.dev/${rest}`);
-    newUrl.search = url.search;
 
-    const req: RequestDescription = {
-      url: newUrl.toString(),
-      method: request.method,
-      body:
-        request.method !== "GET"
-          ? await request.json().catch(() => null)
-          : undefined,
-    };
-
-    try {
-      const res = await resubakaCache.get(req, makeRequest);
-      return new Response(res.body, {
-        status: res.status,
-        statusText: res.statusText,
-        headers: { "Content-Type": res.contentType },
-      });
-    } catch (error) {
-      console.error("API proxy error:", error);
-      return Response.json({ error: "API proxy error" }, { status: 502 });
-    }
-  },
 });

@@ -17,17 +17,8 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import BitJitaClient from "./bitjita-client";
-import { ResubakaClient } from "./resubaka-client";
 
 /** Global API client instance. Server-side caching is handled by the proxy layer. */
-export const resubaka = new ResubakaClient({
-  baseUrl:
-    typeof window === "undefined"
-      ? "https://craft-api.resubaka.dev"
-      : `${window.location.origin}/resubaka`,
-  timeout: 15_000,
-});
-
 export const jita = new BitJitaClient({
   baseUrl:
     typeof window === "undefined"

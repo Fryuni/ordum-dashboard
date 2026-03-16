@@ -25,7 +25,7 @@
  */
 
 import z from "zod";
-import { jita, resubaka } from "./api";
+import { jita } from "./api";
 import { gd, realItemStack, referenceKey } from "./gamedata";
 
 /** Building description IDs for bank buildings (personal storage) */
@@ -63,44 +63,50 @@ const jitaCraftSchema = z.array(
 export async function buildClaimInventory(
   claimId: string,
 ): Promise<Map<string, ItemPlace[]>> {
-  const claim = await resubaka.getClaim(claimId);
+  const [{ claim: claimDetail }, claimInv] = await Promise.all([
+    jita.getClaim(claimId),
+    jita.getClaimInventories(claimId),
+  ]);
 
   const inventory = new Map<string, ItemPlace[]>();
 
-  // Building inventories — use inventory_locations for building-level filtering
-  const buildingLocs = (claim.inventory_locations as any)?.buildings ?? [];
-  for (const loc of buildingLocs) {
-    const key = `${loc.item_type ?? "Item"}:${loc.item_id}`;
-    for (const l of loc.locations ?? []) {
-      // Skip bank buildings (personal storage)
-      if (BANK_BUILDING_IDS.has(l.building_description_id)) continue;
-      const qty = l.quantity ?? 0;
+  // Building inventories from BitJita claim inventories endpoint
+  for (const building of claimInv.buildings ?? []) {
+    // Skip bank buildings (personal storage)
+    if (BANK_BUILDING_IDS.has(building.buildingDescriptionId)) continue;
+
+    const buildingLabel =
+      building.buildingNickname ?? building.buildingName ?? "Unknown Building";
+
+    for (const pocket of building.inventory ?? []) {
+      if (!pocket.contents) continue;
+      const c = pocket.contents;
+      const itemType = c.item_type === "cargo" ? "Cargo" : "Item";
+      const key = `${itemType}:${c.item_id}`;
+      const qty = c.quantity ?? 0;
       if (qty <= 0) continue;
-      const name: string = l.building_name ?? "Unknown Building";
+
       const places = inventory.get(key) ?? [];
-      // Merge into existing place with the same name
-      const existing = places.find((p) => p.name === name);
+      const existing = places.find((p) => p.name === buildingLabel);
       if (existing) {
         existing.quantity += qty;
       } else {
-        places.push({ name, quantity: qty });
+        places.push({ name: buildingLabel, quantity: qty });
       }
       inventory.set(key, places);
     }
   }
 
-  const { claim: claimJita } = await jita.getClaim(claimId);
-
   const [{ craftResults: completedCrafts }, { craftResults: ongoingCrafts }] =
     await Promise.all([
       jita.listCrafts({
-        claimEntityId: claimJita.entityId,
-        regionId: claimJita.regionId,
+        claimEntityId: claimDetail.entityId,
+        regionId: claimDetail.regionId,
         completed: true,
       }),
       jita.listCrafts({
-        claimEntityId: claimJita.entityId,
-        regionId: claimJita.regionId,
+        claimEntityId: claimDetail.entityId,
+        regionId: claimDetail.regionId,
         completed: false,
       }),
     ]);

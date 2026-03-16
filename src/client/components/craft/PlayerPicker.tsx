@@ -18,11 +18,11 @@
  */
 import { useStore } from "@nanostores/preact";
 import { useRef, useState, useEffect, useCallback } from "preact/hooks";
-import { resubaka } from "../../../common/api";
+import { jita } from "../../../common/api";
 import { $player } from "../../stores/player";
 
 interface PlayerResult {
-  entity_id: number;
+  entity_id: string;
   username: string;
 }
 
@@ -49,14 +49,10 @@ export default function PlayerPicker() {
     setLoading(true);
     debounceRef.current = setTimeout(async () => {
       try {
-        const page = await resubaka.listPlayers({
-          search: q,
-          page: 1,
-          per_page: 10,
-        });
+        const page = await jita.listPlayers({ q });
         setResults(
           page.players.map((p) => ({
-            entity_id: p.entity_id,
+            entity_id: p.entityId,
             username: p.username,
           })),
         );
