@@ -22,6 +22,7 @@ import { getItemName, getSkillName } from "../../common/gamedata";
 import { buildCraftPlan } from "../../common/craft-planner";
 import { $inventoryTotals } from "./craftSource";
 import { $playerInfo } from "./player";
+import { $updateTimer } from "../util-store";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -59,8 +60,8 @@ function getNpcName(travelerId: number): string {
 
 // ─── Traveler Tasks ────────────────────────────────────────────────────────────
 
-/** All traveler tasks for the selected player */
-export const $travelerTasks = computedAsync($playerInfo, async (playerInfo) => {
+/** All traveler tasks for the selected player (refreshes with update timer) */
+export const $travelerTasks = computedAsync([$playerInfo, $updateTimer], async (playerInfo) => {
   if (!playerInfo) return [];
 
   const data = await jita.getPlayerTravelerTasks(playerInfo.entityId);
@@ -94,7 +95,7 @@ export const $travelerTasks = computedAsync($playerInfo, async (playerInfo) => {
 
 /** Traveler tasks expiration timestamp (seconds since epoch) */
 export const $travelerTasksExpiration = computedAsync(
-  $playerInfo,
+  [$playerInfo, $updateTimer],
   async (playerInfo): Promise<number | null> => {
     if (!playerInfo) return null;
     const data = await jita.getPlayerTravelerTasks(playerInfo.entityId);
