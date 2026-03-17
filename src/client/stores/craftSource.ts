@@ -22,6 +22,7 @@ import { $updateTimer } from "../util-store";
 import { jita } from "../../common/api";
 import {
   addCraftsToInventory,
+  addPassiveCraftsToInventory,
   buildClaimInventory,
   jitaCraftSchema,
   type ItemPlace,
@@ -80,11 +81,12 @@ const $playerInventory = computedAsync(
     const inventory = new Map<string, ItemPlace[]>();
     if (player) {
       try {
-        const [invData, { craftResults: completedCrafts }, { craftResults: ongoingCrafts }] =
+        const [invData, { craftResults: completedCrafts }, { craftResults: ongoingCrafts }, passiveCrafts] =
           await Promise.all([
             jita.getPlayerInventories(player.entityId),
             jita.listCrafts({ playerEntityId: player.entityId, completed: true }),
             jita.listCrafts({ playerEntityId: player.entityId, completed: false }),
+            jita.getPlayerPassiveCrafts(player.entityId),
           ]);
 
         for (const inv of invData.inventories ?? []) {
@@ -108,10 +110,13 @@ const $playerInventory = computedAsync(
           }
         }
 
-        // Add items being crafted by this player
+        // Add items being crafted by this player (active crafts)
         const crafts =
           jitaCraftSchema.safeParse([...completedCrafts, ...ongoingCrafts]).data ?? [];
         addCraftsToInventory(inventory, crafts);
+
+        // Add completed passive crafts (looms, smelters, farms)
+        addPassiveCraftsToInventory(inventory, passiveCrafts.craftResults);
       } catch (error) {
         console.error("Failed to retrieve player inventory:", error);
       }

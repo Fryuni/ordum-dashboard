@@ -48,10 +48,9 @@ const TRAVELER_NAMES: Record<number, string> = {
   1: "Rumbagh",
   2: "Svim",
   3: "Heimlich",
-  4: "Brumgar",
-  5: "Jasper",
+  5: "Brico",
   6: "Alesi",
-  7: "Fern",
+  7: "Ramparte",
 };
 
 function getNpcName(travelerId: number): string {

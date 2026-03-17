@@ -776,10 +776,37 @@ export interface PlayerMarketCollectionsResponse {
   [key: string]: unknown;
 }
 
+export interface JitaPassiveCraftItemStack {
+  item_id: number;
+  quantity: number;
+  item_type: string;
+  durability: number;
+}
+
+export interface JitaPassiveCraft {
+  entityId: string;
+  ownerEntityId: string;
+  recipeId: number;
+  buildingEntityId: string;
+  timestamp: string;
+  status: string;
+  slot: number | null;
+  regionId: number;
+  recipeName: string;
+  craftedItem: JitaPassiveCraftItemStack[];
+  levelRequirements: { level: number; skill_id: number }[];
+  buildingName: string;
+  claimEntityId: string;
+  claimName: string;
+  claimLocationX: number;
+  claimLocationZ: number;
+  regionName: string;
+}
+
 export interface PlayerPassiveCraftsResponse {
-  craftResults: unknown[];
-  items: unknown[];
-  cargos: unknown[];
+  craftResults: JitaPassiveCraft[];
+  items: JitaClaimInventoryItemInfo[];
+  cargos: JitaClaimInventoryItemInfo[];
   count: number;
   [key: string]: unknown;
 }

@@ -26,7 +26,8 @@
 
 import z from "zod";
 import { jita } from "./api";
-import { gd, realItemStack, referenceKey } from "./gamedata";
+import type { JitaPassiveCraft } from "./bitjita-client";
+import { gd, realItemStack, referenceKey, type ItemType } from "./gamedata";
 
 /** Building description IDs for bank buildings (personal storage) */
 export const BANK_BUILDING_IDS = new Set([
@@ -95,6 +96,41 @@ export function addCraftsToInventory(
 }
 
 /**
+ * Add completed passive craft outputs (looms, smelters, farms) to an inventory map.
+ * Each passive craft has a `craftedItem` array with the finished items.
+ */
+export function addPassiveCraftsToInventory(
+  inventory: Map<string, ItemPlace[]>,
+  passiveCrafts: JitaPassiveCraft[],
+): void {
+  for (const craft of passiveCrafts) {
+    if (craft.status !== "complete") continue;
+
+    for (const output of craft.craftedItem ?? []) {
+      const itemType: ItemType =
+        output.item_type === "cargo" ? "Cargo" : "Item";
+      const key = referenceKey({
+        item_type: itemType,
+        item_id: output.item_id,
+      });
+      const qty = output.quantity ?? 1;
+      if (qty <= 0) continue;
+
+      const label = `Completed in "${craft.buildingName}"`;
+      const list = inventory.get(key) ?? [];
+      if (!list.length) inventory.set(key, list);
+
+      const existing = list.find((p) => p.name === label);
+      if (existing) {
+        existing.quantity += qty;
+      } else {
+        list.push({ name: label, quantity: qty });
+      }
+    }
+  }
+}
+
+/**
  * Build a Map<"ItemType:id", ItemPlace[]> from a claim's API response,
  * using only claim building storage (non-bank). Player inventories are excluded
  * since those items belong to individual players, not the claim.
@@ -138,25 +174,46 @@ export async function buildClaimInventory(
     }
   }
 
-  const [{ craftResults: completedCrafts }, { craftResults: ongoingCrafts }] =
-    await Promise.all([
-      jita.listCrafts({
-        claimEntityId: claimDetail.entityId,
-        regionId: claimDetail.regionId,
-        completed: true,
-      }),
-      jita.listCrafts({
-        claimEntityId: claimDetail.entityId,
-        regionId: claimDetail.regionId,
-        completed: false,
-      }),
-    ]);
+  const [
+    { craftResults: completedCrafts },
+    { craftResults: ongoingCrafts },
+    claimMembers,
+  ] = await Promise.all([
+    jita.listCrafts({
+      claimEntityId: claimDetail.entityId,
+      regionId: claimDetail.regionId,
+      completed: true,
+    }),
+    jita.listCrafts({
+      claimEntityId: claimDetail.entityId,
+      regionId: claimDetail.regionId,
+      completed: false,
+    }),
+    jita.getClaimMembers(claimId),
+  ]);
 
   const crafts =
     jitaCraftSchema.safeParse([...completedCrafts, ...ongoingCrafts]).data ??
     [];
 
   addCraftsToInventory(inventory, crafts);
+
+  // Fetch passive crafts (looms, smelters, farms) for all claim members
+  // and include only those belonging to this claim
+  const passiveResults = await Promise.all(
+    (claimMembers.members ?? []).map((m) =>
+      jita
+        .getPlayerPassiveCrafts(m.playerEntityId)
+        .then((r) => r.craftResults)
+        .catch(() => []),
+    ),
+  );
+
+  const claimPassiveCrafts = passiveResults
+    .flat()
+    .filter((c) => c.claimEntityId === claimId);
+
+  addPassiveCraftsToInventory(inventory, claimPassiveCrafts);
 
   return inventory;
 }
