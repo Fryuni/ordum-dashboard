@@ -174,7 +174,7 @@ export const $shareableUrl = computedAsync([$targets], async (targets) => {
       .pipeThrough(new CompressionStream("gzip")),
   ).arrayBuffer();
 
-  const encoded = new Uint8Array(compressedBuffer).toBase64({
+  const encoded = (new Uint8Array(compressedBuffer) as any).toBase64({
     alphabet: "base64url",
     omitPadding: true,
   });
@@ -196,7 +196,7 @@ const $importedTargets = computedAsync(
     const { targets } = route.search;
     if (targets) {
       try {
-        const compressed = Uint8Array.fromBase64(targets, {
+        const compressed = (Uint8Array as any).fromBase64(targets, {
           alphabet: "base64url",
         });
         const newTargets = await new Response(

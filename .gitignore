@@ -2,6 +2,8 @@
 /node_modules
 .env
 /gamedata
+.wrangler
+.dev.vars
 
 .memory/branches/*/log.md
 /.pi/agent-sessions

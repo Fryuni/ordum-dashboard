@@ -65,3 +65,25 @@ Unified the player and claim crafting interfaces into a single `CraftPage` using
 - Updated the settlement endpoint to handle the new `ItemPlace[]` inventory format, ensuring correct deficit calculation for claim-based crafting.
 - Streamlined traveler task management by using BitJita's inline task descriptions, removing the need for separate NPC data lookups.
 - Retained `resubaka-client.ts` as a non-imported reference file to assist with any future mapping needs during the transition.
+
+---
+
+## Commit 8f4298fb | 2026-03-17T15:33:00.223Z
+
+### Branch Purpose
+
+Unify the crafting experience into a single location-aware interface, modernize the API layer with BitJita, and migrate the infrastructure to a Cloudflare Workers + Vite architecture for improved performance and scalability.
+
+### Previous Progress Summary
+
+The branch unified the player and claim crafting interfaces into a single `CraftPage` with a persistent `$inventorySource` selector and location-aware inventory tracking (distinguishing between specific chests and backpacks). It successfully transitioned the backend from the legacy Resubaka API to a fully typed BitJita client, implementing support for both active and passive crafts (looms, smelters, farms) and integrating settlement and traveler task requirements directly into the crafting engine. Additionally, the project refined the UI with a Discord community link and corrected traveler NPC mappings based on live game data.
+
+### This Commit's Contribution
+
+- Migrated the application architecture from a Bun-native HTTP server to Cloudflare Workers with a Vite-built Preact client to improve deployment efficiency.
+- Replaced the direct Bun server with a Hono-based worker handling API routes (`/api/empire`, `/api/settlement`) and a high-performance proxy for BitJita requests.
+- Transitioned the client build process to Vite with `@preact/preset-vite`, enabling standard SPA bundling and HMR for development.
+- Configured Cloudflare Workers' static asset binding with `not_found_handling` set to `single-page-application` to serve the SPA and static assets from the worker.
+- Established a concurrent development workflow using Vite (port 4321) and Wrangler (port 8787) with automated API proxying via Vite's dev server.
+- Automated deployment via GitHub Actions using the `cloudflare/wrangler-action` for CI/CD, while cleaning up legacy Bun server files and Docker configuration.
+- Updated the project README to reflect the new architecture, dependency requirements, and development scripts.

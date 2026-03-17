@@ -2,91 +2,86 @@
 
 ## Purpose
 
-Dashboard for the Ordum empire in Bitcraft. A Bun-native fullstack app with a Preact SPA client, talking to two API backends:
-- **Resubaka** (bitcraft-hub): `https://craft-api.resubaka.dev` — primary game state API
-- **BitJita**: `https://bitjita.com` — supplementary game data API (77 endpoints)
+Dashboard for the Ordum empire in Bitcraft. A Preact SPA on Cloudflare Workers, with the BitJita API as the sole data source.
+- **BitJita**: `https://bitjita.com` — game data API (77 endpoints)
+- **Live**: `https://ordum.fun`
 
 ## Current State
 
-**Architecture**: Direct Bun HTTP server with HTML imports for automatic client bundling.
+**Architecture**: Cloudflare Workers (Hono) + Preact SPA (Vite).
 
-- **Entrypoint**: `src/server.ts` — `Bun.serve()` with `routes` for SPA (`/*`), server endpoints (`/api/empire`, `/api/settlement`), and API proxy (`/api/*`)
+- **Worker**: `src/worker.ts` — Hono app with API routes (`/api/empire`, `/api/empire-claims`, `/api/settlement`) and `/jita/*` proxy to BitJita
 - **Client**: Preact SPA with `@nanostores/router` for routing, nanostores for state
-- **No separate build scripts** — Bun's HTML import handles TSX/CSS bundling automatically
-- **Dev**: `bun --hot src/server.ts` (HMR, on-demand bundling)
-- **Build**: `bun build --target=bun --minify --outdir=dist src/server.ts`
-- **Production**: `cd dist && bun run server.js` (self-contained, no node_modules needed)
+- **Build**: Vite builds client to `dist/client/`, Wrangler bundles worker
+- **Static assets**: CF Workers asset binding with `not_found_handling = "single-page-application"`
+- **Dev**: `bun dev` — runs Vite (HMR on :4321, proxies API to :8787) + Wrangler (:8787) concurrently
+- **Deploy**: `bun run deploy` or GitHub Actions CI
+- **Worker size**: ~1.1MB gzipped (includes 20MB of game data JSON, compresses well)
 
 **Code layout**:
 ```
-src/server.ts              — Bun.serve entrypoint (HTML import, API routes, proxy)
+src/worker.ts              — Cloudflare Worker entry (Hono app)
 src/client/                — Preact SPA
   index.html               — HTML entry (references client.tsx + styles.css)
   client.tsx               — Preact render entry
   App.tsx                  — Root component with router
   styles.css               — All global styles
-  components/              — UI components (StatCard, ResourceTable, MembersTable, TierPlan, craft/*, group-craft/*)
-  pages/                   — Page components (Dashboard, Settlement, Craft, GroupCraft)
-  stores/                  — Nanostores (router, craft, craftSource)
+  components/              — UI components (StatCard, ResourceTable, MembersTable, TierPlan, craft/*)
+  pages/                   — Page components (Dashboard, Settlement, Craft, TravelerTask)
+  stores/                  — Nanostores (router, craft, craftSource, player, travelerTask)
   util-store.ts            — Page activity and update timer
 src/server/                — Server-only code
-  api-server.ts            — Cached ResubakaClient (@croct/cache + ohash)
+  api-server.ts            — Cached BitJitaClient (@croct/cache + ohash)
   ordum-data.ts            — Empire data fetcher (builds ClaimSummary/EmpireSummary)
 src/common/                — Shared code (neither client nor server specific)
-  resubaka-client.ts       — Auto-generated Resubaka REST + WebSocket client (33 endpoints)
   bitjita-client.ts        — Auto-generated BitJita REST client (77 endpoints)
-  api.ts                   — Plain (uncached) ResubakaClient instance
-  ordum-types.ts           — Shared types (EmpireSummary, ClaimSummary, ResourceItem, MemberInfo, etc.)
+  api.ts                   — Client-side BitJitaClient (uses /jita proxy in browser)
+  ordum-types.ts           — Shared types and constants
   gamedata.ts              — Static game data parser/indexer (items, recipes, techs, etc.)
   craft-planner.ts         — Recursive recipe resolver
   settlement-planner.ts    — Settlement tier upgrade calculator
   claim-inventory.ts       — Claim building inventory builder
   itemIndex.ts             — Item search index
-  lazy.ts                  — Lazy/LazyKeyed utilities (replaces @inox-tools/utils)
+  lazy.ts                  — Lazy/LazyKeyed utilities
   topological-sort.ts      — Generic topological sort (Tarjan SCC + Kahn)
-scripts/
-  generate-resubaka-client.ts — Generates resubaka-client.ts from GitHub Rust source
-  generate-bitjita-client.ts  — Generates bitjita-client.ts from bitjita.com/docs/api
-  add-license-headers.ts      — Adds GPL headers to source files
-  update-gamedata.sh           — Downloads static game data
+wrangler.toml              — Cloudflare Workers configuration
+vite.config.ts             — Vite client build configuration
+.github/workflows/deploy.yml — CI/CD: build + deploy to CF Workers
 ```
 
 **Four pages**:
-1. **Dashboard** (`/`) — empire overview: stats, building/player/tool resources, members. Data fetched client-side from `/api/empire`.
-2. **Settlement** (`/settlement`) — tier timeline, upgrade requirements, item availability. Data fetched from `/api/settlement`.
-3. **Craft Planner** (`/craft`) — recursive crafting tree calculator with inventory awareness (player or claim). "Already have" chips show inventory location tooltips on hover.
-4. **Traveler Tasks** (`/traveler-tasks`) — traveler task management with craft planning.
+1. **Dashboard** (`/`) — empire overview: stats, building resources, members. Data from `/api/empire`.
+2. **Settlement** (`/settlement`) — tier timeline, upgrade requirements, item availability. Data from `/api/settlement`.
+3. **Craft Planner** (`/craft`) — recursive crafting tree calculator with inventory awareness (player or claim).
+4. **Traveler Tasks** (`/traveler-task`) — traveler task viewing with craft planning integration.
 
 ## Key Decisions
 
-- **Bun-native (no framework)**: Replaced Astro with direct `Bun.serve()` + HTML imports. Single tool for server, bundling, and HMR.
-- **Preact SPA with @nanostores/router**: Client-side routing replaces Astro's file-based pages.
-- **Server/client code split**: `@croct/cache` (uses Node `crypto` via `node-object-hash`) isolated to `src/server/api-server.ts`. Client uses plain `ResubakaClient`.
-- **Dual API clients**: `ResubakaClient` (generated from Rust source on GitHub) + `BitJitaClient` (generated from HTML docs page with hardcoded endpoint definitions validated against live page).
-- **Shared types in ordum-types.ts**: Extracted from `ordum-data.ts` so client can import types without pulling in server dependencies.
-- **`src/common/lazy.ts`**: Minimal replacement for `@inox-tools/utils/lazy` (Lazy.wrap, LazyKeyed.wrap/of).
+- **Cloudflare Workers**: Migrated from Bun-native server. Hono for routing, CF asset binding for SPA serving.
+- **Vite for client build**: Replaced Bun's HTML imports with Vite + @preact/preset-vite for standard tooling.
+- **`run_worker_first`**: Only `/api/*` and `/jita/*` routes invoke the worker; all other routes go to static assets with SPA fallback.
+- **Preact SPA with @nanostores/router**: Client-side routing.
+- **Server/client code split**: `@croct/cache` isolated to `src/server/api-server.ts`. Client uses plain `BitJitaClient`.
+- **BitJita-only API**: Removed all Resubaka API usage. Single upstream: `https://bitjita.com`.
+- **Shared types in ordum-types.ts**: Client can import types without pulling in server dependencies.
 - **nanostores `computedAsync`** from `Fryuni/nanostores#async-compute` for async derived stores.
 - Entity IDs use **string form** in API URLs (exceed `Number.MAX_SAFE_INTEGER`).
 - Skip "Package"/"Unpack"/"Recraft" recipes in craft planner to avoid cycles.
 - Ordum City claim ID: `"1224979098661645606"`.
-- Dashboard/Settlement pages fetch data from server endpoints (`/api/empire`, `/api/settlement`) rather than server-rendering.
 
 ## Milestones
 
-- [x] REST API client generator (Resubaka)
-- [x] WebSocket live-data client (Resubaka)
 - [x] BitJita API client generator (77 endpoints)
 - [x] Empire resource dashboard
 - [x] Game data download + update script
-- [x] Settlement planner (tiers 1-10, tier-upgrade-only)
+- [x] Settlement planner (tiers 1-10)
 - [x] Craft planner with recursive recipe resolution
-- [x] Group Craft planner with claim inventory (merged into Craft Planner)
 - [x] Settlement → Craft integration (pre-populated deficit items)
-- [x] Inventory stores refactored to track item locations (ItemPlace[]) with tooltips
+- [x] Inventory stores with item location tracking (ItemPlace[])
 - [x] Migrate from Svelte to Preact (TSX)
-- [x] Adopt computedAsync for async state management
-- [x] **Rewrite: Astro → Bun server + Preact SPA** (HTML imports, @nanostores/router)
-- [x] **Reorganize: src/client + src/server + src/common structure**
-- [ ] Integrate BitJita data into dashboard (empires, market, food, creatures, etc.)
+- [x] Rewrite: Astro → Bun server + Preact SPA
+- [x] Transition to BitJita-only API (removed Resubaka)
+- [x] **Migrate to Cloudflare Workers + Vite** (from Bun server)
+- [x] **CI/CD via GitHub Actions → Cloudflare Workers**
 - [ ] Add other empire claims (need claim IDs from user)
 - [ ] Live updates via WebSocket

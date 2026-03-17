@@ -2,7 +2,9 @@
 
 A web dashboard for the **Ordum** empire in [Bitcraft](https://bitcraftonline.com/), providing resource tracking, settlement planning, and crafting tools.
 
-Built with [Astro](https://astro.build/) + [Preact](https://preactjs.com/) and powered by live data from the [bitcraft-hub](https://github.com/ResuBaka/bitcraft-hub) API.
+Built with [Preact](https://preactjs.com/) + [Hono](https://hono.dev/) on [Cloudflare Workers](https://workers.cloudflare.com/), powered by live data from the [BitJita](https://bitjita.com) API.
+
+**Live:** [https://ordum.fun](https://ordum.fun)
 
 ## Features
 
@@ -11,9 +13,7 @@ Built with [Astro](https://astro.build/) + [Preact](https://preactjs.com/) and p
 Overview of the Ordum empire's resources across all claims:
 
 - Building storage inventory (excluding personal bank storage)
-- Player inventories (online + offline)
-- Tool inventories
-- Member list with skills, permissions, and inventory details
+- Member list with permissions
 - Searchable, sortable, and filterable tables
 
 ### 🏰 Settlement Planner (`/settlement`)
@@ -23,7 +23,6 @@ Track settlement upgrade progress across tiers 1–10:
 - Visual timeline showing completed, active, and upcoming tiers
 - Item requirements for the next tier upgrade with progress bars
 - Available vs required quantities from claim building storage
-- One-click link to the Empire Craft Planner with missing items pre-filled
 
 ### ⚒️ Craft Planner (`/craft`)
 
@@ -33,31 +32,31 @@ Calculate full crafting trees from raw materials:
 - Recursive recipe resolution down to raw (gathered) materials
 - Handles recipe cycles (packaging, farming loops) gracefully
 - Topologically sorted crafting steps — dependencies always come first
-- Player inventory-aware: shows what you already have
-- Filter results by item name or tier
+- Player/claim inventory-aware: shows what you already have
+- Shareable crafting plans via URL
 
-### 🏰 Empire Craft Planner (`/group-craft`)
+### 🧳 Traveler Tasks (`/traveler-task`)
 
-Same crafting UI as the Craft Planner, but uses the **Ordum claim's building storage** as inventory instead of a player's personal inventory. Useful for planning what the empire needs to craft collectively.
+View and track traveler task requirements and rewards.
 
 ## Tech Stack
 
-| Layer      | Technology                                                                                 |
-| ---------- | ------------------------------------------------------------------------------------------ |
-| Framework  | [Astro 6](https://astro.build/) (SSR, `@astrojs/node`)                                     |
-| UI         | [Preact](https://preactjs.com/) (TSX)                                                      |
-| State      | [nanostores](https://github.com/nanostores/nanostores) with `computedAsync`                |
-| Runtime    | [Bun](https://bun.sh/)                                                                     |
-| API        | Auto-generated TypeScript client (33 REST + 26 WebSocket endpoints)                        |
-| Game Data  | Static JSON from [BitCraft_GameData](https://github.com/BitCraftToolBox/BitCraft_GameData) |
-| Styling    | Vanilla CSS with custom properties                                                         |
-| Formatting | [Prettier](https://prettier.io/)                                                           |
+| Layer     | Technology                                                                                 |
+| --------- | ------------------------------------------------------------------------------------------ |
+| UI        | [Preact](https://preactjs.com/) (TSX) SPA                                                 |
+| State     | [nanostores](https://github.com/nanostores/nanostores) with `computedAsync`                |
+| Server    | [Hono](https://hono.dev/) on [Cloudflare Workers](https://workers.cloudflare.com/)         |
+| Build     | [Vite](https://vite.dev/) (client), [Wrangler](https://developers.cloudflare.com/workers/wrangler/) (worker) |
+| API       | Auto-generated [BitJita](https://bitjita.com) TypeScript client (77 endpoints)             |
+| Game Data | Static JSON from [BitCraft_GameData](https://github.com/BitCraftToolBox/BitCraft_GameData) |
+| Styling   | Vanilla CSS with custom properties                                                         |
+| CI/CD     | GitHub Actions → Cloudflare Workers                                                        |
 
 ## Getting Started
 
 ### Prerequisites
 
-- [Bun](https://bun.sh/) v1.3+
+- [Bun](https://bun.sh/) v1.3+ (or Node.js 22+)
 
 ### Installation
 
@@ -65,101 +64,106 @@ Same crafting UI as the Craft Planner, but uses the **Ordum claim's building sto
 git clone https://github.com/user/ordum-dashboard.git
 cd ordum-dashboard
 bun install
-```
-
-### Update Game Data
-
-Download the latest game data files (items, recipes, buildings, etc.):
-
-```bash
 ./scripts/update-gamedata.sh
 ```
 
 ### Development
 
+Start both the Vite dev server (client HMR) and Wrangler dev server (Worker API):
+
 ```bash
 bun dev
 ```
 
-The dashboard is served at `http://localhost:4321`.
+- **Client (Vite):** `http://localhost:4321` — with HMR, proxies API calls to worker
+- **Worker (Wrangler):** `http://localhost:8787` — API routes + static asset serving
 
-### Production Build
+Or run them separately:
 
 ```bash
-bun run build
-bun run preview
+bun run dev:worker   # Wrangler on :8787
+bun run dev:client   # Vite on :4321
 ```
+
+### Production Build & Preview
+
+```bash
+bun run build        # Build client with Vite
+bun run preview      # Preview with Wrangler (serves worker + built client assets)
+```
+
+### Deploy
+
+```bash
+bun run deploy       # Build client + deploy worker to Cloudflare
+```
+
+Requires `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` environment variables (or `wrangler login`).
 
 ## Project Structure
 
 ```
-gamedata/                               — Static game data JSON files (7K items, 7K recipes, etc.)
-scripts/
-  update-gamedata.sh                    — Download game data from GitHub
-  generate-api-client.ts                — Generate TypeScript API client from server
-  add-license-headers.ts                — Add GPL-3.0 headers to source files
 src/
-  bitcraft-api-client.ts                — Auto-generated API client (REST + WebSocket)
-  actions/index.ts                      — Astro Actions: searchItems, craftPlan, groupCraftPlan
-  lib/
+  worker.ts                             — Cloudflare Worker entry (Hono app)
+  server/
+    api-server.ts                       — Cached BitJita API client (server-side)
+    ordum-data.ts                       — Empire data aggregation
+  client/
+    index.html                          — SPA entry HTML
+    client.tsx                          — Preact render entry
+    App.tsx                             — Root component with routing
+    pages/                              — Page components
+    components/                         — Shared UI components
+    stores/                             — Nanostores (state management)
+    styles.css                          — Global styles
+  common/
+    api.ts                              — Shared BitJita client (browser uses /jita proxy)
+    bitjita-client.ts                   — Auto-generated BitJita API client
     gamedata.ts                         — Game data parser and indexer
-    ordum-data.ts                       — Live API data fetcher for Ordum claims
-    claim-inventory.ts                  — Claim inventory builder (excludes bank storage)
-    settlement-planner.ts               — Settlement tier upgrade calculator
     craft-planner.ts                    — Recursive crafting recipe resolver
-    craft-store.ts                      — Nanostores for craft planner (player inventory)
-    group-craft-store.ts                — Nanostores for empire craft planner (claim inventory)
-    topological-sort.ts                 — Generic topological sort (Tarjan SCC + Kahn's)
-  pages/
-    index.astro                         — Empire dashboard
-    settlement.astro                    — Settlement planner
-    craft.astro                         — Player craft planner
-    group-craft.astro                   — Empire craft planner
-  components/
-    craft/                              — Craft planner Preact components
-    group-craft/                        — Empire craft planner Preact components
-    TierPlan.astro                      — Settlement tier card
-    ResourceTable.astro                 — Filterable resource table
-    MembersTable.astro                  — Member list with skills
-    StatCard.astro                      — KPI stat card
-  layouts/Layout.astro                  — App shell with sidebar navigation
-  styles/craft.css                      — Shared craft planner styles
+    settlement-planner.ts               — Settlement tier upgrade calculator
+    claim-inventory.ts                  — Claim inventory builder
+    topological-sort.ts                 — Topological sort (Tarjan SCC + Kahn's)
+gamedata/                               — Static game data JSON (downloaded)
+wrangler.toml                           — Cloudflare Workers configuration
+vite.config.ts                          — Vite client build configuration
 ```
 
 ## Configuration
 
-The Ordum empire's claim IDs are configured in `src/lib/ordum-data.ts`:
+Empire configuration in `src/common/ordum-types.ts`:
 
 ```typescript
 export const ORDUM_MAIN_CLAIM_ID = "1224979098661645606";
-
-export const EMPIRE_CLAIM_IDS: { id: string; name: string }[] = [
-  { id: "1224979098661645606", name: "Ordum City" },
-  // Add other claims here
-];
+export const ORDUM_EMPIRE_NAME = "Ordum";
 ```
 
 > **Note:** Entity IDs use string form because they exceed `Number.MAX_SAFE_INTEGER`.
 
-The API server URL is also configured there:
+## CI/CD
 
-```typescript
-export const API_BASE_URL = "https://craft-api.resubaka.dev";
-```
+GitHub Actions workflow (`.github/workflows/deploy.yml`) automatically:
+
+1. Downloads latest game data
+2. Runs type checking
+3. Builds the client with Vite
+4. Deploys to Cloudflare Workers via Wrangler
+
+**Required GitHub Secrets:**
+- `CLOUDFLARE_API_TOKEN` — Cloudflare API token with Workers permissions
+- `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account ID
 
 ## Scripts
 
-| Command                                      | Description                         |
-| -------------------------------------------- | ----------------------------------- |
-| `bun dev`                                    | Start development server            |
-| `bun run build`                              | Production build                    |
-| `bun run preview`                            | Preview production build            |
-| `bun test`                                   | Run unit tests                      |
-| `bunx prettier -w .`                         | Format all source files             |
-| `bun scripts/add-license-headers.ts`         | Add GPL-3.0 headers to source files |
-| `bun scripts/add-license-headers.ts --check` | Check for missing headers (CI)      |
-| `./scripts/update-gamedata.sh`               | Download latest game data           |
-| `bun scripts/generate-api-client.ts`         | Regenerate API client from server   |
+| Command                              | Description                           |
+| ------------------------------------ | ------------------------------------- |
+| `bun dev`                            | Start dev servers (Vite + Wrangler)   |
+| `bun run build`                      | Build client for production           |
+| `bun run preview`                    | Preview production build locally      |
+| `bun run deploy`                     | Build + deploy to Cloudflare Workers  |
+| `bun run validate`                   | Type check                            |
+| `bun run format`                     | Format all source files               |
+| `./scripts/update-gamedata.sh`       | Download latest game data             |
 
 ## License
 
