@@ -32,7 +32,7 @@ export default function DashboardPage() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .then((data) => setEmpire(data as EmpireSummary))
+      .then(setEmpire)
       .catch((e) => setError(String(e)));
   }, []);
 

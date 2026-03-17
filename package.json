@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "wrangler dev --assets dist/client",
     "deploy": "vite build && wrangler deploy",
-    "validate": "tsc --noEmit",
+    "validate": "tsc --noEmit && tsc --noEmit -p src/client/tsconfig.json",
     "format": "prettier -w ."
   },
   "keywords": [],

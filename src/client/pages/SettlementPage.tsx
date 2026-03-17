@@ -58,7 +58,7 @@ export default function SettlementPage() {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .then((d) => setData(d as SettlementData))
+      .then(setData)
       .catch((e) => setError(String(e)));
   }, [selectedClaim]);
 
