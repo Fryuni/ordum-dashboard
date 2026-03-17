@@ -4,7 +4,7 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "lib": ["esnext", "dom", "dom.iterable"],
-    "types": ["bun"],
+    "types": ["@cloudflare/workers-types"],
 
     "noEmit": true,
     "sourceMap": true,
@@ -25,5 +25,5 @@
     "resolveJsonModule": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": ["node_modules", "dist", "src/**/*.test.ts"]
 }
