@@ -16,7 +16,6 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { persistentAtom } from "@nanostores/persistent";
 import { atom, onMount, type ReadableAtom } from "nanostores";
 import { hash } from "ohash";
 
@@ -24,10 +23,7 @@ export const $pageActive = atom(false);
 
 const UPDATE_PERIOD = 5000;
 
-export const $updateTimer = persistentAtom("updateTimer", Date.now(), {
-  encode: (n) => n.toFixed(0),
-  decode: (n) => Number.parseInt(n, 10),
-});
+export const $updateTimer = atom(Date.now());
 
 export function skipShallowChange<T>($atom: ReadableAtom<T>): ReadableAtom<T> {
   const noShallow = atom<T>($atom.value!);
