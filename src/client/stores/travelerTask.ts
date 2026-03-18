@@ -60,37 +60,43 @@ function getNpcName(travelerId: number): string {
 // ─── Traveler Tasks ────────────────────────────────────────────────────────────
 
 /** All traveler tasks for the selected player (refreshes with update timer) */
-export const $travelerTasks = computedAsync([$playerInfo, $updateTimer], async (playerInfo) => {
-  if (!playerInfo) return [];
+export const $travelerTasks = computedAsync(
+  [$playerInfo, $updateTimer],
+  async (playerInfo) => {
+    if (!playerInfo) return [];
 
-  const data = await jita.getPlayerTravelerTasks(playerInfo.entityId);
+    const data = await jita.getPlayerTravelerTasks(playerInfo.entityId);
 
-  const tasks: TravelerTaskInfo[] = [];
-  for (const task of data.tasks) {
-    if (task.completed) continue; // skip completed tasks
+    const tasks: TravelerTaskInfo[] = [];
+    for (const task of data.tasks) {
+      if (task.completed) continue; // skip completed tasks
 
-    const requiredItems = (task.requiredItems ?? []).map((ri) => ({
-      item_id: ri.item_id,
-      item_type: (ri.item_type === "cargo" ? "Cargo" : "Item") as
-        | "Item"
-        | "Cargo",
-      name: getItemName(ri.item_type === "cargo" ? "Cargo" : "Item", ri.item_id),
-      quantity: ri.quantity,
-    }));
+      const requiredItems = (task.requiredItems ?? []).map((ri) => ({
+        item_id: ri.item_id,
+        item_type: (ri.item_type === "cargo" ? "Cargo" : "Item") as
+          | "Item"
+          | "Cargo",
+        name: getItemName(
+          ri.item_type === "cargo" ? "Cargo" : "Item",
+          ri.item_id,
+        ),
+        quantity: ri.quantity,
+      }));
 
-    tasks.push({
-      travelerId: task.travelerId,
-      travelerName: getNpcName(task.travelerId),
-      taskId: task.taskId,
-      description: task.description ?? "",
-      skillName: getSkillName(task.rewardedExperience?.skill_id ?? 0),
-      completed: false,
-      requiredItems,
-    });
-  }
+      tasks.push({
+        travelerId: task.travelerId,
+        travelerName: getNpcName(task.travelerId),
+        taskId: task.taskId,
+        description: task.description ?? "",
+        skillName: getSkillName(task.rewardedExperience?.skill_id ?? 0),
+        completed: false,
+        requiredItems,
+      });
+    }
 
-  return tasks;
-});
+    return tasks;
+  },
+);
 
 /** Traveler tasks expiration timestamp (seconds since epoch) */
 export const $travelerTasksExpiration = computedAsync(

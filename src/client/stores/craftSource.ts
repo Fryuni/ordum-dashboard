@@ -81,13 +81,20 @@ const $playerInventory = computedAsync(
     const inventory = new Map<string, ItemPlace[]>();
     if (player) {
       try {
-        const [invData, { craftResults: completedCrafts }, { craftResults: ongoingCrafts }, passiveCrafts] =
-          await Promise.all([
-            jita.getPlayerInventories(player.entityId),
-            jita.listCrafts({ playerEntityId: player.entityId, completed: true }),
-            jita.listCrafts({ playerEntityId: player.entityId, completed: false }),
-            jita.getPlayerPassiveCrafts(player.entityId),
-          ]);
+        const [
+          invData,
+          { craftResults: completedCrafts },
+          { craftResults: ongoingCrafts },
+          passiveCrafts,
+        ] = await Promise.all([
+          jita.getPlayerInventories(player.entityId),
+          jita.listCrafts({ playerEntityId: player.entityId, completed: true }),
+          jita.listCrafts({
+            playerEntityId: player.entityId,
+            completed: false,
+          }),
+          jita.getPlayerPassiveCrafts(player.entityId),
+        ]);
 
         for (const inv of invData.inventories ?? []) {
           const invName = inv.inventoryName ?? inv.buildingName ?? "Backpack";
@@ -112,7 +119,8 @@ const $playerInventory = computedAsync(
 
         // Add items being crafted by this player (active crafts)
         const crafts =
-          jitaCraftSchema.safeParse([...completedCrafts, ...ongoingCrafts]).data ?? [];
+          jitaCraftSchema.safeParse([...completedCrafts, ...ongoingCrafts])
+            .data ?? [];
         addCraftsToInventory(inventory, crafts);
 
         // Add completed passive crafts (looms, smelters, farms)

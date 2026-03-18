@@ -23,9 +23,6 @@
  * BitCraftToolBox/BitCraft_GameData for use by settlement planner
  * and craft planner pages.
  */
-
-import { Lazy, LazyKeyed } from "./lazy";
-
 import _rawItems from "../../gamedata/item_desc.json";
 import _rawCargo from "../../gamedata/cargo_desc.json";
 import _rawRecipes from "../../gamedata/crafting_recipe_desc.json";
@@ -39,16 +36,10 @@ import _rawToolTypes from "../../gamedata/tool_type_desc.json";
 import _rawResources from "../../gamedata/resource_desc.json";
 import _rawItemLists from "../../gamedata/item_list_desc.json";
 import _rawConstruction from "../../gamedata/construction_recipe_desc.json";
+import type { ItemReference, ItemType } from "./gamedata/definition";
+import { Lazy } from "./lazy";
 
 // ─── Raw JSON Types ────────────────────────────────────────────────────────────
-
-export type ItemType = "Item" | "Cargo";
-
-export interface ItemReference {
-  item_type: ItemType;
-  item_id: number;
-  __item_key?: string;
-}
 
 export interface GameItemDesc {
   id: number;
@@ -398,34 +389,6 @@ export function getItemInfo(
     rarity: "Common",
   };
 }
-
-export function unifiedKey(itemType: string, itemId: number): string {
-  const typeName = { item: "Item", cargo: "Cargo" }[
-    itemType.toLowerCase().trim()
-  ];
-  if (!typeName)
-    throw new Error(`Unknown item type: ${JSON.stringify(itemType)}`);
-  return `${typeName}:${itemId}`;
-}
-
-export function referenceKey(reference: ItemReference): string {
-  if (!reference.__item_key) {
-    reference.__item_key = `${reference.item_type}:${reference.item_id}`;
-  }
-  return reference.__item_key;
-}
-
-export const parseReferenceKey = LazyKeyed.wrap(
-  (key: string): ItemReference => {
-    const [itemType, idString] = key.split(":", 2);
-    if (!itemType || !idString) throw new Error(`Invalid item key: ${key}`);
-    return {
-      item_type: itemType as any,
-      item_id: Number.parseInt(idString, 10),
-      __item_key: key,
-    };
-  },
-);
 
 export function getSkillName(skillId: number): string {
   return gd.skills.get(skillId)?.name ?? `Skill #${skillId}`;

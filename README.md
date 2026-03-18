@@ -41,16 +41,16 @@ View and track traveler task requirements and rewards.
 
 ## Tech Stack
 
-| Layer     | Technology                                                                                 |
-| --------- | ------------------------------------------------------------------------------------------ |
-| UI        | [Preact](https://preactjs.com/) (TSX) SPA                                                 |
-| State     | [nanostores](https://github.com/nanostores/nanostores) with `computedAsync`                |
-| Server    | [Hono](https://hono.dev/) on [Cloudflare Workers](https://workers.cloudflare.com/)         |
+| Layer     | Technology                                                                                                   |
+| --------- | ------------------------------------------------------------------------------------------------------------ |
+| UI        | [Preact](https://preactjs.com/) (TSX) SPA                                                                    |
+| State     | [nanostores](https://github.com/nanostores/nanostores) with `computedAsync`                                  |
+| Server    | [Hono](https://hono.dev/) on [Cloudflare Workers](https://workers.cloudflare.com/)                           |
 | Build     | [Vite](https://vite.dev/) (client), [Wrangler](https://developers.cloudflare.com/workers/wrangler/) (worker) |
-| API       | Auto-generated [BitJita](https://bitjita.com) TypeScript client (77 endpoints)             |
-| Game Data | Static JSON from [BitCraft_GameData](https://github.com/BitCraftToolBox/BitCraft_GameData) |
-| Styling   | Vanilla CSS with custom properties                                                         |
-| CI/CD     | GitHub Actions → Cloudflare Workers                                                        |
+| API       | Auto-generated [BitJita](https://bitjita.com) TypeScript client (77 endpoints)                               |
+| Game Data | Static JSON from [BitCraft_GameData](https://github.com/BitCraftToolBox/BitCraft_GameData)                   |
+| Styling   | Vanilla CSS with custom properties                                                                           |
+| CI/CD     | GitHub Actions → Cloudflare Workers                                                                          |
 
 ## Getting Started
 
@@ -150,20 +150,21 @@ GitHub Actions workflow (`.github/workflows/deploy.yml`) automatically:
 4. Deploys to Cloudflare Workers via Wrangler
 
 **Required GitHub Secrets:**
+
 - `CLOUDFLARE_API_TOKEN` — Cloudflare API token with Workers permissions
 - `CLOUDFLARE_ACCOUNT_ID` — Cloudflare account ID
 
 ## Scripts
 
-| Command                              | Description                           |
-| ------------------------------------ | ------------------------------------- |
-| `bun dev`                            | Start dev servers (Vite + Wrangler)   |
-| `bun run build`                      | Build client for production           |
-| `bun run preview`                    | Preview production build locally      |
-| `bun run deploy`                     | Build + deploy to Cloudflare Workers  |
-| `bun run validate`                   | Type check                            |
-| `bun run format`                     | Format all source files               |
-| `./scripts/update-gamedata.sh`       | Download latest game data             |
+| Command                        | Description                          |
+| ------------------------------ | ------------------------------------ |
+| `bun dev`                      | Start dev servers (Vite + Wrangler)  |
+| `bun run build`                | Build client for production          |
+| `bun run preview`              | Preview production build locally     |
+| `bun run deploy`               | Build + deploy to Cloudflare Workers |
+| `bun run validate`             | Type check                           |
+| `bun run format`               | Format all source files              |
+| `./scripts/update-gamedata.sh` | Download latest game data            |
 
 ## License
 

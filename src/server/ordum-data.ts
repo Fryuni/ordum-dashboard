@@ -151,8 +151,26 @@ function mergeResources(items: ResourceItem[]): ResourceItem[] {
  */
 function parseBuildingInventories(
   buildings: JitaClaimBuildingInventory[],
-  itemsDict: Record<string, { name: string; iconAssetName: string; tier: number; tag: string; rarityStr: string }>,
-  cargosDict: Record<string, { name: string; iconAssetName: string; tier: number; tag: string; rarityStr: string }>,
+  itemsDict: Record<
+    string,
+    {
+      name: string;
+      iconAssetName: string;
+      tier: number;
+      tag: string;
+      rarityStr: string;
+    }
+  >,
+  cargosDict: Record<
+    string,
+    {
+      name: string;
+      iconAssetName: string;
+      tier: number;
+      tag: string;
+      rarityStr: string;
+    }
+  >,
 ): ResourceWithLocations[] {
   // Aggregate by item key, collecting locations
   const byKey = new Map<string, ResourceWithLocations>();

@@ -22,7 +22,7 @@ import RawMaterials from "./RawMaterials";
 import CraftingSteps from "./CraftingSteps";
 import type { CraftPlan } from "../../../common/craft-planner";
 import { $inventory } from "../../stores/craftSource";
-import { referenceKey } from "../../../common/gamedata";
+import { referenceKey } from "../../../common/gamedata/definition.ts";
 
 interface Props {
   plan: CraftPlan;

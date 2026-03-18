@@ -24,20 +24,16 @@
  * materials, showing every step needed.
  */
 
-import { LazyKeyed } from "./lazy";
-import type { GameCraftingRecipe, ItemType, ItemReference } from "./gamedata";
 import { topologicalSort } from "./topological-sort";
+import { itemsCodex } from "./gamedata/codex";
 import {
-  getItemName,
-  getItemInfo,
-  getSkillName,
-  getToolTypeName,
-  getBuildingTypeName,
-  gd,
-  referenceKey,
   parseReferenceKey,
-  realItemStack,
-} from "./gamedata";
+  referenceKey,
+  type CraftRecipe,
+  type ItemReference,
+  type ItemStack,
+  type ItemType,
+} from "./gamedata/definition";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -71,12 +67,6 @@ export interface CraftStep {
   depth: number;
 }
 
-export interface RawMaterialSource {
-  resource_name: string;
-  amount_per_stamina: number;
-  verb: string;
-}
-
 export interface RawMaterial {
   item_id: number;
   item_type: ItemType;
@@ -89,7 +79,7 @@ export interface RawMaterial {
   source: string;
   skill_requirements: { skill: string; level: number }[];
   tool_requirements: { tool: string; level: number }[];
-  resource_sources: RawMaterialSource[];
+  resource_sources: string[];
 }
 
 export interface FulfilledItem extends ItemReference {
@@ -107,12 +97,6 @@ export interface CraftPlan {
 
 const MAX_DEPTH = 450;
 
-/** Recipe name patterns to skip (packaging/unpackaging creates cycles) */
-function shouldSkipRecipe(recipe: GameCraftingRecipe): boolean {
-  const name = recipe.name.toLowerCase();
-  return name.startsWith("unpack ") || name.startsWith("recraft ");
-}
-
 // ─── Main Function ─────────────────────────────────────────────────────────────
 
 export function buildCraftPlan(
@@ -127,19 +111,6 @@ export function buildCraftPlan(
     throw error;
   }
 }
-
-const subRecipes = LazyKeyed.of((key) =>
-  [
-    ...(gd.recipesByOutput.get(key) ?? []).map((r) => {
-      const quantity =
-        r.crafted_item_stacks.find((item) => referenceKey(item) === key)
-          ?.quantity ?? 1;
-
-      return { recipe: r, outputPerCraft: quantity };
-    }),
-    ...(gd.recipesByResolvedOutput.get(key) ?? []),
-  ].filter((r) => !shouldSkipRecipe(r.recipe)),
-);
 
 export function buildPartialPlan(
   targets: CraftTarget[],
@@ -176,21 +147,31 @@ export function buildPartialPlan(
 
     const key = referenceKey(target);
 
-    const recipes = subRecipes.get(key);
-
-    if (recipes.length === 0) {
+    const itemEntry = itemsCodex.get(key);
+    if (!itemEntry) {
       plan.addRaw(target.item_type, target.item_id, target.quantity);
       continue;
     }
-    if (recipes.length === 1) {
-      const { recipe, outputPerCraft } = recipes[0]!;
+
+    if (itemEntry.crafted_from.length === 0) {
+      plan.addRaw(target.item_type, target.item_id, target.quantity);
+      continue;
+    }
+    if (itemEntry.crafted_from.length === 1) {
+      const recipe = itemEntry.crafted_from[0]!;
+      const outputPerCraft =
+        recipe.outputs.find(({ item }) => referenceKey(item) === key)
+          ?.quantity || 1;
 
       plan.addRecipe(recipe, target.quantity / outputPerCraft, depth);
 
       continue;
     }
 
-    const branches = recipes.map(({ recipe, outputPerCraft }) => {
+    const branches = itemEntry.crafted_from.map((recipe) => {
+      const outputPerCraft =
+        recipe.outputs.find(({ item }) => referenceKey(item) === key)
+          ?.quantity || 1;
       const branchPlan = PartialPlan.empty(next.inventory);
 
       branchPlan.addRecipe(recipe, target.quantity / outputPerCraft, depth);
@@ -215,19 +196,12 @@ class PartialPlan {
   recipes = new Map<
     number,
     {
-      recipe: GameCraftingRecipe;
+      recipe: CraftRecipe;
       quantity: number;
       depth: number;
     }
   >();
-  rawMaterials = new Map<
-    string,
-    {
-      itemType: ItemType;
-      itemId: number;
-      quantity: number;
-    }
-  >();
+  rawMaterials = new Map<string, ItemStack>();
 
   private constructor(private inventory: ReadonlyMap<string, number>) {}
 
@@ -259,7 +233,7 @@ class PartialPlan {
     }
   }
 
-  addRecipe(recipe: GameCraftingRecipe, quantity: number, depth: number) {
+  addRecipe(recipe: CraftRecipe, quantity: number, depth: number) {
     const existing = this.recipes.get(recipe.id);
     if (existing) {
       existing.quantity += Math.ceil(quantity);
@@ -275,7 +249,12 @@ class PartialPlan {
     if (existing) {
       existing.quantity += quantity;
     } else {
-      this.rawMaterials.set(key, { itemType, itemId, quantity });
+      const info = itemsCodex.get(key);
+      if (!info) return;
+      this.rawMaterials.set(key, {
+        item: info,
+        quantity,
+      });
     }
   }
 
@@ -283,8 +262,8 @@ class PartialPlan {
     for (const { recipe, quantity, depth } of other.recipes.values()) {
       this.addRecipe(recipe, quantity, depth);
     }
-    for (const { itemType, itemId, quantity } of other.rawMaterials.values()) {
-      this.addRaw(itemType, itemId, quantity);
+    for (const { item, quantity } of other.rawMaterials.values()) {
+      this.addRaw(item.item_type, item.item_id, quantity);
     }
   }
 
@@ -302,17 +281,11 @@ class PartialPlan {
     }
 
     for (const { recipe, quantity } of this.recipes.values()) {
-      for (const item of recipe.consumed_item_stacks) {
-        add(
-          referenceKey(item),
-          -Math.ceil(quantity * item.quantity * (item.consumption_chance ?? 1)),
-        );
+      for (const input of recipe.inputs) {
+        add(referenceKey(input.item), -Math.ceil(quantity * input.quantity));
       }
-      for (const item of realItemStack(recipe.crafted_item_stacks)) {
-        add(
-          referenceKey(item),
-          Math.ceil(quantity * item.quantity * (item.consumption_chance ?? 1)),
-        );
+      for (const output of recipe.outputs) {
+        add(referenceKey(output.item), Math.ceil(quantity * output.quantity));
       }
     }
 
@@ -342,17 +315,19 @@ class PartialPlan {
   totalEffort(): number {
     let totalEffort = 0;
     for (const { recipe, quantity } of this.recipes.values()) {
-      totalEffort += quantity * recipe.stamina_requirement;
+      totalEffort += quantity * recipe.effort;
     }
-    for (const { itemType, itemId, quantity } of this.rawMaterials.values()) {
-      const extractionInfo = getExtractionInfo(itemType, itemId);
-      const averageProbability =
-        extractionInfo.resource_sources.length === 0
+    for (const { item, quantity } of this.rawMaterials.values()) {
+      const quantitiesPerStrike = item.extracted_from.map((recipe) => {
+        const selfItem = recipe.outputs.find((output) => item === output.item)!;
+        return selfItem.quantity;
+      });
+      const averageQuantityPerStrike =
+        quantitiesPerStrike.length === 0
           ? 1
-          : extractionInfo.resource_sources
-              .map((s) => s.amount_per_stamina)
-              .reduce((a, b) => a + b) / extractionInfo.resource_sources.length;
-      totalEffort += quantity / averageProbability;
+          : quantitiesPerStrike.reduce((a, b) => a + b) /
+            quantitiesPerStrike.length;
+      totalEffort += quantity / averageQuantityPerStrike;
     }
     return totalEffort;
   }
@@ -367,51 +342,43 @@ class PartialPlan {
     };
 
     for (const { recipe, quantity, depth } of this.recipes.values()) {
-      const buildingReq = recipe.building_requirement;
       plan.steps.push({
         craft_count: Math.ceil(quantity),
-        effort_per_craft: recipe.stamina_requirement,
+        effort_per_craft: recipe.effort,
         recipe_id: recipe.id,
         recipe_name: recipe.name,
-        building_type: buildingReq
-          ? getBuildingTypeName(buildingReq.building_type)
-          : "Any",
-        building_tier: buildingReq?.tier ?? 0,
-        skill_requirements: recipe.level_requirements.map((r) => ({
-          skill: getSkillName(r.skill_id),
-          level: r.level,
-        })),
-        tool_requirements: recipe.tool_requirements.map((r) => ({
-          tool: getToolTypeName(r.tool_type),
-          level: r.level,
-        })),
-        inputs: recipe.consumed_item_stacks.map((item): StepInput => {
-          const itemKey = referenceKey(item);
-          const totalAvailable = available.get(itemKey) ?? 0;
-          const needed = Math.ceil(item.quantity * quantity);
-          const used = Math.max(
-            0,
-            Math.min(Math.floor(totalAvailable), needed),
-          );
-          available.set(itemKey, totalAvailable - needed);
-          totalNeeded.set(itemKey, (totalNeeded.get(itemKey) ?? 0) + needed);
+        building_type: recipe.buildingType,
+        building_tier: recipe.requiredBuildingTier,
+        skill_requirements: recipe.requiredSkills,
+        tool_requirements: recipe.requiredTool,
+        inputs: recipe.inputs.map(
+          ({ item, quantity: perCraftQuantity }): StepInput => {
+            const itemKey = referenceKey(item);
+            const totalAvailable = available.get(itemKey) ?? 0;
+            const needed = Math.ceil(perCraftQuantity * quantity);
+            const used = Math.max(
+              0,
+              Math.min(Math.floor(totalAvailable), needed),
+            );
+            available.set(itemKey, totalAvailable - needed);
+            totalNeeded.set(itemKey, (totalNeeded.get(itemKey) ?? 0) + needed);
 
-          return {
+            return {
+              item_id: item.item_id,
+              item_type: item.item_type,
+              name: item.name,
+              quantity_per_craft: Math.floor(perCraftQuantity),
+              available: used,
+              is_raw: this.rawMaterials.has(itemKey),
+            };
+          },
+        ),
+        outputs: recipe.outputs.map(
+          ({ item, quantity: perCraftQuantity }): StepOutput => ({
             item_id: item.item_id,
             item_type: item.item_type,
-            __item_key: itemKey,
-            name: getItemName(item.item_type, item.item_id),
-            quantity_per_craft: Math.floor(item.quantity),
-            available: used,
-            is_raw: this.rawMaterials.has(referenceKey(item)),
-          };
-        }),
-        outputs: realItemStack(recipe.crafted_item_stacks).map(
-          (item): StepOutput => ({
-            item_id: item.item_id,
-            item_type: item.item_type,
-            quantity_per_craft: item.quantity,
-            name: getItemName(item.item_type, item.item_id),
+            name: item.name,
+            quantity_per_craft: perCraftQuantity,
           }),
         ),
         depth,
@@ -442,46 +409,46 @@ class PartialPlan {
       step.depth = s.length - i - 1;
     });
 
-    for (const [
-      key,
-      { itemType, itemId, quantity },
-    ] of this.rawMaterials.entries()) {
+    for (const [key, { item, quantity }] of this.rawMaterials.entries()) {
       const totalAvailable = this.inventory.get(key) ?? 0;
       const needed = totalNeeded.get(key) ?? Math.ceil(quantity);
       const used = Math.max(0, Math.min(totalAvailable, needed));
       available.set(key, totalAvailable - needed);
 
-      const info = getItemInfo(itemType, itemId);
-      const extractionInfo = getExtractionInfo(itemType, itemId);
-      const averageProbability =
-        extractionInfo.resource_sources.length === 0
+      const quantitiesPerStrike = item.extracted_from.map((recipe) => {
+        const selfItem = recipe.outputs.find((output) => item === output.item)!;
+        return selfItem.quantity;
+      });
+      const averageQuantityPerStrike =
+        quantitiesPerStrike.length === 0
           ? 1
-          : extractionInfo.resource_sources
-              .map((s) => s.amount_per_stamina)
-              .reduce((a, b) => a + b) / extractionInfo.resource_sources.length;
+          : quantitiesPerStrike.reduce((a, b) => a + b) /
+            quantitiesPerStrike.length;
+      const firstExtraction = item.extracted_from[0];
       plan.raw_materials.push({
-        item_id: itemId,
-        item_type: itemType,
-        name: info.name,
-        tier: info.tier,
-        tag: info.tag,
-        likely_effort: Math.ceil(quantity / averageProbability),
+        item_id: item.item_id,
+        item_type: item.item_type,
+        name: item.name,
+        tier: item.tier,
+        tag: item.tag || "",
+        likely_effort: Math.ceil(quantity / averageQuantityPerStrike),
         available: used,
         total_needed: needed,
-        source: extractionInfo.source,
-        skill_requirements: extractionInfo.skill_requirements,
-        tool_requirements: extractionInfo.tool_requirements,
-        resource_sources: extractionInfo.resource_sources,
+        source: firstExtraction?.verb || "Obtain",
+        skill_requirements: firstExtraction?.requiredSkills ?? [],
+        tool_requirements: firstExtraction?.requiredTool ?? [],
+        resource_sources: item.extracted_from.map((recipe) => recipe.name),
       });
     }
 
     for (const inputKey of totalNeeded.keys()) {
       const remaining = available.get(inputKey) ?? 0;
       if (remaining >= 0) {
-        const item = parseReferenceKey(inputKey);
+        const item = itemsCodex.get(inputKey)!;
         plan.already_have.push({
-          ...item,
-          name: getItemName(item.item_type, item.item_id),
+          item_type: item.item_type,
+          item_id: item.item_id,
+          name: item.name,
           quantity: this.inventory.get(inputKey) ?? 0,
         });
       }
@@ -489,75 +456,4 @@ class PartialPlan {
 
     return plan;
   }
-}
-
-const extractionInfo = LazyKeyed.of((key) => {
-  const { item_type, item_id } = parseReferenceKey(key);
-  return getExtractionInfoInner(item_type, item_id);
-});
-
-function getExtractionInfo(itemType: ItemType, itemId: number) {
-  return extractionInfo.get(`${itemType}:${itemId}`);
-}
-
-function getExtractionInfoInner(
-  itemType: ItemType,
-  itemId: number,
-): {
-  source: string;
-  skill_requirements: { skill: string; level: number }[];
-  tool_requirements: { tool: string; level: number }[];
-  resource_sources: RawMaterialSource[];
-} {
-  const key = `${itemType}:${itemId}`;
-  const extractions = gd.extractionByOutput.get(key);
-  if (!extractions || extractions.length === 0) {
-    return {
-      source: "Obtain",
-      skill_requirements: [],
-      tool_requirements: [],
-      resource_sources: [],
-    };
-  }
-
-  // Use the first extraction recipe for skill/tool info (they're usually the same across all sources)
-  const first = extractions[0]!;
-  const source = first.verb_phrase || "Gather";
-  const skill_requirements = first.level_requirements.map((r) => ({
-    skill: getSkillName(r.skill_id),
-    level: r.level,
-  }));
-  const tool_requirements = first.tool_requirements.map((t) => ({
-    tool: getToolTypeName(t.tool_type),
-    level: t.level,
-  }));
-
-  // Collect all unique world resource sources
-  const seen = new Set<number>();
-  const resource_sources: RawMaterialSource[] = [];
-  for (const e of extractions) {
-    if (seen.has(e.resource_id)) continue;
-    seen.add(e.resource_id);
-    const res = gd.resources.get(e.resource_id);
-    if (res) {
-      const realItemAmount = e.extracted_item_stacks
-        .flatMap(({ item_stack, probability }) =>
-          realItemStack([item_stack], probability),
-        )
-        .filter(
-          (item_stack) =>
-            item_stack.item_type === itemType && item_stack.item_id === itemId,
-        )
-        .map((p) => p.quantity)
-        .reduce((a, b) => a + b);
-
-      resource_sources.push({
-        resource_name: res.name,
-        verb: e.verb_phrase || "Gather",
-        amount_per_stamina: realItemAmount,
-      });
-    }
-  }
-
-  return { source, skill_requirements, tool_requirements, resource_sources };
 }

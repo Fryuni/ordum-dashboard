@@ -91,7 +91,12 @@ app.get("/api/settlement", async (c) => {
         places.reduce((sum, p) => sum + p.quantity, 0),
       );
     }
-    const plans = buildSettlementPlan(currentTier, learnedIds, supplies, inventory);
+    const plans = buildSettlementPlan(
+      currentTier,
+      learnedIds,
+      supplies,
+      inventory,
+    );
 
     return c.json({
       currentTier,

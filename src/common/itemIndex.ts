@@ -16,7 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { gd, type ItemReference } from "./gamedata";
+import { gd } from "./gamedata";
+import type { ItemReference } from "./gamedata/definition";
 
 export interface IndexItem extends ItemReference {
   tier: number;

@@ -34,7 +34,9 @@ set -euo pipefail
 REPO="BitCraftToolBox/BitCraft_GameData"
 BRANCH="cereal/cs"
 DIR="static"
-OUT_DIR="$(cd "$(dirname "$0")/.." && pwd)/gamedata"
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+OUT_DIR="$ROOT_DIR/gamedata"
+SCRIPTS_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Files needed for the dashboard
 FILES=(
@@ -67,7 +69,7 @@ for file in "${FILES[@]}"; do
   URL="https://raw.githubusercontent.com/$REPO/$BRANCH/$DIR/$file"
   if curl -sfL "$URL" -o "$OUT_DIR/$file.tmp"; then
     mv "$OUT_DIR/$file.tmp" "$OUT_DIR/$file"
-    SIZE=$(wc -c < "$OUT_DIR/$file" | tr -d ' ')
+    SIZE=$(wc -c <"$OUT_DIR/$file" | tr -d ' ')
     printf "✅ %s bytes\n" "$SIZE"
   else
     rm -f "$OUT_DIR/$file.tmp"
@@ -85,5 +87,9 @@ else
 fi
 
 # Write a timestamp
-echo "{\"updated_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\", \"source\": \"$REPO\", \"branch\": \"$BRANCH\"}" > "$OUT_DIR/_meta.json"
+echo "{\"updated_at\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\", \"source\": \"$REPO\", \"branch\": \"$BRANCH\"}" >"$OUT_DIR/_meta.json"
 echo "   Metadata written to $OUT_DIR/_meta.json"
+
+bun run "$SCRIPTS_DIR/preprocess-gamedata.ts" \
+  "$OUT_DIR" \
+  "$ROOT_DIR/src/common/gamedata/codex.ts"

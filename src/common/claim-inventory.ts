@@ -27,7 +27,8 @@
 import z from "zod";
 import { jita } from "./api";
 import type { JitaPassiveCraft } from "./bitjita-client";
-import { gd, realItemStack, referenceKey, type ItemType } from "./gamedata";
+import { gd, realItemStack } from "./gamedata";
+import { referenceKey, type ItemType } from "./gamedata/definition";
 
 /** Building description IDs for bank buildings (personal storage) */
 export const BANK_BUILDING_IDS = new Set([
