@@ -117,11 +117,16 @@ const $playerInventory = computedAsync(
           }
         }
 
-        // Add items being crafted by this player (active crafts)
-        const crafts =
-          jitaCraftSchema.safeParse([...completedCrafts, ...ongoingCrafts])
-            .data ?? [];
-        addCraftsToInventory(inventory, crafts);
+        try {
+          // Add items being crafted by this player (active crafts)
+          const crafts = jitaCraftSchema.parse([
+            ...completedCrafts,
+            ...ongoingCrafts,
+          ]);
+          addCraftsToInventory(inventory, crafts);
+        } catch (error) {
+          console.error("Failed to parse player crafts:", error);
+        }
 
         // Add completed passive crafts (looms, smelters, farms)
         addPassiveCraftsToInventory(inventory, passiveCrafts.craftResults);

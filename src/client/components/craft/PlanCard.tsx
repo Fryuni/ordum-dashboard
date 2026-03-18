@@ -22,7 +22,7 @@ import RawMaterials from "./RawMaterials";
 import CraftingSteps from "./CraftingSteps";
 import type { CraftPlan } from "../../../common/craft-planner";
 import { $inventory } from "../../stores/craftSource";
-import { referenceKey } from "../../../common/gamedata/definition.ts";
+import { referenceKey } from "../../../common/gamedata/definition";
 
 interface Props {
   plan: CraftPlan;
@@ -81,12 +81,8 @@ export default function PlanCard({
       const matchTier =
         tierQ === null ||
         s.building_tier === tierQ ||
-        s.inputs.some((i) => {
-          // Check item tier via raw materials as a proxy
-          const raw = (plan.raw_materials ?? []).find(
-            (r) => r.item_id === i.item_id && r.item_type === i.item_type,
-          );
-          return raw?.tier === tierQ;
+        s.outputs.some((i) => {
+          return i.item.tier === tierQ;
         });
       return matchName && matchTier;
     });

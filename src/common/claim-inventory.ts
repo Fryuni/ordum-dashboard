@@ -29,6 +29,7 @@ import { jita } from "./api";
 import type { JitaPassiveCraft } from "./bitjita-client";
 import { gd, realItemStack } from "./gamedata";
 import { referenceKey, type ItemType } from "./gamedata/definition";
+import { recipesCodex } from "./gamedata/codex";
 
 /** Building description IDs for bank buildings (personal storage) */
 export const BANK_BUILDING_IDS = new Set([
@@ -57,6 +58,22 @@ export const jitaCraftSchema = z.array(
 
 export type JitaCraft = z.infer<typeof jitaCraftSchema>[number];
 
+export function addToInventory(
+  inventory: Map<string, ItemPlace[]>,
+  itemKey: string,
+  itemPlace: ItemPlace,
+) {
+  const list = inventory.get(itemKey) ?? [];
+  if (!list.length) inventory.set(itemKey, list);
+
+  const existing = list.find((ip) => ip.name === itemPlace.name);
+  if (existing) {
+    existing.quantity += itemPlace.quantity;
+  } else {
+    list.push(itemPlace);
+  }
+}
+
 /**
  * Add crafting-in-progress items to an inventory map.
  * For each craft, consumed items (remaining) and crafted items (completed)
@@ -67,35 +84,30 @@ export function addCraftsToInventory(
   crafts: JitaCraft[],
 ): void {
   for (const craft of crafts) {
-    const recipe = gd.recipesById.get(craft.recipeId);
+    const recipe = recipesCodex.get(craft.recipeId);
     if (!recipe) continue;
 
     const completed = Math.floor(craft.progress / craft.actionsRequiredPerItem);
     const remaining = craft.craftCount - completed;
 
     const items = [
-      ...realItemStack(recipe.consumed_item_stacks, remaining).map((item) => ({
+      ...recipe.inputs.map(({ item, quantity }) => ({
         item,
+        quantity: quantity * remaining,
         verb: "consumed",
       })),
-      ...realItemStack(recipe.crafted_item_stacks, completed).map((item) => ({
+      ...recipe.outputs.map(({ item, quantity }) => ({
         item,
+        quantity: quantity * completed,
         verb: "crafted",
       })),
     ];
 
-    for (const { item, verb } of items) {
-      const key = referenceKey(item);
-      const list = inventory.get(key) ?? [];
-      if (!list.length) inventory.set(key, list);
-      const name = `Being ${verb} by "${craft.ownerUsername}"`;
-
-      const existing = list.find(ip => ip.name === name);
-      if (existing) {
-        existing.quantity += item.quantity;
-      } else {
-        list.push({ name, quantity: item.quantity });
-      }
+    for (const { item, quantity, verb } of items) {
+      addToInventory(inventory, referenceKey(item), {
+        name: `Being ${verb} by "${craft.ownerUsername}"`,
+        quantity: quantity,
+      });
     }
   }
 }
@@ -109,28 +121,24 @@ export function addPassiveCraftsToInventory(
   passiveCrafts: JitaPassiveCraft[],
 ): void {
   for (const craft of passiveCrafts) {
-    if (craft.status !== "complete") continue;
+    const recipe = recipesCodex.get(craft.recipeId);
+    if (!recipe) continue;
 
-    for (const output of craft.craftedItem ?? []) {
-      const itemType: ItemType =
-        output.item_type === "cargo" ? "Cargo" : "Item";
-      const key = referenceKey({
-        item_type: itemType,
-        item_id: output.item_id,
-      });
-      const qty = output.quantity ?? 1;
-      if (qty <= 0) continue;
-
-      const label = `Completed in "${craft.buildingName}"`;
-      const list = inventory.get(key) ?? [];
-      if (!list.length) inventory.set(key, list);
-
-      const existing = list.find((p) => p.name === label);
-      if (existing) {
-        existing.quantity += qty;
-      } else {
-        list.push({ name: label, quantity: qty });
+    if (craft.status !== "complete") {
+      for (const input of recipe.inputs) {
+        addToInventory(inventory, referenceKey(input.item), {
+          name: `Being consumed in "${craft.buildingName}"`,
+          quantity: input.quantity,
+        });
       }
+      continue;
+    }
+
+    for (const output of recipe.outputs) {
+      addToInventory(inventory, referenceKey(output.item), {
+        name: `Completed in "${craft.buildingName}"`,
+        quantity: output.quantity,
+      });
     }
   }
 }

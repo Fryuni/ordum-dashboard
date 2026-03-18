@@ -30,6 +30,7 @@ import {
   parseReferenceKey,
   referenceKey,
   type CraftRecipe,
+  type ItemEntry,
   type ItemReference,
   type ItemStack,
   type ItemType,
@@ -41,15 +42,15 @@ export interface CraftTarget extends ItemReference {
   quantity: number;
 }
 
-export interface StepInput extends ItemReference {
-  name: string;
+export interface StepInput {
+  item: ItemEntry;
   quantity_per_craft: number;
   available: number;
   is_raw: boolean;
 }
 
-export interface StepOutput extends ItemReference {
-  name: string;
+export interface StepOutput {
+  item: ItemEntry;
   quantity_per_craft: number;
 }
 
@@ -364,9 +365,7 @@ class PartialPlan {
             totalNeeded.set(itemKey, (totalNeeded.get(itemKey) ?? 0) + needed);
 
             return {
-              item_id: item.item_id,
-              item_type: item.item_type,
-              name: item.name,
+              item,
               quantity_per_craft: Math.floor(perCraftQuantity),
               available: used,
               is_raw: this.rawMaterials.has(itemKey),
@@ -375,9 +374,7 @@ class PartialPlan {
         ),
         outputs: recipe.outputs.map(
           ({ item, quantity: perCraftQuantity }): StepOutput => ({
-            item_id: item.item_id,
-            item_type: item.item_type,
-            name: item.name,
+            item,
             quantity_per_craft: perCraftQuantity,
           }),
         ),
@@ -390,16 +387,14 @@ class PartialPlan {
     plan.steps = topologicalSort(plan.steps, (a, b) => {
       // Does a produce something b needs? → a before b
       for (const out of a.outputs) {
-        const key = referenceKey(out);
         for (const inp of b.inputs) {
-          if (referenceKey(inp) === key) return "a->b";
+          if (inp.item === out.item) return "a->b";
         }
       }
       // Does b produce something a needs? → b before a
       for (const out of b.outputs) {
-        const key = referenceKey(out);
         for (const inp of a.inputs) {
-          if (referenceKey(inp) === key) return "b->a";
+          if (inp.item === out.item) return "b->a";
         }
       }
       return null;

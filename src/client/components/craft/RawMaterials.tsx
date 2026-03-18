@@ -95,7 +95,7 @@ export default function RawMaterials({
                   <div class="sources-header">Found in</div>
                   <ul class="sources-list">
                     {r.resource_sources.map((src) => (
-                      <li key={src.resource_name}>{src.resource_name}</li>
+                      <li key={src}>{src}</li>
                     ))}
                   </ul>
                 </div>
