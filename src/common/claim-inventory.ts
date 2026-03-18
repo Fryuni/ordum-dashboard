@@ -88,10 +88,14 @@ export function addCraftsToInventory(
       const key = referenceKey(item);
       const list = inventory.get(key) ?? [];
       if (!list.length) inventory.set(key, list);
-      list.push({
-        name: `Being ${verb} by "${craft.ownerUsername}"`,
-        quantity: item.quantity,
-      });
+      const name = `Being ${verb} by "${craft.ownerUsername}"`;
+
+      const existing = list.find(ip => ip.name === name);
+      if (existing) {
+        existing.quantity += item.quantity;
+      } else {
+        list.push({ name, quantity: item.quantity });
+      }
     }
   }
 }

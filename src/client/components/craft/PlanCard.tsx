@@ -147,7 +147,7 @@ export default function PlanCard({
               const places = inventory.get(key);
               return (
                 <span class="have-chip" key={item.name}>
-                  {item.name} <strong>×{item.quantity}</strong>
+                  {item.name} <strong>×{item.quantity.toFixed(0)}</strong>
                   {places && places.length > 0 && (
                     <div class="have-chip-tooltip">
                       <div class="sources-header">Found in</div>
