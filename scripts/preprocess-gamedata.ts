@@ -117,12 +117,12 @@ for (const list of await readDescFile("item_list")) {
   });
 }
 
-function collapseStack(stack: ItemStack[]): ItemStack[] {
+function collapseStack(stacks: ItemStack[]): ItemStack[] {
   const mapped: Record<string, ItemStack> = {};
-  for (const { item, quantity } of stack) {
-    const key = referenceKey(item);
-    const itemStack = (mapped[key] ??= { item, quantity: 0 });
-    itemStack.quantity += quantity;
+  for (const stack of stacks) {
+    const key = referenceKey(stack);
+    const itemStack = (mapped[key] ??= { ...stack, quantity: 0 });
+    itemStack.quantity += stack.quantity;
   }
   return Object.values(mapped);
 }
@@ -132,7 +132,14 @@ function resolveItemStack(input: RawItemStack[]): ItemStack[] {
     .map((rawStack): ItemStack[] => {
       const key = referenceKey(rawStack);
       const realItem = items.get(key);
-      if (realItem) return [{ item: realItem, quantity: rawStack.quantity }];
+      if (realItem)
+        return [
+          {
+            item_type: realItem.item_type,
+            item_id: realItem.item_id,
+            quantity: rawStack.quantity,
+          },
+        ];
 
       const itemListId = itemListItems.get(key);
       if (!itemListId)
@@ -183,7 +190,9 @@ for (const rawRecipe of await readDescFile("crafting_recipe")) {
   if (shouldSkipRecipe(rawRecipe)) continue;
   const inputs = resolveItemStack(rawRecipe.consumed_item_stacks);
   const outputs = resolveItemStack(rawRecipe.crafted_item_stacks);
-  const nameParts = [...outputs, ...inputs].map((c) => c.item.name);
+  const nameParts = [...outputs, ...inputs].map(
+    (c) => items.get(referenceKey(c))!.name,
+  );
   const name = (rawRecipe.name as string).replace(/\{(\d+)\}/g, (_, index) => {
     return nameParts[Number.parseInt(index, 10)] || `#${index}`;
   });
@@ -213,10 +222,10 @@ for (const rawRecipe of await readDescFile("crafting_recipe")) {
 
   recipes.set(recipe.id, recipe);
   inputs.forEach((input) => {
-    input.item.crafted_into.push(recipe);
+    items.get(referenceKey(input))!.crafted_into.push(recipe.id);
   });
-  outputs.forEach((input) => {
-    input.item.crafted_from.push(recipe);
+  outputs.forEach((output) => {
+    items.get(referenceKey(output))!.crafted_from.push(recipe.id);
   });
 }
 
@@ -255,8 +264,8 @@ for (const rawRecipe of await readDescFile("extraction_recipe")) {
   };
 
   extractions.set(recipe.id, recipe);
-  outputs.forEach((input) => {
-    input.item.extracted_from.push(recipe);
+  outputs.forEach((output) => {
+    items.get(referenceKey(output))!.extracted_from.push(recipe.id);
   });
 }
 
@@ -266,19 +275,20 @@ console.log(`${recipes.size} craft recipes`);
 console.log(`${extractions.size} extraction recipes`);
 
 await Bun.file(encodedCodexFile).write(
-  devalue.stringify({ items, recipes, extractions }),
+  JSON.stringify({
+    items: Array.from(items.entries()),
+    recipes: Array.from(recipes.entries()),
+    extractions: Array.from(extractions.entries()),
+  }),
 );
 
 await Bun.file(codexFile).write(
   `
 import type { ItemEntry, CraftRecipe, ExtractionRecipe } from "./definition";
-import encodedCodex from "./codex.json";
-import { unflatten } from "devalue";
+import codex from "./codex.json";
 
-const codex = unflatten(encodedCodex as any[]);
-
-export const itemsCodex: Map<string, ItemEntry> = codex.items;
-export const recipesCodex: Map<number, CraftRecipe> = codex.recipes;
-export const extractionsCodex: Map<number, ExtractionRecipe> = codex.extractions;
+export const itemsCodex: Map<string, ItemEntry> = new Map((codex as any).items);
+export const recipesCodex: Map<number, CraftRecipe> = new Map((codex as any).recipes);
+export const extractionsCodex: Map<number, ExtractionRecipe> = new Map((codex as any).extractions);
 `.trim(),
 );

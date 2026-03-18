@@ -27,8 +27,7 @@
 import z from "zod";
 import { jita } from "./api";
 import type { JitaPassiveCraft } from "./bitjita-client";
-import { gd, realItemStack } from "./gamedata";
-import { referenceKey, type ItemType } from "./gamedata/definition";
+import { referenceKey } from "./gamedata/definition";
 import { recipesCodex } from "./gamedata/codex";
 
 /** Building description IDs for bank buildings (personal storage) */
@@ -91,12 +90,12 @@ export function addCraftsToInventory(
     const remaining = craft.craftCount - completed;
 
     const items = [
-      ...recipe.inputs.map(({ item, quantity }) => ({
+      ...recipe.inputs.map(({ quantity, ...item }) => ({
         item,
         quantity: quantity * remaining,
         verb: "consumed",
       })),
-      ...recipe.outputs.map(({ item, quantity }) => ({
+      ...recipe.outputs.map(({ quantity, ...item }) => ({
         item,
         quantity: quantity * completed,
         verb: "crafted",
@@ -126,7 +125,7 @@ export function addPassiveCraftsToInventory(
 
     if (craft.status !== "complete") {
       for (const input of recipe.inputs) {
-        addToInventory(inventory, referenceKey(input.item), {
+        addToInventory(inventory, referenceKey(input), {
           name: `Being consumed in "${craft.buildingName}"`,
           quantity: input.quantity,
         });
@@ -135,7 +134,7 @@ export function addPassiveCraftsToInventory(
     }
 
     for (const output of recipe.outputs) {
-      addToInventory(inventory, referenceKey(output.item), {
+      addToInventory(inventory, referenceKey(output), {
         name: `Completed in "${craft.buildingName}"`,
         quantity: output.quantity,
       });

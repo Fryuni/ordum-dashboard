@@ -87,3 +87,25 @@ The branch unified the player and claim crafting interfaces into a single `Craft
 - Established a concurrent development workflow using Vite (port 4321) and Wrangler (port 8787) with automated API proxying via Vite's dev server.
 - Automated deployment via GitHub Actions using the `cloudflare/wrangler-action` for CI/CD, while cleaning up legacy Bun server files and Docker configuration.
 - Updated the project README to reflect the new architecture, dependency requirements, and development scripts.
+
+---
+
+## Commit c7c10f3a | 2026-03-18T06:46:26.763Z
+
+### Branch Purpose
+
+Unify the crafting experience into a single location-aware interface, modernize the API layer with BitJita, and migrate the infrastructure to a Cloudflare Workers + Vite architecture for improved performance and scalability.
+
+### Previous Progress Summary
+
+This branch unified the player and claim crafting interfaces into a single `CraftPage` with a persistent `$inventorySource` selector and location-aware inventory tracking. It transitioned the backend from the legacy Resubaka API to a fully typed BitJita client and integrated settlement and traveler task requirements directly into the crafting engine. Most recently, the application was migrated from a Bun-native server to a Cloudflare Workers + Vite architecture, including a Hono-based API worker, a Vite-built Preact SPA, and a GitHub Actions CI/CD pipeline supporting both production and preview deployments.
+
+### This Commit's Contribution
+
+- Replaced `devalue`-based gamedata codex hydration with runtime construction from raw JSON after discovering that `devalue` caused a stack overflow during worker startup.
+- Resolved a critical "Worker failed to start" crash in `wrangler dev` caused by `hydrate()` attempting to unflatten the large `src/common/gamedata/codex.json` file.
+- Simplified the gamedata loading pipeline by removing the `codex.json` intermediate build artifact and the `hydrateCodex` utility.
+- Confirmed the fix by successfully starting the local development worker to a ready state with the full game dataset loaded.
+- Standardized TypeScript configurations by adding a client-specific `tsconfig.json` for browser-specific types (e.g., `Uint8Array.toBase64`) while isolating Cloudflare Worker types to the root configuration.
+- Improved CI/CD reliability by upgrading GitHub Actions to use Node.js 20 compatible versions and configuring explicit `workers_dev` and `preview_urls` settings in `wrangler.toml`.
+- Established custom domain routing for `ordum.fun` directly in the Wrangler configuration.

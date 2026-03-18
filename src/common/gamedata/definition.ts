@@ -14,13 +14,12 @@ export interface ItemEntry extends ItemReference {
   tag?: string;
   tier: number;
   rarity: string;
-  extracted_from: ExtractionRecipe[];
-  crafted_from: CraftRecipe[];
-  crafted_into: CraftRecipe[];
+  extracted_from: number[];
+  crafted_from: number[];
+  crafted_into: number[];
 }
 
-export interface ItemStack {
-  item: ItemEntry;
+export interface ItemStack extends ItemReference {
   quantity: number;
 }
 

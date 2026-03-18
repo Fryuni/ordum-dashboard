@@ -19,7 +19,6 @@
 import type { CraftStep as Step } from "../../../common/craft-planner";
 
 export default function CraftStep({ step }: { step: Step }) {
-  const nameParts = [...step.outputs, ...step.inputs].map((c) => c.name);
   const firstOutput = step.outputs[0];
   return !firstOutput ? (
     <div class="error-banner">
@@ -32,11 +31,7 @@ export default function CraftStep({ step }: { step: Step }) {
       <div class="timeline-card">
         <div class="step-header">
           <span class="step-title">
-            {step.outputs.length > 1
-              ? step.recipe_name.replace(/\{(\d+)\}/g, (_, index) => {
-                  return nameParts[Number.parseInt(index, 10)] || `#${index}`;
-                })
-              : firstOutput.name}
+            {step.outputs.length > 1 ? step.recipe_name : firstOutput.item.name}
           </span>
           <span class="step-qty">
             ×{step.craft_count} craft{step.craft_count > 1 ? "s" : ""} →{" "}
@@ -69,8 +64,11 @@ export default function CraftStep({ step }: { step: Step }) {
             const deficit = Math.max(0, total - available);
             const d = deficit > 0;
             return (
-              <div class={`input-card ${d ? "deficit" : "ok"}`} key={inp.name}>
-                <span class="input-name">{inp.name}</span>
+              <div
+                class={`input-card ${d ? "deficit" : "ok"}`}
+                key={inp.item.name}
+              >
+                <span class="input-name">{inp.item.name}</span>
                 <span class={`input-qty ${d ? "deficit" : "ok"}`}>
                   {available} / {total}
                   {d ? ` (need ${deficit})` : ""}

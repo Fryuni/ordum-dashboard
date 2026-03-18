@@ -1,10 +1,10 @@
 import type { ItemEntry, CraftRecipe, ExtractionRecipe } from "./definition";
-import encodedCodex from "./codex.json";
-import { unflatten } from "devalue";
+import codex from "./codex.json";
 
-const codex = unflatten(encodedCodex as any[]);
-
-export const itemsCodex: Map<string, ItemEntry> = codex.items;
-export const recipesCodex: Map<number, CraftRecipe> = codex.recipes;
-export const extractionsCodex: Map<number, ExtractionRecipe> =
-  codex.extractions;
+export const itemsCodex: Map<string, ItemEntry> = new Map((codex as any).items);
+export const recipesCodex: Map<number, CraftRecipe> = new Map(
+  (codex as any).recipes,
+);
+export const extractionsCodex: Map<number, ExtractionRecipe> = new Map(
+  (codex as any).extractions,
+);
