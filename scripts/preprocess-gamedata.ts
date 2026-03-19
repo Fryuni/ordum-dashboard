@@ -288,15 +288,17 @@ for (const rawRecipe of await readDescFile("extraction_recipe")) {
 }
 
 // Build tool items codex: maps item_id → { toolType name, tier }
+// tool_desc.json fields: id, item_id, tool_type, level (= tier), power
 const toolItems = new Map<
   number,
   { item_id: number; name: string; toolType: string; tier: number }
 >();
 const rawToolsData: {
   id: number;
-  name: string;
+  item_id: number;
   tool_type: number;
-  tier: number;
+  level: number;
+  power: number;
 }[] = await readDescFile("tool");
 const rawToolTypesData: { id: number; name: string }[] =
   await readDescFile("tool_type");
@@ -305,11 +307,12 @@ const toolTypeNames = new Map<number, string>(
 );
 
 for (const tool of rawToolsData) {
-  toolItems.set(tool.id, {
-    item_id: tool.id,
-    name: tool.name,
+  const itemEntry = items.get(`Item:${tool.item_id}`);
+  toolItems.set(tool.item_id, {
+    item_id: tool.item_id,
+    name: itemEntry?.name ?? `Tool #${tool.id}`,
     toolType: toolTypeNames.get(tool.tool_type) || "Unknown tool",
-    tier: tool.tier,
+    tier: tool.level,
   });
 }
 
@@ -336,6 +339,6 @@ import codex from "./codex.json";
 export const itemsCodex: Map<string, ItemEntry> = new Map((codex as any).items);
 export const recipesCodex: Map<number, CraftRecipe> = new Map((codex as any).recipes);
 export const extractionsCodex: Map<number, ExtractionRecipe> = new Map((codex as any).extractions);
-export const toolItemsCodex: Map<number, ToolItemEntry> = new Map((codex as any).toolItems);
+export const toolItemsCodex: Map<number, ToolItemEntry> = new Map((codex as any).toolItems ?? []);
 `.trim(),
 );

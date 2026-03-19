@@ -22,6 +22,7 @@ import RawMaterials from "./RawMaterials";
 import CraftingSteps from "./CraftingSteps";
 import type { CraftPlan } from "../../../common/craft-planner";
 import { $inventory } from "../../stores/craftSource";
+import { $playerCapabilities } from "../../stores/playerCapabilities";
 import { referenceKey } from "../../../common/gamedata/definition";
 
 interface Props {
@@ -34,6 +35,9 @@ export default function PlanCard({
   allDoneMessage = "✅ You already have everything needed!",
 }: Props) {
   const inventory = useStore($inventory);
+  const capabilitiesAsync = useStore($playerCapabilities);
+  const capabilities =
+    capabilitiesAsync.state === "loaded" ? capabilitiesAsync.value : undefined;
   const [nameFilter, setNameFilter] = useState("");
   const [tierFilter, setTierFilter] = useState("");
 
@@ -164,8 +168,8 @@ export default function PlanCard({
         </div>
       )}
 
-      <RawMaterials materials={filteredRaw} />
-      <CraftingSteps steps={filteredSteps} />
+      <RawMaterials materials={filteredRaw} capabilities={capabilities} />
+      <CraftingSteps steps={filteredSteps} capabilities={capabilities} />
 
       {isEmpty && <div class="all-done">{allDoneMessage}</div>}
 

@@ -34,18 +34,21 @@ import type { PlayerCapabilities } from "../../common/player-capabilities";
 // ─── Experience Level Table ─────────────────────────────────────────────────────
 
 /** Cached XP thresholds: sorted array of { level, xp } */
-let xpThresholds: { level: number; xp: number }[] | null = null;
+let xpThresholds: { level: number; xp: number }[] | undefined;
 
-async function getXpThresholds(): Promise<{ level: number; xp: number }[]> {
-  if (xpThresholds) return xpThresholds;
+async function getXpThresholds(): Promise<
+  { level: number; xp: number }[] | undefined
+> {
+  if (xpThresholds !== undefined) return xpThresholds;
   try {
     const data = await jita.getExperienceLevelsJson();
-    // The API may return a single object or an array
+    // The API returns an array of { level, xp }
     const arr = Array.isArray(data) ? data : [data];
     xpThresholds = arr.sort((a, b) => a.level - b.level);
     return xpThresholds;
   } catch {
-    return [];
+    // Don't cache failures so we retry next time
+    return undefined;
   }
 }
 
@@ -71,7 +74,13 @@ export const $playerCapabilities = computedAsync(
     // Build skill levels
     const skills = new Map<string, number>();
     const thresholds = await getXpThresholds();
-    if (playerData.experience && playerData.skillMap) {
+    const hasSkillData =
+      !!thresholds &&
+      thresholds.length > 0 &&
+      !!playerData.experience?.length &&
+      !!playerData.skillMap;
+
+    if (hasSkillData) {
       for (const exp of playerData.experience) {
         const skillDesc = playerData.skillMap[String(exp.skill_id)];
         if (skillDesc) {
@@ -82,8 +91,9 @@ export const $playerCapabilities = computedAsync(
     }
 
     // Build max tool tiers from inventory
+    const hasToolData = toolItemsCodex.size > 0;
     const maxToolTiers = new Map<string, number>();
-    if (inventory instanceof Map) {
+    if (hasToolData && inventory instanceof Map) {
       for (const [key] of inventory) {
         // key format is "Item:123" or "Cargo:123"
         const [itemType, idStr] = key.split(":", 2);
@@ -99,6 +109,6 @@ export const $playerCapabilities = computedAsync(
       }
     }
 
-    return { skills, maxToolTiers };
+    return { skills, maxToolTiers, hasSkillData, hasToolData };
   },
 );

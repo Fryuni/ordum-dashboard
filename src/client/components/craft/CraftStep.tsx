@@ -17,17 +17,25 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import type { CraftStep as Step } from "../../../common/craft-planner";
+import type { PlayerCapabilities } from "../../../common/player-capabilities";
 
-export default function CraftStep({ step }: { step: Step }) {
+export default function CraftStep({
+  step,
+  capabilities,
+}: {
+  step: Step;
+  capabilities?: PlayerCapabilities;
+}) {
   const firstOutput = step.outputs[0];
-  const hasWarning = step.missing_skill || step.missing_tool;
   return !firstOutput ? (
     <div class="error-banner">
       <span class="error-icon">⚠</span>
       <span>No output defined for step!</span>
     </div>
   ) : (
-    <div class={`timeline-step ${hasWarning ? "step-unavailable" : ""}`}>
+    <div
+      class={`timeline-step ${step.missing_skill || step.missing_tool ? "step-unavailable" : ""}`}
+    >
       <div class="timeline-node">{step.depth + 1}</div>
       <div class="timeline-card">
         <div class="step-header">
@@ -40,36 +48,56 @@ export default function CraftStep({ step }: { step: Step }) {
             output
           </span>
           <div class="badges">
-            {hasWarning && (
-              <span
-                class="badge badge-warning"
-                title="You lack the required skill level or tool tier for this recipe"
-              >
-                ⚠ Unavailable
-              </span>
-            )}
             {step.building_type && (
               <span class="badge">
                 🏠 {step.building_type}
                 {step.building_tier ? " T" + step.building_tier : ""}
               </span>
             )}
-            {(step.skill_requirements || []).map((s) => (
-              <span
-                class={`badge ${step.missing_skill ? "badge-warning" : ""}`}
-                key={s.skill}
-              >
-                ⚡ {s.skill} Lv{s.level}
-              </span>
-            ))}
-            {(step.tool_requirements || []).map((t) => (
-              <span
-                class={`badge ${step.missing_tool ? "badge-warning" : ""}`}
-                key={t.tool}
-              >
-                🔧 {t.tool}
-              </span>
-            ))}
+            {(step.skill_requirements || []).map((s) => {
+              const playerLevel =
+                capabilities?.hasSkillData
+                  ? (capabilities.skills.get(s.skill) ?? 0)
+                  : undefined;
+              const isMissing =
+                playerLevel !== undefined && playerLevel < s.level;
+              return (
+                <span
+                  class={`badge ${isMissing ? "badge-warning" : ""}`}
+                  key={s.skill}
+                >
+                  ⚡ {s.skill} Lv{s.level}
+                  {isMissing && (
+                    <span class="badge-tooltip">
+                      Your {s.skill} is Lv{playerLevel}, need Lv{s.level}
+                    </span>
+                  )}
+                </span>
+              );
+            })}
+            {(step.tool_requirements || []).map((t) => {
+              const playerTier =
+                capabilities?.hasToolData
+                  ? (capabilities.maxToolTiers.get(t.tool) ?? 0)
+                  : undefined;
+              const isMissing =
+                playerTier !== undefined && playerTier < t.level;
+              return (
+                <span
+                  class={`badge ${isMissing ? "badge-warning" : ""}`}
+                  key={t.tool}
+                >
+                  🔧 {t.tool}
+                  {isMissing && (
+                    <span class="badge-tooltip">
+                      {playerTier === 0
+                        ? `You don't have a ${t.tool} (need T${t.level})`
+                        : `Your best ${t.tool} is T${playerTier}, need T${t.level}`}
+                    </span>
+                  )}
+                </span>
+              );
+            })}
           </div>
         </div>
         <div class="input-grid">

@@ -395,9 +395,40 @@ body {
   border: 1px solid var(--border);
 }
 .badge-warning {
+  position: relative;
   background: rgba(255, 170, 0, 0.15);
   color: #ffaa00;
   border-color: rgba(255, 170, 0, 0.3);
+  cursor: default;
+}
+.badge-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  background: var(--bg-surface);
+  border: 1px solid rgba(255, 170, 0, 0.3);
+  border-radius: 8px;
+  padding: 6px 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  font-size: 0.75rem;
+  color: var(--text);
+  pointer-events: none;
+}
+.badge-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(255, 170, 0, 0.3);
+}
+.badge-warning:hover .badge-tooltip {
+  display: block;
 }
 .step-unavailable .timeline-card {
   border-color: rgba(255, 170, 0, 0.4);
