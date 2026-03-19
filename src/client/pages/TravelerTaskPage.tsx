@@ -25,46 +25,83 @@ import {
   $travelerTargets,
   $travelerCraftPlan,
   $travelerTasksExpiration,
+  $selectedTravelers,
+  toggleTraveler,
+  soloTraveler,
   type TravelerTaskInfo,
 } from "../stores/travelerTask";
 import { $player } from "../stores/player";
 
-function TaskList({ tasks }: { tasks: TravelerTaskInfo[] }) {
+interface TaskListProps {
+  tasks: TravelerTaskInfo[];
+  selected: Set<number>;
+}
+
+function TaskList({ tasks, selected }: TaskListProps) {
   // Group by traveler
-  const byTraveler = new Map<string, TravelerTaskInfo[]>();
+  const byTraveler = new Map<
+    number,
+    { name: string; tasks: TravelerTaskInfo[] }
+  >();
   for (const t of tasks) {
-    const group = byTraveler.get(t.travelerName) ?? [];
-    group.push(t);
-    byTraveler.set(t.travelerName, group);
+    const group = byTraveler.get(t.travelerId);
+    if (group) {
+      group.tasks.push(t);
+    } else {
+      byTraveler.set(t.travelerId, { name: t.travelerName, tasks: [t] });
+    }
   }
 
   return (
     <div class="traveler-task-list">
-      {Array.from(byTraveler.entries()).map(([name, group]) => (
-        <div key={name} class="traveler-group">
-          <h4 class="traveler-name">🧳 {name}</h4>
-          <div class="traveler-tasks-grid">
-            {group.map((task) => (
-              <div key={task.taskId} class="traveler-task-card">
-                <div class="task-description">{task.description}</div>
-                <div class="task-meta">
-                  <span class="task-skill">{task.skillName}</span>
+      {Array.from(byTraveler.entries()).map(([id, { name, tasks: group }]) => {
+        const checked = selected.has(id);
+        return (
+          <div
+            key={id}
+            class={`traveler-group${checked ? "" : " traveler-group--excluded"}`}
+          >
+            <h4 class="traveler-name">
+              <label class="traveler-checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={() => toggleTraveler(id)}
+                />
+                <span>🧳 {name}</span>
+              </label>
+              <button
+                type="button"
+                class="solo-traveler-btn"
+                title={`Show only ${name}`}
+                onClick={() => soloTraveler(id)}
+              >
+                ◎
+              </button>
+            </h4>
+            <div class="traveler-tasks-grid">
+              {group.map((task) => (
+                <div key={task.taskId} class="traveler-task-card">
+                  <div class="task-description">{task.description}</div>
+                  <div class="task-meta">
+                    <span class="task-skill">{task.skillName}</span>
+                  </div>
+                  <div class="task-items">
+                    {task.requiredItems.map((ri) => (
+                      <span
+                        key={`${ri.item_type}:${ri.item_id}`}
+                        class="task-item-badge"
+                      >
+                        {ri.quantity}× {ri.name}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <div class="task-items">
-                  {task.requiredItems.map((ri) => (
-                    <span
-                      key={`${ri.item_type}:${ri.item_id}`}
-                      class="task-item-badge"
-                    >
-                      {ri.quantity}× {ri.name}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -117,8 +154,21 @@ function ResetCountdown() {
   );
 }
 
-function CollapsibleTaskList({ tasks }: { tasks: TravelerTaskInfo[] }) {
+function CollapsibleTaskList({
+  tasks,
+  selected,
+}: {
+  tasks: TravelerTaskInfo[];
+  selected: Set<number>;
+}) {
   const [open, setOpen] = useState(false);
+
+  // Count unique travelers and how many are selected
+  const travelerIds = new Set(tasks.map((t) => t.travelerId));
+  const selectedCount = [...travelerIds].filter((id) =>
+    selected.has(id),
+  ).length;
+  const allSelected = selectedCount === travelerIds.size;
 
   return (
     <div class="collapsible-section">
@@ -130,9 +180,11 @@ function CollapsibleTaskList({ tasks }: { tasks: TravelerTaskInfo[] }) {
         <span class="collapsible-arrow">{open ? "▾" : "▸"}</span>
         <span>
           {tasks.length} open task{tasks.length !== 1 ? "s" : ""}
+          {!allSelected &&
+            ` (${selectedCount}/${travelerIds.size} travelers selected)`}
         </span>
       </button>
-      {open && <TaskList tasks={tasks} />}
+      {open && <TaskList tasks={tasks} selected={selected} />}
     </div>
   );
 }
@@ -142,6 +194,7 @@ export default function TravelerTaskPage() {
   const travelerTasks = useStore($travelerTasks);
   const travelerTargets = useStore($travelerTargets);
   const craftPlan = useStore($travelerCraftPlan);
+  const selectedTravelers = useStore($selectedTravelers);
 
   const tasks =
     travelerTasks.state === "loaded" ? (travelerTasks.value ?? []) : [];
@@ -192,7 +245,9 @@ export default function TravelerTaskPage() {
         </div>
       )}
 
-      {tasks.length > 0 && <CollapsibleTaskList tasks={tasks} />}
+      {tasks.length > 0 && (
+        <CollapsibleTaskList tasks={tasks} selected={selectedTravelers} />
+      )}
 
       {hasTargets && isLoadingPlan && (
         <div class="loading-container">

@@ -1780,12 +1780,50 @@ body {
   margin-bottom: 16px;
 }
 .traveler-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--accent);
   margin-bottom: 8px;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--border);
+}
+.traveler-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.traveler-checkbox-label input[type="checkbox"] {
+  accent-color: var(--accent);
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+.solo-traveler-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0.6;
+  transition:
+    opacity 0.15s,
+    color 0.15s;
+}
+.solo-traveler-btn:hover {
+  opacity: 1;
+  color: var(--accent);
+}
+.traveler-group--excluded {
+  opacity: 0.45;
+}
+.traveler-group--excluded .traveler-tasks-grid {
+  pointer-events: none;
 }
 .traveler-tasks-grid {
   display: grid;

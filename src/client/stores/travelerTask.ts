@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { computed, computedAsync } from "nanostores";
+import { atom, computed, computedAsync, effect, onMount } from "nanostores";
 import { jita } from "../../common/api";
 import { getItemName, getSkillName } from "../../common/gamedata";
 import { buildCraftPlan } from "../../common/craft-planner";
@@ -108,11 +108,51 @@ export const $travelerTasksExpiration = computedAsync(
   },
 );
 
-/** Targets derived from open traveler tasks — used to compute the craft plan */
+// ─── Traveler Selection ────────────────────────────────────────────────────────
+
+/** Set of selected traveler IDs — only these are included in the craft plan */
+export const $selectedTravelers = atom<Set<number>>(new Set());
+
+/** Auto-select all travelers when the task list changes */
+onMount($selectedTravelers, () => {
+  let lastAvailable = new Set<number>();
+  return $travelerTasks.subscribe((tasks) => {
+    if (tasks.state !== "loaded" || !tasks.value) return;
+    const ids = new Set(tasks.value.map((t) => t.travelerId));
+    // Only auto-set if the available traveler set changed (new load / player switch)
+    if (
+      ids.size !== lastAvailable.size ||
+      [...ids].some((id) => !lastAvailable.has(id))
+    ) {
+      lastAvailable = ids;
+      $selectedTravelers.set(ids);
+    }
+  });
+});
+
+export function toggleTraveler(travelerId: number) {
+  const current = $selectedTravelers.get();
+  const next = new Set(current);
+  if (next.has(travelerId)) {
+    next.delete(travelerId);
+  } else {
+    next.add(travelerId);
+  }
+  $selectedTravelers.set(next);
+}
+
+export function soloTraveler(travelerId: number) {
+  $selectedTravelers.set(new Set([travelerId]));
+}
+
+// ─── Filtered Targets ──────────────────────────────────────────────────────────
+
+/** Targets derived from open traveler tasks — filtered by selected travelers */
 export const $travelerTargets = computedAsync(
-  $travelerTasks,
+  [$travelerTasks, $selectedTravelers],
   async (
     tasks,
+    selected,
   ): Promise<
     {
       item_id: number;
@@ -123,7 +163,7 @@ export const $travelerTargets = computedAsync(
   > => {
     if (!tasks || tasks.length === 0) return [];
 
-    // Merge all required items across all open tasks
+    // Merge required items only from selected travelers
     const merged = new Map<
       string,
       {
@@ -135,6 +175,7 @@ export const $travelerTargets = computedAsync(
     >();
 
     for (const task of tasks) {
+      if (!selected.has(task.travelerId)) continue;
       for (const ri of task.requiredItems) {
         const key = `${ri.item_type}:${ri.item_id}`;
         const existing = merged.get(key);
