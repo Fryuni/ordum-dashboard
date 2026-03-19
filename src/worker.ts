@@ -31,6 +31,7 @@ import type { CacheProvider } from "@croct/cache";
 import { buildClaimInventory } from "./common/claim-inventory";
 import { buildSettlementPlan } from "./common/settlement-planner";
 import { gd } from "./common/gamedata";
+import { fetchContribution } from "./server/contribution";
 import type BitJitaClient from "./common/bitjita-client";
 
 type Bindings = {
@@ -258,6 +259,27 @@ app.get("/api/construction", async (c) => {
     return c.json({ projects });
   } catch (e) {
     console.error("Failed to fetch construction data:", e);
+    return c.json({ error: String(e) }, 500);
+  }
+});
+
+app.get("/api/contribution", async (c) => {
+  try {
+    const jita = c.get("jita");
+    const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
+    const playerEntityId = c.req.query("player");
+    if (!playerEntityId) {
+      return c.json({ error: "player query parameter is required" }, 400);
+    }
+    const result = await fetchContribution(
+      jita,
+      c.env.jita_api_cache,
+      claimId,
+      playerEntityId,
+    );
+    return c.json(result);
+  } catch (e) {
+    console.error("Failed to fetch contribution data:", e);
     return c.json({ error: String(e) }, 500);
   }
 });
