@@ -31,14 +31,23 @@ import {
 } from "@croct/cache";
 import { hash } from "ohash";
 import BitJitaClient from "../common/bitjita-client";
+import { KVCacheProvider } from "./kvCache";
+import { TieredCache } from "./tieredCache";
 
-class CachedBitJita extends BitJitaClient {
-  #apiCache: CacheProvider<any, any> = AdaptedCache.transformKeys(
+export function buildCache(
+  kv?: KVNamespace,
+  freshPeriod = 20,
+): CacheProvider<any, any> {
+  const storage: CacheProvider<string, string> = kv
+    ? new TieredCache(LruCache.ofCapacity(1 << 15), new KVCacheProvider(kv))
+    : LruCache.ofCapacity(1 << 15);
+
+  return AdaptedCache.transformKeys(
     new SharedInFlightCache(
       new StaleWhileRevalidateCache({
-        freshPeriod: 20,
+        freshPeriod,
         cacheProvider: AdaptedCache.transformValues(
-          LruCache.ofCapacity(1 << 15),
+          storage,
           TimestampedCacheEntry.toJSON,
           TimestampedCacheEntry.fromJSON,
         ),
@@ -46,14 +55,33 @@ class CachedBitJita extends BitJitaClient {
     ),
     hash,
   );
+}
+
+class CachedBitJita extends BitJitaClient {
+  #apiCache: CacheProvider<any, any>;
+
+  constructor(
+    options: { baseUrl: string; timeout: number },
+    kv?: KVNamespace,
+  ) {
+    super(options);
+    this.#apiCache = buildCache(kv);
+  }
 
   protected async request<T>(path: string): Promise<T> {
     return this.#apiCache.get(path, (p) => super.request(p));
   }
 }
 
-/** Server-side cached BitJita API client for direct upstream calls. */
-export const serverJita = new CachedBitJita({
-  baseUrl: "https://bitjita.com",
-  timeout: 15_000,
-});
+const CLIENT_OPTIONS = { baseUrl: "https://bitjita.com", timeout: 15_000 };
+
+/** Create a cached BitJita client backed by the given KV namespace. */
+export function createServerJita(kv: KVNamespace): CachedBitJita {
+  return new CachedBitJita(CLIENT_OPTIONS, kv);
+}
+
+/**
+ * Fallback server-side cached BitJita client (in-memory only).
+ * Prefer {@link createServerJita} when a KV binding is available.
+ */
+export const serverJita = new CachedBitJita(CLIENT_OPTIONS);

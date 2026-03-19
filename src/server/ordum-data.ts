@@ -25,11 +25,11 @@
  *  - Member details
  */
 
+import type BitJitaClient from "../common/bitjita-client";
 import type {
   JitaClaimBuildingInventory,
   JitaClaimMember,
 } from "../common/bitjita-client";
-import { serverJita as api } from "./api-server";
 import { BANK_BUILDING_IDS } from "../common/claim-inventory";
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
@@ -243,6 +243,7 @@ function parseBuildingInventories(
  * Fetch claim data using the BitJita API.
  */
 export async function fetchClaimData(
+  api: BitJitaClient,
   claimIdStr: string,
 ): Promise<ClaimSummary> {
   const [{ claim }, claimInv, claimMembers] = await Promise.all([
@@ -320,12 +321,13 @@ export async function fetchClaimData(
 }
 
 export async function fetchEmpireData(
+  api: BitJitaClient,
   claimIds: { id: string; name: string }[] = EMPIRE_CLAIM_IDS,
 ): Promise<EmpireSummary> {
   const claims: ClaimSummary[] = [];
   for (const { id } of claimIds) {
     try {
-      const claim = await fetchClaimData(id);
+      const claim = await fetchClaimData(api, id);
       claims.push(claim);
     } catch (err) {
       console.error(`Failed to fetch claim ${id}:`, err);
@@ -392,7 +394,7 @@ export async function fetchEmpireData(
   };
 }
 
-export async function fetchClaimMembers() {
+export async function fetchClaimMembers(api: BitJitaClient) {
   let members: { entity_id: string; user_name: string }[] = [];
   try {
     const claimMembers = await api.getClaimMembers(ORDUM_MAIN_CLAIM_ID);

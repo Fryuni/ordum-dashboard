@@ -25,23 +25,44 @@
 import { Hono } from "hono";
 import { fetchEmpireData } from "./server/ordum-data";
 import { ORDUM_MAIN_CLAIM_ID } from "./server/ordum-data";
-import { serverJita } from "./server/api-server";
+import { buildCache, createServerJita } from "./server/api-server";
 import { ORDUM_EMPIRE_NAME } from "./common/ordum-types";
+import type { CacheProvider } from "@croct/cache";
 import { buildClaimInventory } from "./common/claim-inventory";
 import { buildSettlementPlan } from "./common/settlement-planner";
 import { gd } from "./common/gamedata";
+import type BitJitaClient from "./common/bitjita-client";
 
 type Bindings = {
   ASSETS: Fetcher;
+  jita_api_cache: KVNamespace;
 };
 
-const app = new Hono<{ Bindings: Bindings }>();
+type Variables = {
+  jita: BitJitaClient;
+};
+
+const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+// ─── Middleware: create a KV-backed API client per-isolate ───────────────────
+
+let cachedJita: BitJitaClient | null = null;
+let proxyCache: CacheProvider<any, any> | null = null;
+
+app.use("*", async (c, next) => {
+  if (cachedJita === null) {
+    cachedJita = createServerJita(c.env.jita_api_cache);
+    proxyCache = buildCache(c.env.jita_api_cache, 5);
+  }
+  c.set("jita", cachedJita);
+  return next();
+});
 
 // ─── API Routes ────────────────────────────────────────────────────────────────
 
 app.get("/api/empire", async (c) => {
   try {
-    const empire = await fetchEmpireData();
+    const empire = await fetchEmpireData(c.get("jita"));
     return c.json(empire);
   } catch (e) {
     console.error("Failed to fetch empire data:", e);
@@ -51,7 +72,8 @@ app.get("/api/empire", async (c) => {
 
 app.get("/api/empire-claims", async (c) => {
   try {
-    const empires = await serverJita.listEmpires({ q: ORDUM_EMPIRE_NAME });
+    const jita = c.get("jita");
+    const empires = await jita.listEmpires({ q: ORDUM_EMPIRE_NAME });
     const empire = (empires.empires as any[]).find(
       (e: any) => e.name?.toLowerCase() === ORDUM_EMPIRE_NAME.toLowerCase(),
     );
@@ -59,7 +81,7 @@ app.get("/api/empire-claims", async (c) => {
       return c.json({ error: "Empire not found" }, 404);
     }
 
-    const claimsData = await serverJita.getEmpireClaims(empire.entityId);
+    const claimsData = await jita.getEmpireClaims(empire.entityId);
     const claims = (claimsData.claims as any[]).map((cl: any) => ({
       id: cl.entityId,
       name: cl.name,
@@ -74,8 +96,9 @@ app.get("/api/empire-claims", async (c) => {
 
 app.get("/api/settlement", async (c) => {
   try {
+    const jita = c.get("jita");
     const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
-    const { claim } = await serverJita.getClaim(claimId);
+    const { claim } = await jita.getClaim(claimId);
     const currentTier = claim.tier ?? 1;
     const supplies = Number(claim.supplies) || 0;
     const learnedIds = new Set<number>(
@@ -114,30 +137,41 @@ app.get("/api/settlement", async (c) => {
 
 // ─── BitJita Proxy ─────────────────────────────────────────────────────────────
 
+/** Fetch from upstream BitJita and return the BigInt-safe parsed body. */
+async function fetchUpstream(url: string, method: string, body?: string) {
+  const upstream = await fetch(url, {
+    method,
+    headers: { Accept: "application/json" },
+    body: method !== "GET" ? body : undefined,
+  });
+
+  // Parse and re-serialize to handle BigInt safety (matching original behavior)
+  const text = await upstream.text();
+  return JSON.parse(text, (_key, value, ctx) =>
+    typeof value === "number" &&
+    !(ctx as any).source.includes(".") &&
+    !Number.isSafeInteger(value)
+      ? (ctx as any).source
+      : value,
+  );
+}
+
 app.all("/jita/*", async (c) => {
   const url = new URL(c.req.url);
   const rest = url.pathname.slice("/jita/".length);
   const newUrl = new URL(`https://bitjita.com/${rest}`);
   newUrl.search = url.search;
+  const target = newUrl.toString();
 
   try {
-    const upstream = await fetch(newUrl.toString(), {
-      method: c.req.method,
-      headers: { Accept: "application/json" },
-      body: c.req.method !== "GET" ? await c.req.text() : undefined,
-    });
+    // Cache GET requests through the SWR proxy cache
+    if (c.req.method === "GET" && proxyCache !== null) {
+      const body = await proxyCache.get(target, () => fetchUpstream(target, "GET"));
+      return c.json(body);
+    }
 
-    // Parse and re-serialize to handle BigInt safety (matching original behavior)
-    const text = await upstream.text();
-    const body = JSON.parse(text, (_key, value, ctx) =>
-      typeof value === "number" &&
-      !(ctx as any).source.includes(".") &&
-      !Number.isSafeInteger(value)
-        ? (ctx as any).source
-        : value,
-    );
-
-    return c.json(body, upstream.status as any);
+    const body = await fetchUpstream(target, c.req.method, await c.req.text());
+    return c.json(body);
   } catch (error) {
     console.error("API proxy error:", error);
     return c.json({ error: "API proxy error" }, 502);
