@@ -21,6 +21,7 @@ import { computedAsync } from "nanostores";
 import { jita } from "../../common/api";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import type { ContributionResponse } from "../../server/contribution";
+import { $updateTimer } from "../util-store";
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -73,7 +74,7 @@ export const $claimMembers = computedAsync(
 
 /** Contribution data for the selected (claim, player) pair. */
 export const $contributionData = computedAsync(
-  [$contributionClaim, $contributionPlayer],
+  [$contributionClaim, $contributionPlayer, $updateTimer],
   async (claimId, playerEntityId): Promise<ContributionData | null> => {
     if (!claimId || !playerEntityId) return null;
     const params = new URLSearchParams({
