@@ -26,14 +26,15 @@ import ItemList from "./ItemList";
 export default function CraftConfiguration() {
   const targets = useStore($targets);
   const shareableUrl = useStore($shareableUrl);
+  const shareReady = shareableUrl.state === "loaded";
   const [copied, setCopied] = useState(false);
 
   const handleShare = useCallback(async () => {
-    if (!shareableUrl) return;
-    await navigator.clipboard.writeText(shareableUrl.href);
+    if (!shareReady) return;
+    await navigator.clipboard.writeText(shareableUrl.value.href);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }, [shareableUrl]);
+  }, [shareableUrl, shareReady]);
 
   return (
     <div class="planner-card">
@@ -51,7 +52,7 @@ export default function CraftConfiguration() {
             type="button"
             class="btn btn-primary"
             onClick={handleShare}
-            disabled={!shareableUrl}
+            disabled={!shareReady}
           >
             {copied ? "Copied!" : "Share"}
           </button>
