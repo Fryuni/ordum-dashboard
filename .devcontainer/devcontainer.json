@@ -22,7 +22,8 @@
       "extensions": [
         "esbenp.prettier-vscode",
         "bradlc.vscode-tailwindcss",
-        "preactjs.preact-snippets"
+        "preactjs.preact-snippets",
+        "anthropics.claude-code"
       ],
       "settings": {
         "editor.defaultFormatter": "esbenp.prettier-vscode",
