@@ -31,13 +31,17 @@ export interface PlayerCapabilities {
   skills: ReadonlyMap<string, number>;
   /** Tool type name → maximum tier the player has */
   maxToolTiers: ReadonlyMap<string, number>;
+  /** Whether skill data was successfully loaded */
+  hasSkillData: boolean;
+  /** Whether tool data was successfully loaded */
+  hasToolData: boolean;
 }
 
 export function canMeetSkillRequirements(
   capabilities: PlayerCapabilities | undefined,
   requirements: ReadonlyArray<{ skill: string; level: number }>,
 ): boolean {
-  if (!capabilities) return true;
+  if (!capabilities || !capabilities.hasSkillData) return true;
   return requirements.every(
     (req) => (capabilities.skills.get(req.skill) ?? 0) >= req.level,
   );
@@ -47,7 +51,7 @@ export function canMeetToolRequirements(
   capabilities: PlayerCapabilities | undefined,
   requirements: ReadonlyArray<{ tool: string; level: number }>,
 ): boolean {
-  if (!capabilities) return true;
+  if (!capabilities || !capabilities.hasToolData) return true;
   return requirements.every(
     (req) => (capabilities.maxToolTiers.get(req.tool) ?? 0) >= req.level,
   );

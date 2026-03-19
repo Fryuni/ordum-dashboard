@@ -32,5 +32,5 @@ export const extractionsCodex: Map<number, ExtractionRecipe> = new Map(
   (codex as any).extractions,
 );
 export const toolItemsCodex: Map<number, ToolItemEntry> = new Map(
-  (codex as any).toolItems,
+  (codex as any).toolItems ?? [],
 );
