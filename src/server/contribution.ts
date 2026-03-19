@@ -199,7 +199,7 @@ export async function fetchContribution(
     }
   }
 
-  // 6. Fetch market prices for all items in the contribution
+  // 6. Fetch market prices for all items in the contribution (batched, max 100 per request)
   const allItemKeys = new Set([
     ...Object.keys(deposited),
     ...Object.keys(withdrawn),
@@ -213,8 +213,10 @@ export async function fetchContribution(
   }
 
   const prices: Record<string, number> = {};
-  try {
-    const priceData = await jita.postMarketPricesBulk({ itemIds, cargoIds });
+
+  function extractPrices(
+    priceData: Awaited<ReturnType<BitJitaClient["postMarketPricesBulk"]>>,
+  ) {
     for (const [id, info] of Object.entries(priceData.data.items)) {
       const p = info as { highestBuyPrice?: number; lowestSellPrice?: number };
       const buy = p.highestBuyPrice ?? 0;
@@ -230,6 +232,35 @@ export async function fetchContribution(
       if (buy > 0 || sell > 0) {
         prices[`Cargo:${id}`] = (buy + sell) / 2;
       }
+    }
+  }
+
+  try {
+    // Interleave item and cargo IDs into batches of up to 100
+    const PRICE_BATCH_SIZE = 100;
+    let iIdx = 0;
+    let cIdx = 0;
+    while (iIdx < itemIds.length || cIdx < cargoIds.length) {
+      const batchItems: number[] = [];
+      const batchCargo: number[] = [];
+      let remaining = PRICE_BATCH_SIZE;
+
+      const itemsToTake = Math.min(itemIds.length - iIdx, remaining);
+      batchItems.push(...itemIds.slice(iIdx, iIdx + itemsToTake));
+      iIdx += itemsToTake;
+      remaining -= itemsToTake;
+
+      if (remaining > 0) {
+        const cargoToTake = Math.min(cargoIds.length - cIdx, remaining);
+        batchCargo.push(...cargoIds.slice(cIdx, cIdx + cargoToTake));
+        cIdx += cargoToTake;
+      }
+
+      const priceData = await jita.postMarketPricesBulk({
+        itemIds: batchItems.length > 0 ? batchItems : undefined,
+        cargoIds: batchCargo.length > 0 ? batchCargo : undefined,
+      });
+      extractPrices(priceData);
     }
   } catch (e) {
     console.error("Failed to fetch market prices:", e);
