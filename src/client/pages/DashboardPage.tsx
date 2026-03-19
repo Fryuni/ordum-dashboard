@@ -30,7 +30,7 @@ export default function DashboardPage() {
     fetch("/api/empire")
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
+        return r.json() as Promise<EmpireSummary>;
       })
       .then(setEmpire)
       .catch((e) => setError(String(e)));

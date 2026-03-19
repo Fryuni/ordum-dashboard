@@ -27,7 +27,7 @@ import {
 import { persistentAtom } from "@nanostores/persistent";
 import { itemIndex, type IndexItem } from "../../common/itemIndex";
 import { buildCraftPlan } from "../../common/craft-planner";
-import type { ItemReference } from "../../common/gamedata";
+import type { ItemReference } from "../../common/gamedata/definition";
 import { z } from "zod";
 import { $inventoryTotals, $inventorySource } from "./craftSource";
 import { jita } from "../../common/api";

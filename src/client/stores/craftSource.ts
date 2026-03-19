@@ -55,7 +55,7 @@ export async function fetchEmpireClaims() {
   try {
     const res = await fetch("/api/empire-claims");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+    const data: { claims?: EmpireClaimInfo[] } = await res.json();
     $empireClaims.set(data.claims ?? []);
   } catch (e) {
     console.error("Failed to fetch empire claims:", e);

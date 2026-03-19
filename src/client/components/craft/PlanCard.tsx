@@ -73,8 +73,8 @@ export default function PlanCard({
     return (plan.steps ?? []).filter((s) => {
       const names = [
         s.recipe_name,
-        ...s.inputs.map((i) => i.name),
-        ...s.outputs.map((o) => o.name),
+        ...s.inputs.map((i) => i.item.name),
+        ...s.outputs.map((o) => o.item.name),
       ];
       const matchName =
         !nameQ || names.some((n) => n.toLowerCase().includes(nameQ));

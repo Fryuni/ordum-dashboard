@@ -7,6 +7,48 @@
  *
  * @see {@link https://tc39.es/proposal-json-parse-with-source/ TC39 proposal-json-parse-with-source}
  */
+// ─── Uint8Array Base64 (TC39 proposal-arraybuffer-base64) ──────────────────────
+
+interface Uint8ArrayToBase64Options {
+  alphabet?: "base64" | "base64url";
+  omitPadding?: boolean;
+}
+
+interface Uint8ArrayFromBase64Options {
+  alphabet?: "base64" | "base64url";
+  lastChunkHandling?: "loose" | "strict" | "stop-before-partial";
+}
+
+interface Uint8Array<TArrayBuffer extends ArrayBufferLike = ArrayBufferLike> {
+  /**
+   * Encodes this Uint8Array as a Base64 string.
+   * @see {@link https://tc39.es/proposal-arraybuffer-base64/ TC39 proposal-arraybuffer-base64}
+   */
+  toBase64(options?: Uint8ArrayToBase64Options): string;
+
+  /**
+   * Encodes this Uint8Array as a hexadecimal string.
+   * @see {@link https://tc39.es/proposal-arraybuffer-base64/ TC39 proposal-arraybuffer-base64}
+   */
+  toHex(): string;
+}
+
+interface Uint8ArrayConstructor {
+  /**
+   * Creates a Uint8Array from a Base64-encoded string.
+   * @see {@link https://tc39.es/proposal-arraybuffer-base64/ TC39 proposal-arraybuffer-base64}
+   */
+  fromBase64(base64: string, options?: Uint8ArrayFromBase64Options): Uint8Array<ArrayBuffer>;
+
+  /**
+   * Creates a Uint8Array from a hexadecimal string.
+   * @see {@link https://tc39.es/proposal-arraybuffer-base64/ TC39 proposal-arraybuffer-base64}
+   */
+  fromHex(hex: string): Uint8Array<ArrayBuffer>;
+}
+
+// ─── JSON extensions (TC39 proposal-json-parse-with-source) ────────────────────
+
 interface RawJSON {
   readonly rawJSON: string;
 }

@@ -56,7 +56,7 @@ export default function SettlementPage() {
     fetch(`/api/settlement?claim=${encodeURIComponent(selectedClaim)}`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
+        return r.json() as Promise<SettlementData>;
       })
       .then(setData)
       .catch((e) => setError(String(e)));
