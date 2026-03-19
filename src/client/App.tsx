@@ -23,13 +23,15 @@ import SettlementPage from "./pages/SettlementPage";
 import CraftPage from "./pages/CraftPage";
 import TravelerTaskPage from "./pages/TravelerTaskPage";
 import ConstructionPage from "./pages/ConstructionPage";
+import ContributionPage from "./pages/ContributionPage";
 
 type RouteName =
   | "dashboard"
   | "settlement"
   | "construction"
   | "craft"
-  | "travelerTask";
+  | "travelerTask"
+  | "contribution";
 
 function PageContent({ route }: { route: RouteName | null }) {
   switch (route) {
@@ -43,6 +45,8 @@ function PageContent({ route }: { route: RouteName | null }) {
       return <CraftPage />;
     case "travelerTask":
       return <TravelerTaskPage />;
+    case "contribution":
+      return <ContributionPage />;
     default:
       return (
         <div class="page-header">
@@ -80,6 +84,12 @@ const NAV_ITEMS = [
     href: "/traveler-task",
     icon: "🧳",
     label: "Traveler Tasks",
+  },
+  {
+    route: "contribution" as const,
+    href: "/contribution",
+    icon: "📦",
+    label: "Contribution",
   },
 ];
 
