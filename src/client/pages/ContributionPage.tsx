@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { useState, useEffect, useMemo } from "preact/hooks";
+import { useState, useEffect, useMemo, useCallback } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
 import {
   $empireClaims,
@@ -32,7 +32,6 @@ import {
   type ContributionItemMeta,
 } from "../stores/contribution";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
-import type { ContributionLogEntry } from "../../server/contribution";
 import { gd } from "../../common/gamedata";
 
 function parseItemKey(key: string): {
@@ -61,13 +60,30 @@ function itemTier(
 ): number {
   const { type, id, idStr } = parseItemKey(key);
   const meta = apiItems[idStr];
-  if (meta?.tier) return meta.tier;
+  if (meta?.tier != null) return meta.tier;
   if (type === "Item") return gd.items.get(id)?.tier ?? 0;
   return gd.cargo.get(id)?.tier ?? 0;
 }
 
+function formatTier(tier: number): string {
+  return tier >= 0 ? `T${tier}` : "TX";
+}
+
+type SortColumn = "name" | "tier" | "net" | "deposited" | "withdrawn";
+
+interface RowData {
+  key: string;
+  name: string;
+  tier: number;
+  net: number;
+  deposited: number;
+  withdrawn: number;
+}
+
 export default function ContributionPage() {
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
+  const [sortCol, setSortCol] = useState<SortColumn | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const claims = useStore($empireClaims);
   const claimsLoading = useStore($empireClaimsLoading);
@@ -95,7 +111,6 @@ export default function ContributionPage() {
 
   // Reset player selection when claim changes
   useEffect(() => {
-    // If the selected player isn't in the new members list, clear it
     if (
       membersAsync.state === "loaded" &&
       selectedPlayer &&
@@ -105,52 +120,70 @@ export default function ContributionPage() {
     }
   }, [membersAsync.state, selectedClaim]);
 
-  // Sort aggregate entries by absolute net quantity descending
-  const sortedAggregate = useMemo(() => {
+  const handleSort = useCallback(
+    (col: SortColumn) => {
+      if (sortCol === col) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      } else {
+        setSortCol(col);
+        setSortDir(col === "name" ? "asc" : "desc");
+      }
+    },
+    [sortCol],
+  );
+
+  // Build row data, apply search filter, then sort
+  const rows = useMemo((): RowData[] => {
     if (!data) return [];
-    return Object.entries(data.aggregate)
-      .filter(([, qty]) => qty !== 0)
-      .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a));
-  }, [data]);
+    const allKeys = Object.keys(data.aggregate).filter(
+      (k) => data.aggregate[k] !== 0,
+    );
 
-  // Group logs by item key
-  const logsByItem = useMemo(() => {
-    if (!data) return new Map<string, ContributionLogEntry[]>();
-    const map = new Map<string, ContributionLogEntry[]>();
-    for (const log of data.logs) {
-      const arr = map.get(log.itemKey) ?? [];
-      arr.push(log);
-      map.set(log.itemKey, arr);
+    let result = allKeys.map(
+      (key): RowData => ({
+        key,
+        name: itemName(key, data.items),
+        tier: itemTier(key, data.items),
+        net: data.aggregate[key] ?? 0,
+        deposited: data.deposited[key] ?? 0,
+        withdrawn: data.withdrawn[key] ?? 0,
+      }),
+    );
+
+    // Search filter
+    const q = search.toLowerCase().trim();
+    if (q) {
+      result = result.filter((r) => r.name.toLowerCase().includes(q));
     }
-    return map;
-  }, [data]);
 
-  // All item keys that have either aggregate or logs
-  const allItemKeys = useMemo(() => {
-    const keys = new Set<string>();
-    if (data) {
-      for (const key of Object.keys(data.aggregate)) {
-        if (data.aggregate[key] !== 0) keys.add(key);
-      }
-      for (const key of logsByItem.keys()) {
-        keys.add(key);
-      }
+    // Sort
+    if (sortCol) {
+      result.sort((a, b) => {
+        let cmp = 0;
+        if (sortCol === "name") cmp = a.name.localeCompare(b.name);
+        else if (sortCol === "tier") cmp = a.tier - b.tier;
+        else if (sortCol === "net") cmp = a.net - b.net;
+        else if (sortCol === "deposited") cmp = a.deposited - b.deposited;
+        else if (sortCol === "withdrawn") cmp = a.withdrawn - b.withdrawn;
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+    } else {
+      // Default: sort by absolute net descending
+      result.sort((a, b) => Math.abs(b.net) - Math.abs(a.net));
     }
-    return [...keys].sort((a, b) => {
-      const absA = Math.abs(data?.aggregate[a] ?? 0);
-      const absB = Math.abs(data?.aggregate[b] ?? 0);
-      return absB - absA;
-    });
-  }, [data, logsByItem]);
 
-  function toggleItem(key: string) {
-    setExpandedItems((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  }
+    return result;
+  }, [data, search, sortCol, sortDir]);
+
+  // KPI totals computed from rows (which are already filtered by search)
+  const totalDeposited = useMemo(
+    () => rows.reduce((s, r) => s + r.deposited, 0),
+    [rows],
+  );
+  const totalWithdrawn = useMemo(
+    () => rows.reduce((s, r) => s + r.withdrawn, 0),
+    [rows],
+  );
 
   if (error) {
     return (
@@ -241,123 +274,139 @@ export default function ContributionPage() {
             <div class="kpi-card">
               <div class="kpi-label">Items Deposited</div>
               <div class="kpi-value" style="color: var(--green)">
-                {sortedAggregate
-                  .filter(([, q]) => q > 0)
-                  .reduce((s, [, q]) => s + q, 0)
-                  .toLocaleString()}
+                {totalDeposited.toLocaleString()}
               </div>
             </div>
             <div class="kpi-card">
               <div class="kpi-label">Items Withdrawn</div>
               <div class="kpi-value" style="color: var(--red)">
-                {Math.abs(
-                  sortedAggregate
-                    .filter(([, q]) => q < 0)
-                    .reduce((s, [, q]) => s + q, 0),
-                ).toLocaleString()}
+                {totalWithdrawn.toLocaleString()}
               </div>
             </div>
             <div class="kpi-card">
               <div class="kpi-label">Distinct Items</div>
-              <div class="kpi-value text-accent">{sortedAggregate.length}</div>
+              <div class="kpi-value text-accent">{rows.length}</div>
             </div>
           </div>
 
-          {/* Contribution table with expandable log rows */}
+          {/* Search */}
+          <div class="planner-card" style="margin-bottom: 12px">
+            <input
+              type="text"
+              class="custom-input"
+              style="padding-left: 12px"
+              placeholder="Search items..."
+              value={search}
+              onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
+            />
+          </div>
+
+          {/* Contribution table */}
           <div class="table-wrapper">
             <table class="modern-table">
               <thead>
                 <tr>
-                  <th style="width: 40%">Item</th>
-                  <th style="width: 10%; text-align: center">Tier</th>
-                  <th style="width: 20%; text-align: right">
-                    Net Contribution
+                  <th
+                    class="sortable"
+                    style="width: 40%"
+                    onClick={() => handleSort("name")}
+                  >
+                    Item{" "}
+                    {sortCol === "name"
+                      ? sortDir === "asc"
+                        ? "\u25B2"
+                        : "\u25BC"
+                      : "\u2195"}
                   </th>
-                  <th style="width: 15%; text-align: right">Deposited</th>
-                  <th style="width: 15%; text-align: right">Withdrawn</th>
+                  <th
+                    class="sortable"
+                    style="width: 10%; text-align: center"
+                    onClick={() => handleSort("tier")}
+                  >
+                    Tier{" "}
+                    {sortCol === "tier"
+                      ? sortDir === "asc"
+                        ? "\u25B2"
+                        : "\u25BC"
+                      : "\u2195"}
+                  </th>
+                  <th
+                    class="sortable"
+                    style="width: 20%; text-align: right"
+                    onClick={() => handleSort("net")}
+                  >
+                    Net{" "}
+                    {sortCol === "net"
+                      ? sortDir === "asc"
+                        ? "\u25B2"
+                        : "\u25BC"
+                      : "\u2195"}
+                  </th>
+                  <th
+                    class="sortable"
+                    style="width: 15%; text-align: right"
+                    onClick={() => handleSort("deposited")}
+                  >
+                    Deposited{" "}
+                    {sortCol === "deposited"
+                      ? sortDir === "asc"
+                        ? "\u25B2"
+                        : "\u25BC"
+                      : "\u2195"}
+                  </th>
+                  <th
+                    class="sortable"
+                    style="width: 15%; text-align: right"
+                    onClick={() => handleSort("withdrawn")}
+                  >
+                    Withdrawn{" "}
+                    {sortCol === "withdrawn"
+                      ? sortDir === "asc"
+                        ? "\u25B2"
+                        : "\u25BC"
+                      : "\u2195"}
+                  </th>
                 </tr>
               </thead>
               <tbody>
-                {allItemKeys.length === 0 && (
+                {rows.length === 0 && (
                   <tr>
                     <td
                       colSpan={5}
                       style="text-align: center; color: var(--text-muted); padding: 24px"
                     >
-                      No contribution data found for {playerName}
+                      {search
+                        ? "No items match your search"
+                        : `No contribution data found for ${playerName}`}
                     </td>
                   </tr>
                 )}
-                {allItemKeys.map((key) => {
-                  const net = data.aggregate[key] ?? 0;
-                  const logs = logsByItem.get(key) ?? [];
-                  const deposited = logs
-                    .filter((l) => l.action === "deposit")
-                    .reduce((s, l) => s + l.quantity, 0);
-                  const withdrawn = logs
-                    .filter((l) => l.action === "withdraw")
-                    .reduce((s, l) => s + l.quantity, 0);
-                  const expanded = expandedItems.has(key);
-
-                  return (
-                    <>
-                      <tr
-                        key={key}
-                        onClick={() => logs.length > 0 && toggleItem(key)}
-                        style={logs.length > 0 ? "cursor: pointer" : undefined}
-                      >
-                        <td>
-                          {logs.length > 0 && (
-                            <span class="contrib-expand-icon">
-                              {expanded ? "\u25BC" : "\u25B6"}
-                            </span>
-                          )}
-                          {itemName(key, data.items)}
-                        </td>
-                        <td style="text-align: center">
-                          T{itemTier(key, data.items)}
-                        </td>
-                        <td
-                          style={`text-align: right; font-weight: 700; color: ${net > 0 ? "var(--green)" : net < 0 ? "var(--red)" : "var(--text-muted)"}`}
-                        >
-                          {net > 0 ? "+" : ""}
-                          {net.toLocaleString()}
-                        </td>
-                        <td style="text-align: right; color: var(--green)">
-                          {deposited > 0
-                            ? `+${deposited.toLocaleString()}`
-                            : "-"}
-                        </td>
-                        <td style="text-align: right; color: var(--red)">
-                          {withdrawn > 0
-                            ? `-${withdrawn.toLocaleString()}`
-                            : "-"}
-                        </td>
-                      </tr>
-                      {expanded &&
-                        logs.map((log) => (
-                          <tr key={log.id} class="contrib-log-row">
-                            <td style="padding-left: 32px; color: var(--text-muted); font-size: 0.8rem">
-                              {log.buildingName}
-                            </td>
-                            <td />
-                            <td
-                              style={`text-align: right; font-size: 0.85rem; color: ${log.action === "deposit" ? "var(--green)" : "var(--red)"}`}
-                            >
-                              {log.action === "deposit" ? "+" : "-"}
-                              {log.quantity.toLocaleString()}
-                            </td>
-                            <td
-                              colSpan={2}
-                              style="text-align: right; color: var(--text-muted); font-size: 0.75rem"
-                            >
-                              {new Date(log.timestamp).toLocaleString()}
-                            </td>
-                          </tr>
-                        ))}
-                    </>
-                  );
-                })}
+                {rows.map((row) => (
+                  <tr key={row.key}>
+                    <td>{row.name}</td>
+                    <td style="text-align: center">
+                      <span class={`tier-badge tier-${row.tier}`}>
+                        {formatTier(row.tier)}
+                      </span>
+                    </td>
+                    <td
+                      style={`text-align: right; font-weight: 700; color: ${row.net > 0 ? "var(--green)" : row.net < 0 ? "var(--red)" : "var(--text-muted)"}`}
+                    >
+                      {row.net > 0 ? "+" : ""}
+                      {row.net.toLocaleString()}
+                    </td>
+                    <td style="text-align: right; color: var(--green)">
+                      {row.deposited > 0
+                        ? `+${row.deposited.toLocaleString()}`
+                        : "-"}
+                    </td>
+                    <td style="text-align: right; color: var(--red)">
+                      {row.withdrawn > 0
+                        ? `-${row.withdrawn.toLocaleString()}`
+                        : "-"}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

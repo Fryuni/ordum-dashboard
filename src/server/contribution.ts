@@ -17,6 +17,7 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { z } from "zod";
 import type BitJitaClient from "../common/bitjita-client";
 
 /** Shape of each storage log entry from the BitJita API. */
@@ -52,29 +53,27 @@ interface ItemMeta {
   tag: string;
 }
 
-/** Persisted in KV per (claim, player). */
-interface ContributionCache {
+/** Zod schema for the KV cache entry. If the shape changes, old entries
+ *  will fail validation and be treated as cache misses. */
+const contributionCacheSchema = z.object({
   /** item key ("Item:123" or "Cargo:456") → net quantity */
-  aggregate: Record<string, number>;
+  aggregate: z.record(z.string(), z.number()),
+  /** item key → total deposited (always >= 0) */
+  deposited: z.record(z.string(), z.number()),
+  /** item key → total withdrawn (always >= 0) */
+  withdrawn: z.record(z.string(), z.number()),
   /** ID of the newest log we've processed (logs are newest-first, so highest ID). */
-  newestLogId: string | null;
+  newestLogId: z.string().nullable(),
   /** ISO timestamp of the last KV write. */
-  lastUpdate: string;
-}
+  lastUpdate: z.string(),
+});
 
-/** A single log entry returned to the client. */
-export interface ContributionLogEntry {
-  id: string;
-  itemKey: string;
-  quantity: number;
-  action: "deposit" | "withdraw";
-  buildingName: string;
-  timestamp: string;
-}
+type ContributionCache = z.infer<typeof contributionCacheSchema>;
 
 export interface ContributionResponse {
   aggregate: Record<string, number>;
-  logs: ContributionLogEntry[];
+  deposited: Record<string, number>;
+  withdrawn: Record<string, number>;
   items: Record<string, ItemMeta>;
 }
 
@@ -90,10 +89,6 @@ function itemKey(itemType: string, itemId: number): string {
   return `${type}:${itemId}`;
 }
 
-function logDirection(actionType: string): "deposit" | "withdraw" {
-  return actionType.startsWith("deposit") ? "deposit" : "withdraw";
-}
-
 function signedQuantity(action: string, quantity: number): number {
   return action.startsWith("deposit") ? quantity : -quantity;
 }
@@ -103,7 +98,7 @@ function signedQuantity(action: string, quantity: number): number {
  *
  * - If last KV update was < 20 s ago, returns the cached aggregate.
  * - Otherwise, reads new storage logs since the last cursor, updates the
- *   aggregate in KV, and returns the result with the recent log entries.
+ *   aggregate in KV, and returns the result.
  */
 export async function fetchContribution(
   jita: BitJitaClient,
@@ -111,17 +106,26 @@ export async function fetchContribution(
   claimId: string,
   playerEntityId: string,
 ): Promise<ContributionResponse> {
-  // 1. Read cached aggregate from KV
+  // 1. Read cached aggregate from KV (validated — old shapes are treated as misses)
   const cacheKey = kvKey(claimId, playerEntityId);
   const raw = await kv.get(cacheKey, { type: "text" });
-  let cached: ContributionCache | null = raw ? JSON.parse(raw) : null;
+  const parsed = raw
+    ? contributionCacheSchema.safeParse(JSON.parse(raw))
+    : null;
+  const cached: ContributionCache | null =
+    parsed && parsed.success ? parsed.data : null;
 
   // 2. If fresh enough, return early
   if (
     cached &&
     Date.now() - new Date(cached.lastUpdate).getTime() < CACHE_TTL_MS
   ) {
-    return { aggregate: cached.aggregate, logs: [], items: {} };
+    return {
+      aggregate: cached.aggregate,
+      deposited: cached.deposited,
+      withdrawn: cached.withdrawn,
+      items: {},
+    };
   }
 
   // 3. Determine which buildings belong to this claim
@@ -175,7 +179,12 @@ export async function fetchContribution(
   const aggregate: Record<string, number> = cached?.aggregate
     ? { ...cached.aggregate }
     : {};
-  const clientLogs: ContributionLogEntry[] = [];
+  const deposited: Record<string, number> = cached?.deposited
+    ? { ...cached.deposited }
+    : {};
+  const withdrawn: Record<string, number> = cached?.withdrawn
+    ? { ...cached.withdrawn }
+    : {};
 
   // Process in chronological order (oldest first) so the aggregate grows correctly.
   for (let i = allLogs.length - 1; i >= 0; i--) {
@@ -186,14 +195,11 @@ export async function fetchContribution(
     const qty = signedQuantity(log.data.type, log.data.quantity);
     aggregate[key] = (aggregate[key] ?? 0) + qty;
 
-    clientLogs.push({
-      id: log.id,
-      itemKey: key,
-      quantity: log.data.quantity,
-      action: logDirection(log.data.type),
-      buildingName: log.building.buildingName,
-      timestamp: log.timestamp,
-    });
+    if (log.data.type.startsWith("deposit")) {
+      deposited[key] = (deposited[key] ?? 0) + log.data.quantity;
+    } else {
+      withdrawn[key] = (withdrawn[key] ?? 0) + log.data.quantity;
+    }
   }
 
   // 6. Determine new cursor: the newest log ID we just processed
@@ -203,13 +209,12 @@ export async function fetchContribution(
   // 7. Persist updated aggregate to KV (no expiration — logs are immutable)
   const updated: ContributionCache = {
     aggregate,
+    deposited,
+    withdrawn,
     newestLogId,
     lastUpdate: new Date().toISOString(),
   };
   await kv.put(cacheKey, JSON.stringify(updated));
 
-  // Reverse clientLogs so newest is first for display
-  clientLogs.reverse();
-
-  return { aggregate, logs: clientLogs, items: allItems };
+  return { aggregate, deposited, withdrawn, items: allItems };
 }

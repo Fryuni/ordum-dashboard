@@ -20,7 +20,7 @@ import { persistentAtom } from "@nanostores/persistent";
 import { computedAsync } from "nanostores";
 import { jita } from "../../common/api";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
-import type { ContributionLogEntry } from "../../server/contribution";
+import type { ContributionResponse } from "../../server/contribution";
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -39,11 +39,7 @@ export interface ContributionItemMeta {
   tag: string;
 }
 
-export interface ContributionData {
-  aggregate: Record<string, number>;
-  logs: ContributionLogEntry[];
-  items: Record<string, ContributionItemMeta>;
-}
+export type ContributionData = ContributionResponse;
 
 // ─── Selection Atoms ────────────────────────────────────────────────────────────
 
