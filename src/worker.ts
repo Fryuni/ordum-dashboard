@@ -137,10 +137,11 @@ app.get("/api/settlement", async (c) => {
 
 app.get("/api/construction", async (c) => {
   try {
+    const jita = c.get("jita");
     const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
     const [constructionData, claimInv] = await Promise.all([
-      serverJita.getClaimConstruction(claimId),
-      serverJita.getClaimInventories(claimId),
+      jita.getClaimConstruction(claimId),
+      jita.getClaimInventories(claimId),
     ]);
 
     // Build item/cargo lookup dicts
