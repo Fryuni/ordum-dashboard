@@ -17,9 +17,16 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import type { CraftStep as Step } from "../../../common/craft-planner";
+import type { PlayerCapabilities } from "../../../common/player-capabilities";
 import CraftStep from "./CraftStep";
 
-export default function CraftingSteps({ steps }: { steps: Step[] }) {
+export default function CraftingSteps({
+  steps,
+  capabilities,
+}: {
+  steps: Step[];
+  capabilities?: PlayerCapabilities;
+}) {
   if (steps.length === 0) return null;
 
   return (
@@ -27,7 +34,7 @@ export default function CraftingSteps({ steps }: { steps: Step[] }) {
       <h4>📋 Crafting Steps</h4>
       <div class="timeline">
         {steps.map((step, i) => (
-          <CraftStep key={i} step={step} />
+          <CraftStep key={i} step={step} capabilities={capabilities} />
         ))}
       </div>
     </div>

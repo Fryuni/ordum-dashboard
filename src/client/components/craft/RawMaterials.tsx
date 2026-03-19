@@ -17,11 +17,14 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import type { RawMaterial } from "../../../common/craft-planner";
+import type { PlayerCapabilities } from "../../../common/player-capabilities";
 
 export default function RawMaterials({
   materials,
+  capabilities,
 }: {
   materials: RawMaterial[];
+  capabilities?: PlayerCapabilities;
 }) {
   if (materials.length === 0) return null;
 
@@ -65,33 +68,52 @@ export default function RawMaterials({
               </div>
 
               {(r.skill_requirements.length > 0 ||
-                r.tool_requirements.length > 0 ||
-                hasWarning) && (
+                r.tool_requirements.length > 0) && (
                 <div class="badges">
-                  {hasWarning && (
-                    <span
-                      class="badge badge-warning"
-                      title="You lack the required skill level or tool tier for this extraction"
-                    >
-                      ⚠ Unavailable
-                    </span>
-                  )}
-                  {r.skill_requirements.map((s) => (
-                    <span
-                      class={`badge ${r.missing_skill ? "badge-warning" : ""}`}
-                      key={s.skill}
-                    >
-                      ⚡ {s.skill} Lv{s.level}
-                    </span>
-                  ))}
-                  {r.tool_requirements.map((t) => (
-                    <span
-                      class={`badge ${r.missing_tool ? "badge-warning" : ""}`}
-                      key={t.tool}
-                    >
-                      🔧 {t.tool} T{t.level}
-                    </span>
-                  ))}
+                  {r.skill_requirements.map((s) => {
+                    const playerLevel =
+                      capabilities?.hasSkillData
+                        ? (capabilities.skills.get(s.skill) ?? 0)
+                        : undefined;
+                    const isMissing =
+                      playerLevel !== undefined && playerLevel < s.level;
+                    return (
+                      <span
+                        class={`badge ${isMissing ? "badge-warning" : ""}`}
+                        key={s.skill}
+                        title={
+                          isMissing
+                            ? `Your ${s.skill} is Lv${playerLevel}, need Lv${s.level}`
+                            : undefined
+                        }
+                      >
+                        ⚡ {s.skill} Lv{s.level}
+                      </span>
+                    );
+                  })}
+                  {r.tool_requirements.map((t) => {
+                    const playerTier =
+                      capabilities?.hasToolData
+                        ? (capabilities.maxToolTiers.get(t.tool) ?? 0)
+                        : undefined;
+                    const isMissing =
+                      playerTier !== undefined && playerTier < t.level;
+                    return (
+                      <span
+                        class={`badge ${isMissing ? "badge-warning" : ""}`}
+                        key={t.tool}
+                        title={
+                          isMissing
+                            ? playerTier === 0
+                              ? `You don't have a ${t.tool} (need T${t.level})`
+                              : `Your best ${t.tool} is T${playerTier}, need T${t.level}`
+                            : undefined
+                        }
+                      >
+                        🔧 {t.tool} T{t.level}
+                      </span>
+                    );
+                  })}
                 </div>
               )}
 
