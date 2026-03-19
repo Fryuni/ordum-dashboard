@@ -72,6 +72,8 @@ const contributionCacheSchema = z.object({
   newestLogId: z.string().nullable(),
   /** ISO timestamp of the last KV write. */
   lastUpdate: z.string(),
+  // Version marker to allow recomputing cache
+  v: z.literal(1),
 });
 
 type ContributionCache = z.infer<typeof contributionCacheSchema>;
@@ -290,6 +292,7 @@ export async function fetchContribution(
     prices,
     newestLogId,
     lastUpdate: new Date().toISOString(),
+    v: 1,
   };
   await kv.put(cacheKey, JSON.stringify(updated));
 
