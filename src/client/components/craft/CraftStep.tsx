@@ -20,13 +20,14 @@ import type { CraftStep as Step } from "../../../common/craft-planner";
 
 export default function CraftStep({ step }: { step: Step }) {
   const firstOutput = step.outputs[0];
+  const hasWarning = step.missing_skill || step.missing_tool;
   return !firstOutput ? (
     <div class="error-banner">
       <span class="error-icon">⚠</span>
       <span>No output defined for step!</span>
     </div>
   ) : (
-    <div class="timeline-step">
+    <div class={`timeline-step ${hasWarning ? "step-unavailable" : ""}`}>
       <div class="timeline-node">{step.depth + 1}</div>
       <div class="timeline-card">
         <div class="step-header">
@@ -39,6 +40,11 @@ export default function CraftStep({ step }: { step: Step }) {
             output
           </span>
           <div class="badges">
+            {hasWarning && (
+              <span class="badge badge-warning" title="You lack the required skill level or tool tier for this recipe">
+                ⚠ Unavailable
+              </span>
+            )}
             {step.building_type && (
               <span class="badge">
                 🏠 {step.building_type}
@@ -46,12 +52,12 @@ export default function CraftStep({ step }: { step: Step }) {
               </span>
             )}
             {(step.skill_requirements || []).map((s) => (
-              <span class="badge" key={s.skill}>
+              <span class={`badge ${step.missing_skill ? "badge-warning" : ""}`} key={s.skill}>
                 ⚡ {s.skill} Lv{s.level}
               </span>
             ))}
             {(step.tool_requirements || []).map((t) => (
-              <span class="badge" key={t.tool}>
+              <span class={`badge ${step.missing_tool ? "badge-warning" : ""}`} key={t.tool}>
                 🔧 {t.tool}
               </span>
             ))}

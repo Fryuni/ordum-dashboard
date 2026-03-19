@@ -30,6 +30,7 @@ import { buildCraftPlan } from "../../common/craft-planner";
 import type { ItemReference } from "../../common/gamedata/definition";
 import { z } from "zod";
 import { $inventoryTotals, $inventorySource } from "./craftSource";
+import { $playerCapabilities } from "./playerCapabilities";
 import { jita } from "../../common/api";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import { buildSettlementPlan } from "../../common/settlement-planner";
@@ -94,9 +95,9 @@ export const $canAdd = computed($selectedItem, (item) => item !== null);
 // ─── Craft Plan (async) ────────────────────────────────────────────────────────
 
 export const $craftPlan = computedAsync(
-  [$targets, $inventoryTotals],
-  (targets, inventory) =>
-    !targets.length ? null : buildCraftPlan(targets, inventory),
+  [$targets, $inventoryTotals, $playerCapabilities],
+  (targets, inventory, capabilities) =>
+    !targets.length ? null : buildCraftPlan(targets, inventory, capabilities),
 );
 
 // Re-export the AsyncValue type for components

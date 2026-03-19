@@ -269,26 +269,44 @@ for (const rawRecipe of await readDescFile("extraction_recipe")) {
   });
 }
 
+// Build tool items codex: maps item_id → { toolType name, tier }
+const toolItems = new Map<number, { item_id: number; name: string; toolType: string; tier: number }>();
+const rawToolsData: { id: number; name: string; tool_type: number; tier: number }[] = await readDescFile("tool");
+const rawToolTypesData: { id: number; name: string }[] = await readDescFile("tool_type");
+const toolTypeNames = new Map<number, string>(rawToolTypesData.map((tt) => [tt.id, tt.name]));
+
+for (const tool of rawToolsData) {
+  toolItems.set(tool.id, {
+    item_id: tool.id,
+    name: tool.name,
+    toolType: toolTypeNames.get(tool.tool_type) || "Unknown tool",
+    tier: tool.tier,
+  });
+}
+
 console.log(`${items.size} items`);
 console.log(`${itemLists.size} item lists`);
 console.log(`${recipes.size} craft recipes`);
 console.log(`${extractions.size} extraction recipes`);
+console.log(`${toolItems.size} tool items`);
 
 await Bun.file(encodedCodexFile).write(
   JSON.stringify({
     items: Array.from(items.entries()),
     recipes: Array.from(recipes.entries()),
     extractions: Array.from(extractions.entries()),
+    toolItems: Array.from(toolItems.entries()),
   }),
 );
 
 await Bun.file(codexFile).write(
   `
-import type { ItemEntry, CraftRecipe, ExtractionRecipe } from "./definition";
+import type { ItemEntry, CraftRecipe, ExtractionRecipe, ToolItemEntry } from "./definition";
 import codex from "./codex.json";
 
 export const itemsCodex: Map<string, ItemEntry> = new Map((codex as any).items);
 export const recipesCodex: Map<number, CraftRecipe> = new Map((codex as any).recipes);
 export const extractionsCodex: Map<number, ExtractionRecipe> = new Map((codex as any).extractions);
+export const toolItemsCodex: Map<number, ToolItemEntry> = new Map((codex as any).toolItems);
 `.trim(),
 );
