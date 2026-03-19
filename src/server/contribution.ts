@@ -60,6 +60,8 @@ const contributionCacheSchema = z.object({
   deposited: z.record(z.string(), z.number()),
   /** item key → total withdrawn (always >= 0) */
   withdrawn: z.record(z.string(), z.number()),
+  /** item key → estimated unit value (average of highest buy and lowest sell) */
+  prices: z.record(z.string(), z.number()),
   /** ID of the newest log we've processed (logs are newest-first, so highest ID). */
   newestLogId: z.string().nullable(),
   /** ISO timestamp of the last KV write. */
@@ -71,6 +73,8 @@ type ContributionCache = z.infer<typeof contributionCacheSchema>;
 export interface ContributionResponse {
   deposited: Record<string, number>;
   withdrawn: Record<string, number>;
+  /** item key → estimated unit value */
+  prices: Record<string, number>;
   items: Record<string, ItemMeta>;
 }
 
@@ -84,6 +88,11 @@ function kvKey(claimId: string, playerEntityId: string): string {
 function itemKey(itemType: string, itemId: number): string {
   const type = itemType === "cargo" ? "Cargo" : "Item";
   return `${type}:${itemId}`;
+}
+
+function parseItemKey(key: string): { type: string; id: number } {
+  const parts = key.split(":");
+  return { type: parts[0] ?? "", id: Number(parts[1]) };
 }
 
 /**
@@ -116,6 +125,7 @@ export async function fetchContribution(
     return {
       deposited: cached.deposited,
       withdrawn: cached.withdrawn,
+      prices: cached.prices,
       items: {},
     };
   }
@@ -189,18 +199,55 @@ export async function fetchContribution(
     }
   }
 
-  // 6. Determine new cursor: the newest log ID we just processed
+  // 6. Fetch market prices for all items in the contribution
+  const allItemKeys = new Set([
+    ...Object.keys(deposited),
+    ...Object.keys(withdrawn),
+  ]);
+  const itemIds: number[] = [];
+  const cargoIds: number[] = [];
+  for (const key of allItemKeys) {
+    const { type, id } = parseItemKey(key);
+    if (type === "Cargo") cargoIds.push(id);
+    else itemIds.push(id);
+  }
+
+  const prices: Record<string, number> = {};
+  try {
+    const priceData = await jita.postMarketPricesBulk({ itemIds, cargoIds });
+    for (const [id, info] of Object.entries(priceData.data.items)) {
+      const p = info as { highestBuyPrice?: number; lowestSellPrice?: number };
+      const buy = p.highestBuyPrice ?? 0;
+      const sell = p.lowestSellPrice ?? 0;
+      if (buy > 0 || sell > 0) {
+        prices[`Item:${id}`] = (buy + sell) / 2;
+      }
+    }
+    for (const [id, info] of Object.entries(priceData.data.cargo)) {
+      const p = info as { highestBuyPrice?: number; lowestSellPrice?: number };
+      const buy = p.highestBuyPrice ?? 0;
+      const sell = p.lowestSellPrice ?? 0;
+      if (buy > 0 || sell > 0) {
+        prices[`Cargo:${id}`] = (buy + sell) / 2;
+      }
+    }
+  } catch (e) {
+    console.error("Failed to fetch market prices:", e);
+  }
+
+  // 7. Determine new cursor: the newest log ID we just processed
   const newestLogId =
     allLogs.length > 0 ? allLogs[0]!.id : (cached?.newestLogId ?? null);
 
-  // 7. Persist updated aggregate to KV (no expiration — logs are immutable)
+  // 8. Persist to KV (no expiration — logs are immutable)
   const updated: ContributionCache = {
     deposited,
     withdrawn,
+    prices,
     newestLogId,
     lastUpdate: new Date().toISOString(),
   };
   await kv.put(cacheKey, JSON.stringify(updated));
 
-  return { deposited, withdrawn, items: allItems };
+  return { deposited, withdrawn, prices, items: allItems };
 }

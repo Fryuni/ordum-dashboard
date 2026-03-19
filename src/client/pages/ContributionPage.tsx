@@ -69,7 +69,19 @@ function formatTier(tier: number): string {
   return tier >= 0 ? `T${tier}` : "TX";
 }
 
-type SortColumn = "name" | "tier" | "net" | "deposited" | "withdrawn";
+function formatValue(value: number): string {
+  if (value === 0) return "-";
+  return Math.round(value).toLocaleString();
+}
+
+type SortColumn =
+  | "name"
+  | "tier"
+  | "net"
+  | "deposited"
+  | "withdrawn"
+  | "unitValue"
+  | "totalValue";
 
 interface RowData {
   key: string;
@@ -78,6 +90,8 @@ interface RowData {
   net: number;
   deposited: number;
   withdrawn: number;
+  unitValue: number;
+  totalValue: number;
 }
 
 export default function ContributionPage() {
@@ -146,13 +160,17 @@ export default function ContributionPage() {
       .map((key): RowData => {
         const dep = data.deposited[key] ?? 0;
         const wth = data.withdrawn[key] ?? 0;
+        const net = dep - wth;
+        const unitValue = data.prices[key] ?? 0;
         return {
           key,
           name: itemName(key, data.items),
           tier: itemTier(key, data.items),
-          net: dep - wth,
+          net,
           deposited: dep,
           withdrawn: wth,
+          unitValue,
+          totalValue: net * unitValue,
         };
       })
       .filter((r) => r.deposited !== 0 || r.withdrawn !== 0);
@@ -172,6 +190,8 @@ export default function ContributionPage() {
         else if (sortCol === "net") cmp = a.net - b.net;
         else if (sortCol === "deposited") cmp = a.deposited - b.deposited;
         else if (sortCol === "withdrawn") cmp = a.withdrawn - b.withdrawn;
+        else if (sortCol === "unitValue") cmp = a.unitValue - b.unitValue;
+        else if (sortCol === "totalValue") cmp = a.totalValue - b.totalValue;
         return sortDir === "asc" ? cmp : -cmp;
       });
     } else {
@@ -189,6 +209,10 @@ export default function ContributionPage() {
   );
   const totalWithdrawn = useMemo(
     () => rows.reduce((s, r) => s + r.withdrawn, 0),
+    [rows],
+  );
+  const netValue = useMemo(
+    () => rows.reduce((s, r) => s + r.totalValue, 0),
     [rows],
   );
 
@@ -291,6 +315,16 @@ export default function ContributionPage() {
               </div>
             </div>
             <div class="kpi-card">
+              <div class="kpi-label">Net Value</div>
+              <div
+                class="kpi-value"
+                style={`color: ${netValue > 0 ? "var(--green)" : netValue < 0 ? "var(--red)" : "var(--text-muted)"}`}
+              >
+                {netValue > 0 ? "+" : ""}
+                {Math.round(netValue).toLocaleString()}
+              </div>
+            </div>
+            <div class="kpi-card">
               <div class="kpi-label">Distinct Items</div>
               <div class="kpi-value text-accent">{rows.length}</div>
             </div>
@@ -313,73 +347,58 @@ export default function ContributionPage() {
             <table class="modern-table">
               <thead>
                 <tr>
-                  <th
-                    class="sortable"
-                    style="width: 40%"
-                    onClick={() => handleSort("name")}
-                  >
-                    Item{" "}
-                    {sortCol === "name"
-                      ? sortDir === "asc"
-                        ? "\u25B2"
-                        : "\u25BC"
-                      : "\u2195"}
-                  </th>
-                  <th
-                    class="sortable"
-                    style="width: 10%; text-align: center"
-                    onClick={() => handleSort("tier")}
-                  >
-                    Tier{" "}
-                    {sortCol === "tier"
-                      ? sortDir === "asc"
-                        ? "\u25B2"
-                        : "\u25BC"
-                      : "\u2195"}
-                  </th>
-                  <th
-                    class="sortable"
-                    style="width: 20%; text-align: right"
-                    onClick={() => handleSort("net")}
-                  >
-                    Net{" "}
-                    {sortCol === "net"
-                      ? sortDir === "asc"
-                        ? "\u25B2"
-                        : "\u25BC"
-                      : "\u2195"}
-                  </th>
-                  <th
-                    class="sortable"
-                    style="width: 15%; text-align: right"
-                    onClick={() => handleSort("deposited")}
-                  >
-                    Deposited{" "}
-                    {sortCol === "deposited"
-                      ? sortDir === "asc"
-                        ? "\u25B2"
-                        : "\u25BC"
-                      : "\u2195"}
-                  </th>
-                  <th
-                    class="sortable"
-                    style="width: 15%; text-align: right"
-                    onClick={() => handleSort("withdrawn")}
-                  >
-                    Withdrawn{" "}
-                    {sortCol === "withdrawn"
-                      ? sortDir === "asc"
-                        ? "\u25B2"
-                        : "\u25BC"
-                      : "\u2195"}
-                  </th>
+                  {(
+                    [
+                      { col: "name", label: "Item", style: "" },
+                      {
+                        col: "tier",
+                        label: "Tier",
+                        style: "text-align: center",
+                      },
+                      { col: "net", label: "Net", style: "text-align: right" },
+                      {
+                        col: "deposited",
+                        label: "Deposited",
+                        style: "text-align: right",
+                      },
+                      {
+                        col: "withdrawn",
+                        label: "Withdrawn",
+                        style: "text-align: right",
+                      },
+                      {
+                        col: "unitValue",
+                        label: "Value",
+                        style: "text-align: right",
+                      },
+                      {
+                        col: "totalValue",
+                        label: "Net Value",
+                        style: "text-align: right",
+                      },
+                    ] as { col: SortColumn; label: string; style: string }[]
+                  ).map(({ col, label, style }) => (
+                    <th
+                      key={col}
+                      class="sortable"
+                      style={style}
+                      onClick={() => handleSort(col)}
+                    >
+                      {label}{" "}
+                      {sortCol === col
+                        ? sortDir === "asc"
+                          ? "\u25B2"
+                          : "\u25BC"
+                        : "\u2195"}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 && (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={7}
                       style="text-align: center; color: var(--text-muted); padding: 24px"
                     >
                       {search
@@ -410,6 +429,16 @@ export default function ContributionPage() {
                     <td style="text-align: right; color: var(--red)">
                       {row.withdrawn > 0
                         ? `-${row.withdrawn.toLocaleString()}`
+                        : "-"}
+                    </td>
+                    <td style="text-align: right; color: var(--text-muted)">
+                      {row.unitValue > 0 ? formatValue(row.unitValue) : "-"}
+                    </td>
+                    <td
+                      style={`text-align: right; font-weight: 700; color: ${row.totalValue > 0 ? "var(--green)" : row.totalValue < 0 ? "var(--red)" : "var(--text-muted)"}`}
+                    >
+                      {row.totalValue !== 0
+                        ? `${row.totalValue > 0 ? "+" : ""}${formatValue(row.totalValue)}`
                         : "-"}
                     </td>
                   </tr>
