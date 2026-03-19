@@ -26,6 +26,25 @@ jobs:
             exit 1
           fi
 
+  copyright:
+    name: Check copyright headers
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check license headers
+        run: bun scripts/add-license-headers.ts --check
+
   format:
     runs-on: ubuntu-latest
     permissions:
