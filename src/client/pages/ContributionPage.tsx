@@ -23,30 +23,17 @@ import {
   $empireClaimsLoading,
   fetchEmpireClaims,
 } from "../stores/craftSource";
+import {
+  $contributionClaim,
+  $contributionPlayer,
+  $claimMembers,
+  $contributionData,
+  type ContributionData,
+  type ContributionItemMeta,
+} from "../stores/contribution";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import type { ContributionLogEntry } from "../../server/contribution";
 import { gd } from "../../common/gamedata";
-
-interface ClaimMember {
-  entityId: string;
-  playerEntityId: string;
-  userName: string;
-}
-
-interface ItemMeta {
-  id: number;
-  name: string;
-  iconAssetName: string;
-  tier: number;
-  rarityStr: string;
-  tag: string;
-}
-
-interface ContributionData {
-  aggregate: Record<string, number>;
-  logs: ContributionLogEntry[];
-  items: Record<string, ItemMeta>;
-}
 
 function parseItemKey(key: string): {
   type: string;
@@ -57,21 +44,21 @@ function parseItemKey(key: string): {
   return { type: parts[0] ?? "", id: Number(parts[1]), idStr: parts[1] ?? "" };
 }
 
-function itemName(key: string, apiItems: Record<string, ItemMeta>): string {
+function itemName(
+  key: string,
+  apiItems: Record<string, ContributionItemMeta>,
+): string {
   const { type, id, idStr } = parseItemKey(key);
-
-  // Try API-provided metadata first
   const meta = apiItems[idStr];
   if (meta?.name) return meta.name;
-
-  // Fall back to local gamedata
-  if (type === "Item") {
-    return gd.items.get(id)?.name ?? `Item #${id}`;
-  }
+  if (type === "Item") return gd.items.get(id)?.name ?? `Item #${id}`;
   return gd.cargo.get(id)?.name ?? `Cargo #${id}`;
 }
 
-function itemTier(key: string, apiItems: Record<string, ItemMeta>): number {
+function itemTier(
+  key: string,
+  apiItems: Record<string, ContributionItemMeta>,
+): number {
   const { type, id, idStr } = parseItemKey(key);
   const meta = apiItems[idStr];
   if (meta?.tier) return meta.tier;
@@ -80,61 +67,43 @@ function itemTier(key: string, apiItems: Record<string, ItemMeta>): number {
 }
 
 export default function ContributionPage() {
-  const [selectedClaim, setSelectedClaim] = useState(ORDUM_MAIN_CLAIM_ID);
-  const [members, setMembers] = useState<ClaimMember[]>([]);
-  const [selectedPlayer, setSelectedPlayer] = useState<string>("");
-  const [data, setData] = useState<ContributionData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   const claims = useStore($empireClaims);
   const claimsLoading = useStore($empireClaimsLoading);
+  const selectedClaim = useStore($contributionClaim);
+  const selectedPlayer = useStore($contributionPlayer);
+  const membersAsync = useStore($claimMembers);
+  const dataAsync = useStore($contributionData);
 
-  // Fetch empire claims on mount
+  const members =
+    membersAsync.state === "loaded" ? (membersAsync.value ?? []) : [];
+  const data: ContributionData | null =
+    dataAsync.state === "loaded" ? (dataAsync.value ?? null) : null;
+  const loading =
+    dataAsync.state === "loading" || membersAsync.state === "loading";
+  const error =
+    dataAsync.state === "failed"
+      ? String(dataAsync.error)
+      : membersAsync.state === "failed"
+        ? String(membersAsync.error)
+        : null;
+
   useEffect(() => {
     fetchEmpireClaims();
   }, []);
 
-  // Fetch claim members when claim changes
+  // Reset player selection when claim changes
   useEffect(() => {
-    setMembers([]);
-    setSelectedPlayer("");
-    setData(null);
-    fetch(`/jita/api/claims/${encodeURIComponent(selectedClaim)}/members`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((resp) => {
-        const data = resp as { members?: ClaimMember[] };
-        const sorted = (data.members ?? []).sort((a, b) =>
-          a.userName.localeCompare(b.userName),
-        );
-        setMembers(sorted);
-      })
-      .catch((e) => setError(String(e)));
-  }, [selectedClaim]);
-
-  // Fetch contribution data when player changes
-  useEffect(() => {
-    if (!selectedPlayer) {
-      setData(null);
-      return;
+    // If the selected player isn't in the new members list, clear it
+    if (
+      membersAsync.state === "loaded" &&
+      selectedPlayer &&
+      !members.find((m) => m.playerEntityId === selectedPlayer)
+    ) {
+      $contributionPlayer.set("");
     }
-    setLoading(true);
-    setError(null);
-    fetch(
-      `/api/contribution?claim=${encodeURIComponent(selectedClaim)}&player=${encodeURIComponent(selectedPlayer)}`,
-    )
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<ContributionData>;
-      })
-      .then(setData)
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false));
-  }, [selectedClaim, selectedPlayer]);
+  }, [membersAsync.state, selectedClaim]);
 
   // Sort aggregate entries by absolute net quantity descending
   const sortedAggregate = useMemo(() => {
@@ -214,7 +183,7 @@ export default function ContributionPage() {
               class="source-select"
               value={selectedClaim}
               onChange={(e) =>
-                setSelectedClaim((e.target as HTMLSelectElement).value)
+                $contributionClaim.set((e.target as HTMLSelectElement).value)
               }
             >
               {claimsLoading && claims.length === 0 && (
@@ -238,7 +207,7 @@ export default function ContributionPage() {
               class="source-select"
               value={selectedPlayer}
               onChange={(e) =>
-                setSelectedPlayer((e.target as HTMLSelectElement).value)
+                $contributionPlayer.set((e.target as HTMLSelectElement).value)
               }
             >
               <option value="">-- Select a player --</option>

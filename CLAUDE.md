@@ -14,3 +14,7 @@ This project uses **bun**. Do not use npm, yarn, or pnpm.
 - `bun run validate` — Type check (`tsc --noEmit`)
 - `bun run format` — Format with prettier
 - `bun run deploy` — Build and deploy with wrangler
+
+## Client State Management
+
+Always use **Nanostores** for client-side state. Prefer `persistentAtom` for user selections, `computedAsync` for API-driven data, and `computed` for derived state. Avoid `useState`/`useEffect` for data fetching — use stores instead so state is shared across pages and components.
