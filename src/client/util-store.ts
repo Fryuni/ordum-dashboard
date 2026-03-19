@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { atom, onMount, type ReadableAtom } from "nanostores";
+import { atom, effect, onMount, type ReadableAtom } from "nanostores";
 import { hash } from "ohash";
 
 export const $pageActive = atom(false);
@@ -40,42 +40,32 @@ export function skipShallowChange<T>($atom: ReadableAtom<T>): ReadableAtom<T> {
   return noShallow;
 }
 
-if (typeof window !== "undefined") {
-  onMount($pageActive, () => {
-    $pageActive.set(document.visibilityState === "visible");
+onMount($pageActive, () => {
+  $pageActive.set(document.visibilityState === "visible");
 
-    const abort = new AbortController();
-    document.addEventListener(
-      "visibilitychange",
-      () => {
-        $pageActive.set(document.visibilityState === "visible");
-      },
-      { signal: abort.signal },
-    );
+  const abort = new AbortController();
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+      $pageActive.set(document.visibilityState === "visible");
+    },
+    { signal: abort.signal },
+  );
 
-    return () => abort.abort();
-  });
+  return () => abort.abort();
+});
 
-  onMount($updateTimer, () => {
-    let interval: ReturnType<typeof setInterval> | undefined;
+onMount($updateTimer, () =>
+  effect($pageActive, (active) => {
+    if (!active) return;
 
-    const unbind = $pageActive.subscribe((active) => {
-      clearInterval(interval);
+    const elapsed = Date.now() - $updateTimer.get();
 
-      if (active) {
-        const elapsed = Date.now() - $updateTimer.get();
+    if (elapsed >= UPDATE_PERIOD) $updateTimer.set(Date.now());
 
-        if (elapsed >= UPDATE_PERIOD) $updateTimer.set(Date.now());
-
-        interval = setInterval(() => {
-          $updateTimer.set(Date.now());
-        }, 10000);
-      }
-    });
-
-    return () => {
-      unbind();
-      clearInterval(interval);
-    };
-  });
-}
+    const interval = setInterval(() => {
+      $updateTimer.set(Date.now());
+    }, 10000);
+    return () => clearInterval(interval);
+  }),
+);
