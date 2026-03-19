@@ -55,8 +55,9 @@ jobs:
         with:
           script: |
             const versionUrl = '${{ steps.preview.outputs.deployment-url }}';
-            // Build the stable alias URL from the version URL by replacing the version hash with the alias
-            const aliasUrl = versionUrl.replace(/^(https:\/\/)[^.]+/, `$1pr-${context.issue.number}`);
+            // Build the stable alias URL: replace the version hash prefix with the alias name
+            // e.g. https://e4c54188-ordum-dashboard.x.workers.dev -> https://pr-9-ordum-dashboard.x.workers.dev
+            const aliasUrl = versionUrl.replace(/^(https:\/\/)[^-]+-/, `$1pr-${context.issue.number}-`);
             const body = [
               `🚀 **Preview:** ${aliasUrl}`,
               `<sub>Version: ${versionUrl}</sub>`,
