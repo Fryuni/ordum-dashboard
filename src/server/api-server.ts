@@ -34,7 +34,10 @@ import BitJitaClient from "../common/bitjita-client";
 import { KVCacheProvider } from "./kvCache";
 import { TieredCache } from "./tieredCache";
 
-function buildCache(kv?: KVNamespace): CacheProvider<any, any> {
+export function buildCache(
+  kv?: KVNamespace,
+  freshPeriod = 20,
+): CacheProvider<any, any> {
   const storage: CacheProvider<string, string> = kv
     ? new TieredCache(LruCache.ofCapacity(1 << 15), new KVCacheProvider(kv))
     : LruCache.ofCapacity(1 << 15);
@@ -42,7 +45,7 @@ function buildCache(kv?: KVNamespace): CacheProvider<any, any> {
   return AdaptedCache.transformKeys(
     new SharedInFlightCache(
       new StaleWhileRevalidateCache({
-        freshPeriod: 20,
+        freshPeriod,
         cacheProvider: AdaptedCache.transformValues(
           storage,
           TimestampedCacheEntry.toJSON,
