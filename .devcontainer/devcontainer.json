@@ -1,0 +1,38 @@
+{
+  "name": "Ordum Dashboard",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:22",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    },
+    "ghcr.io/shyim/devcontainers-features/bun:0": {
+      "version": "latest"
+    }
+  },
+  "forwardPorts": [4321, 8787],
+  "portsAttributes": {
+    "4321": {
+      "label": "Vite Dev Server",
+      "onAutoForward": "openBrowser"
+    },
+    "8787": {
+      "label": "Wrangler Dev Server",
+      "onAutoForward": "silent"
+    }
+  },
+  "postCreateCommand": "bun install && ./scripts/update-gamedata.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "bradlc.vscode-tailwindcss",
+        "preactjs.preact-snippets"
+      ],
+      "settings": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true
+      }
+    }
+  }
+}
