@@ -41,7 +41,10 @@ export default function CraftStep({ step }: { step: Step }) {
           </span>
           <div class="badges">
             {hasWarning && (
-              <span class="badge badge-warning" title="You lack the required skill level or tool tier for this recipe">
+              <span
+                class="badge badge-warning"
+                title="You lack the required skill level or tool tier for this recipe"
+              >
                 ⚠ Unavailable
               </span>
             )}
@@ -52,12 +55,18 @@ export default function CraftStep({ step }: { step: Step }) {
               </span>
             )}
             {(step.skill_requirements || []).map((s) => (
-              <span class={`badge ${step.missing_skill ? "badge-warning" : ""}`} key={s.skill}>
+              <span
+                class={`badge ${step.missing_skill ? "badge-warning" : ""}`}
+                key={s.skill}
+              >
                 ⚡ {s.skill} Lv{s.level}
               </span>
             ))}
             {(step.tool_requirements || []).map((t) => (
-              <span class={`badge ${step.missing_tool ? "badge-warning" : ""}`} key={t.tool}>
+              <span
+                class={`badge ${step.missing_tool ? "badge-warning" : ""}`}
+                key={t.tool}
+              >
                 🔧 {t.tool}
               </span>
             ))}

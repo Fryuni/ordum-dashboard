@@ -49,7 +49,10 @@ async function getXpThresholds(): Promise<{ level: number; xp: number }[]> {
   }
 }
 
-function xpToLevel(xp: number, thresholds: { level: number; xp: number }[]): number {
+function xpToLevel(
+  xp: number,
+  thresholds: { level: number; xp: number }[],
+): number {
   let level = 0;
   for (const t of thresholds) {
     if (xp >= t.xp) level = t.level;

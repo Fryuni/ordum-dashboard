@@ -37,7 +37,10 @@ export default function RawMaterials({
 
           const hasWarning = r.missing_skill || r.missing_tool;
           return (
-            <div class={`raw-card ${hasWarning ? "raw-unavailable" : ""}`} key={`${r.item_type}-${r.item_id}`}>
+            <div
+              class={`raw-card ${hasWarning ? "raw-unavailable" : ""}`}
+              key={`${r.item_type}-${r.item_id}`}
+            >
               <div class="raw-card-header">
                 <div class="raw-name-row">
                   <span class={`tier-badge tier-${r.tier}`}>
@@ -66,17 +69,26 @@ export default function RawMaterials({
                 hasWarning) && (
                 <div class="badges">
                   {hasWarning && (
-                    <span class="badge badge-warning" title="You lack the required skill level or tool tier for this extraction">
+                    <span
+                      class="badge badge-warning"
+                      title="You lack the required skill level or tool tier for this extraction"
+                    >
                       ⚠ Unavailable
                     </span>
                   )}
                   {r.skill_requirements.map((s) => (
-                    <span class={`badge ${r.missing_skill ? "badge-warning" : ""}`} key={s.skill}>
+                    <span
+                      class={`badge ${r.missing_skill ? "badge-warning" : ""}`}
+                      key={s.skill}
+                    >
                       ⚡ {s.skill} Lv{s.level}
                     </span>
                   ))}
                   {r.tool_requirements.map((t) => (
-                    <span class={`badge ${r.missing_tool ? "badge-warning" : ""}`} key={t.tool}>
+                    <span
+                      class={`badge ${r.missing_tool ? "badge-warning" : ""}`}
+                      key={t.tool}
+                    >
                       🔧 {t.tool} T{t.level}
                     </span>
                   ))}

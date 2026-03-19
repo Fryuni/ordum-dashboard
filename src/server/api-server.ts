@@ -60,10 +60,7 @@ export function buildCache(
 class CachedBitJita extends BitJitaClient {
   #apiCache: CacheProvider<any, any>;
 
-  constructor(
-    options: { baseUrl: string; timeout: number },
-    kv?: KVNamespace,
-  ) {
+  constructor(options: { baseUrl: string; timeout: number }, kv?: KVNamespace) {
     super(options);
     this.#apiCache = buildCache(kv);
   }

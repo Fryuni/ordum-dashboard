@@ -1,3 +1,21 @@
+/**
+ * Copyright (C) 2026 Luiz Ferraz
+ *
+ * This file is part of Ordum Dashboard.
+ *
+ * Ordum Dashboard is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * Ordum Dashboard is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
+ */
 import {
   referenceKey,
   type CraftRecipe,
@@ -270,10 +288,21 @@ for (const rawRecipe of await readDescFile("extraction_recipe")) {
 }
 
 // Build tool items codex: maps item_id → { toolType name, tier }
-const toolItems = new Map<number, { item_id: number; name: string; toolType: string; tier: number }>();
-const rawToolsData: { id: number; name: string; tool_type: number; tier: number }[] = await readDescFile("tool");
-const rawToolTypesData: { id: number; name: string }[] = await readDescFile("tool_type");
-const toolTypeNames = new Map<number, string>(rawToolTypesData.map((tt) => [tt.id, tt.name]));
+const toolItems = new Map<
+  number,
+  { item_id: number; name: string; toolType: string; tier: number }
+>();
+const rawToolsData: {
+  id: number;
+  name: string;
+  tool_type: number;
+  tier: number;
+}[] = await readDescFile("tool");
+const rawToolTypesData: { id: number; name: string }[] =
+  await readDescFile("tool_type");
+const toolTypeNames = new Map<number, string>(
+  rawToolTypesData.map((tt) => [tt.id, tt.name]),
+);
 
 for (const tool of rawToolsData) {
   toolItems.set(tool.id, {

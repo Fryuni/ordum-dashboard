@@ -196,7 +196,12 @@ export function buildPartialPlan(
       const branchNext = branchPlan.delta();
       if (branchNext.targets.length === 0) return branchPlan;
       branchPlan.addSubplan(
-        buildPartialPlan(branchNext.targets, branchNext.inventory, depth + 1, capabilities),
+        buildPartialPlan(
+          branchNext.targets,
+          branchNext.inventory,
+          depth + 1,
+          capabilities,
+        ),
       );
       return branchPlan;
     });
@@ -398,8 +403,14 @@ class PartialPlan {
         building_tier: recipe.requiredBuildingTier,
         skill_requirements: recipe.requiredSkills,
         tool_requirements: recipe.requiredTool,
-        missing_skill: !canMeetSkillRequirements(capabilities, recipe.requiredSkills),
-        missing_tool: !canMeetToolRequirements(capabilities, recipe.requiredTool),
+        missing_skill: !canMeetSkillRequirements(
+          capabilities,
+          recipe.requiredSkills,
+        ),
+        missing_tool: !canMeetToolRequirements(
+          capabilities,
+          recipe.requiredTool,
+        ),
         inputs: recipe.inputs.map((stack): StepInput => {
           const itemKey = referenceKey(stack);
           const totalAvailable = available.get(itemKey) ?? 0;
@@ -483,7 +494,10 @@ class PartialPlan {
         skill_requirements: firstExtraction?.requiredSkills ?? [],
         tool_requirements: firstExtraction?.requiredTool ?? [],
         missing_skill: firstExtraction
-          ? !canMeetSkillRequirements(capabilities, firstExtraction.requiredSkills)
+          ? !canMeetSkillRequirements(
+              capabilities,
+              firstExtraction.requiredSkills,
+            )
           : false,
         missing_tool: firstExtraction
           ? !canMeetToolRequirements(capabilities, firstExtraction.requiredTool)
