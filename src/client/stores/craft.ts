@@ -262,6 +262,7 @@ onMount($targets, () =>
       if (!loadedTargets) {
         $loadedTargets.set(true);
         $targets.set(newTargets.value);
+        history.replaceState(null, "", window.location.pathname);
       }
     }
   }),

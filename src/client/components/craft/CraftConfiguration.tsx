@@ -17,13 +17,24 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { useStore } from "@nanostores/preact";
-import { $targets, clearAll } from "../../stores/craft";
+import { useCallback, useState } from "preact/hooks";
+import { $targets, $shareableUrl, clearAll } from "../../stores/craft";
 import InventorySourcePicker from "./InventorySourcePicker";
 import ItemPicker from "./ItemPicker";
 import ItemList from "./ItemList";
 
 export default function CraftConfiguration() {
   const targets = useStore($targets);
+  const shareableUrl = useStore($shareableUrl);
+  const shareReady = shareableUrl.state === "loaded";
+  const [copied, setCopied] = useState(false);
+
+  const handleShare = useCallback(async () => {
+    if (!shareReady) return;
+    await navigator.clipboard.writeText(shareableUrl.value.href);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }, [shareableUrl, shareReady]);
 
   return (
     <div class="planner-card">
@@ -36,6 +47,14 @@ export default function CraftConfiguration() {
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" onClick={clearAll}>
             Clear All
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            onClick={handleShare}
+            disabled={!shareReady}
+          >
+            {copied ? "Copied!" : "Share"}
           </button>
         </div>
       )}
