@@ -9,15 +9,11 @@
       "version": "latest"
     }
   },
-  "forwardPorts": [4321, 8787],
+  "forwardPorts": [4321],
   "portsAttributes": {
     "4321": {
       "label": "Vite Dev Server",
       "onAutoForward": "openBrowser"
-    },
-    "8787": {
-      "label": "Wrangler Dev Server",
-      "onAutoForward": "silent"
     }
   },
   "postCreateCommand": "bun install && ./scripts/update-gamedata.sh",
@@ -25,7 +21,6 @@
     "vscode": {
       "extensions": [
         "esbenp.prettier-vscode",
-        "dbaeumer.vscode-eslint",
         "bradlc.vscode-tailwindcss",
         "preactjs.preact-snippets"
       ],
