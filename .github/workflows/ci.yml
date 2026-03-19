@@ -4,6 +4,28 @@ on:
   pull_request:
 
 jobs:
+  lockfile:
+    name: Check for foreign lockfiles
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Ensure no non-bun lockfiles are committed
+        run: |
+          bad_files=""
+          for f in package-lock.json yarn.lock pnpm-lock.yaml; do
+            if [ -f "$f" ]; then
+              bad_files="$bad_files $f"
+            fi
+          done
+          if [ -n "$bad_files" ]; then
+            echo "::error::Foreign lockfile(s) found:$bad_files — this project uses bun"
+            exit 1
+          fi
+
   format:
     runs-on: ubuntu-latest
     permissions:

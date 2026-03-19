@@ -5,6 +5,9 @@
 .wrangler
 .dev.vars
 *.tsbuildinfo
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
 .memory/branches/*/log.md
 /.pi/agent-sessions
