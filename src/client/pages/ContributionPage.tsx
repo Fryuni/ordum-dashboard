@@ -135,20 +135,27 @@ export default function ContributionPage() {
   // Build row data, apply search filter, then sort
   const rows = useMemo((): RowData[] => {
     if (!data) return [];
-    const allKeys = Object.keys(data.aggregate).filter(
-      (k) => data.aggregate[k] !== 0,
-    );
 
-    let result = allKeys.map(
-      (key): RowData => ({
-        key,
-        name: itemName(key, data.items),
-        tier: itemTier(key, data.items),
-        net: data.aggregate[key] ?? 0,
-        deposited: data.deposited[key] ?? 0,
-        withdrawn: data.withdrawn[key] ?? 0,
-      }),
-    );
+    // Collect all item keys that appear in either deposited or withdrawn
+    const allKeys = new Set<string>([
+      ...Object.keys(data.deposited),
+      ...Object.keys(data.withdrawn),
+    ]);
+
+    let result = [...allKeys]
+      .map((key): RowData => {
+        const dep = data.deposited[key] ?? 0;
+        const wth = data.withdrawn[key] ?? 0;
+        return {
+          key,
+          name: itemName(key, data.items),
+          tier: itemTier(key, data.items),
+          net: dep - wth,
+          deposited: dep,
+          withdrawn: wth,
+        };
+      })
+      .filter((r) => r.deposited !== 0 || r.withdrawn !== 0);
 
     // Search filter
     const q = search.toLowerCase().trim();

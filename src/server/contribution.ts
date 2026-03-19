@@ -56,8 +56,6 @@ interface ItemMeta {
 /** Zod schema for the KV cache entry. If the shape changes, old entries
  *  will fail validation and be treated as cache misses. */
 const contributionCacheSchema = z.object({
-  /** item key ("Item:123" or "Cargo:456") → net quantity */
-  aggregate: z.record(z.string(), z.number()),
   /** item key → total deposited (always >= 0) */
   deposited: z.record(z.string(), z.number()),
   /** item key → total withdrawn (always >= 0) */
@@ -71,7 +69,6 @@ const contributionCacheSchema = z.object({
 type ContributionCache = z.infer<typeof contributionCacheSchema>;
 
 export interface ContributionResponse {
-  aggregate: Record<string, number>;
   deposited: Record<string, number>;
   withdrawn: Record<string, number>;
   items: Record<string, ItemMeta>;
@@ -87,10 +84,6 @@ function kvKey(claimId: string, playerEntityId: string): string {
 function itemKey(itemType: string, itemId: number): string {
   const type = itemType === "cargo" ? "Cargo" : "Item";
   return `${type}:${itemId}`;
-}
-
-function signedQuantity(action: string, quantity: number): number {
-  return action.startsWith("deposit") ? quantity : -quantity;
 }
 
 /**
@@ -121,7 +114,6 @@ export async function fetchContribution(
     Date.now() - new Date(cached.lastUpdate).getTime() < CACHE_TTL_MS
   ) {
     return {
-      aggregate: cached.aggregate,
       deposited: cached.deposited,
       withdrawn: cached.withdrawn,
       items: {},
@@ -175,10 +167,7 @@ export async function fetchContribution(
     if (logs.length < LOG_PAGE_SIZE) break;
   }
 
-  // 5. Filter to claim buildings and build aggregate delta
-  const aggregate: Record<string, number> = cached?.aggregate
-    ? { ...cached.aggregate }
-    : {};
+  // 5. Filter to claim buildings and accumulate deposited/withdrawn totals
   const deposited: Record<string, number> = cached?.deposited
     ? { ...cached.deposited }
     : {};
@@ -192,8 +181,6 @@ export async function fetchContribution(
     if (!claimBuildingIds.has(log.building.entityId)) continue;
 
     const key = itemKey(log.data.item_type, log.data.item_id);
-    const qty = signedQuantity(log.data.type, log.data.quantity);
-    aggregate[key] = (aggregate[key] ?? 0) + qty;
 
     if (log.data.type.startsWith("deposit")) {
       deposited[key] = (deposited[key] ?? 0) + log.data.quantity;
@@ -208,7 +195,6 @@ export async function fetchContribution(
 
   // 7. Persist updated aggregate to KV (no expiration — logs are immutable)
   const updated: ContributionCache = {
-    aggregate,
     deposited,
     withdrawn,
     newestLogId,
@@ -216,5 +202,5 @@ export async function fetchContribution(
   };
   await kv.put(cacheKey, JSON.stringify(updated));
 
-  return { aggregate, deposited, withdrawn, items: allItems };
+  return { deposited, withdrawn, items: allItems };
 }
