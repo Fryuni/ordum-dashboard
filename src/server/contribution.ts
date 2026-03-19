@@ -20,6 +20,12 @@
 import { z } from "zod";
 import type BitJitaClient from "../common/bitjita-client";
 
+const EXCLUDED_ITEMS = new Set<string>(["Cargo:2000000"]);
+
+const FIXED_VALUE = new Map<string, number>([
+  ["Item:1", 1], // Hex Coin
+]);
+
 /** Shape of each storage log entry from the BitJita API. */
 interface StorageLogEntry {
   id: string;
@@ -192,6 +198,8 @@ export async function fetchContribution(
 
     const key = itemKey(log.data.item_type, log.data.item_id);
 
+    if (EXCLUDED_ITEMS.has(key)) continue;
+
     if (log.data.type.startsWith("deposit")) {
       deposited[key] = (deposited[key] ?? 0) + log.data.quantity;
     } else {
@@ -207,6 +215,7 @@ export async function fetchContribution(
   const itemIds: number[] = [];
   const cargoIds: number[] = [];
   for (const key of allItemKeys) {
+    if (FIXED_VALUE.has(key)) continue;
     const { type, id } = parseItemKey(key);
     if (type === "Cargo") cargoIds.push(id);
     else itemIds.push(id);
@@ -233,6 +242,10 @@ export async function fetchContribution(
         prices[`Cargo:${id}`] = (buy + sell) / 2;
       }
     }
+  }
+
+  for (const [key, value] of FIXED_VALUE.entries()) {
+    prices[key] = value;
   }
 
   try {
