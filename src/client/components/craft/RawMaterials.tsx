@@ -71,10 +71,9 @@ export default function RawMaterials({
                 r.tool_requirements.length > 0) && (
                 <div class="badges">
                   {r.skill_requirements.map((s) => {
-                    const playerLevel =
-                      capabilities?.hasSkillData
-                        ? (capabilities.skills.get(s.skill) ?? 0)
-                        : undefined;
+                    const playerLevel = capabilities?.hasSkillData
+                      ? (capabilities.skills.get(s.skill) ?? 0)
+                      : undefined;
                     const isMissing =
                       playerLevel !== undefined && playerLevel < s.level;
                     return (
@@ -92,10 +91,9 @@ export default function RawMaterials({
                     );
                   })}
                   {r.tool_requirements.map((t) => {
-                    const playerTier =
-                      capabilities?.hasToolData
-                        ? (capabilities.maxToolTiers.get(t.tool) ?? 0)
-                        : undefined;
+                    const playerTier = capabilities?.hasToolData
+                      ? (capabilities.maxToolTiers.get(t.tool) ?? 0)
+                      : undefined;
                     const isMissing =
                       playerTier !== undefined && playerTier < t.level;
                     return (
