@@ -269,16 +269,14 @@ export async function fetchClaimData(
   );
 
   // Parse members from BitJita claim members endpoint
-  const rawMembers = (claimMembers.members ?? []).map(
-    (m: JitaClaimMember) => ({
-      entity_id: m.playerEntityId,
-      user_name: m.userName,
-      inventory_permission: m.inventoryPermission === 1,
-      build_permission: m.buildPermission === 1,
-      officer_permission: m.officerPermission === 1,
-      co_owner_permission: m.coOwnerPermission === 1,
-    }),
-  );
+  const rawMembers = (claimMembers.members ?? []).map((m: JitaClaimMember) => ({
+    entity_id: m.playerEntityId,
+    user_name: m.userName,
+    inventory_permission: m.inventoryPermission === 1,
+    build_permission: m.buildPermission === 1,
+    officer_permission: m.officerPermission === 1,
+    co_owner_permission: m.coOwnerPermission === 1,
+  }));
 
   // Fetch online status for each member via the player buffs endpoint
   const onlineStatuses = await Promise.all(

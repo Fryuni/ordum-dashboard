@@ -38,7 +38,10 @@ interface Uint8ArrayConstructor {
    * Creates a Uint8Array from a Base64-encoded string.
    * @see {@link https://tc39.es/proposal-arraybuffer-base64/ TC39 proposal-arraybuffer-base64}
    */
-  fromBase64(base64: string, options?: Uint8ArrayFromBase64Options): Uint8Array<ArrayBuffer>;
+  fromBase64(
+    base64: string,
+    options?: Uint8ArrayFromBase64Options,
+  ): Uint8Array<ArrayBuffer>;
 
   /**
    * Creates a Uint8Array from a hexadecimal string.
