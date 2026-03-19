@@ -41,6 +41,63 @@ import {
   type PlayerCapabilities,
 } from "./player-capabilities";
 
+// ─── Rarity Helpers ────────────────────────────────────────────────────────────
+
+const RARITY_RANK: Record<string, number> = {
+  Common: 0,
+  Uncommon: 1,
+  Rare: 2,
+  Epic: 3,
+  Legendary: 4,
+  Mythic: 5,
+};
+
+/**
+ * For a recipe that outputs multiple rarity variants of the same item,
+ * compute the effective output per craft when targeting a specific rarity
+ * "or higher". For example, if a recipe outputs 0.7 Common + 0.3 Uncommon,
+ * targeting Common means any outcome is acceptable → effective output = 1.0.
+ */
+function effectiveOutputPerCraft(
+  recipe: CraftRecipe,
+  targetKey: string,
+): number {
+  const targetItem = itemsCodex.get(targetKey);
+  if (!targetItem) {
+    return (
+      recipe.outputs.find((s) => referenceKey(s) === targetKey)?.quantity || 1
+    );
+  }
+
+  const targetRank = RARITY_RANK[targetItem.rarity] ?? -1;
+
+  // Sum quantities of all outputs that are the same base item with equal or higher rarity
+  let totalQuantity = 0;
+  let foundTarget = false;
+  for (const output of recipe.outputs) {
+    const outputKey = referenceKey(output);
+    const outputItem = itemsCodex.get(outputKey);
+    if (!outputItem) continue;
+
+    if (
+      outputItem.name === targetItem.name &&
+      (RARITY_RANK[outputItem.rarity] ?? -1) >= targetRank
+    ) {
+      totalQuantity += output.quantity;
+      if (outputKey === targetKey) foundTarget = true;
+    }
+  }
+
+  // Fall back to exact match if we didn't find the target in our rarity scan
+  if (!foundTarget || totalQuantity <= 0) {
+    return (
+      recipe.outputs.find((s) => referenceKey(s) === targetKey)?.quantity || 1
+    );
+  }
+
+  return totalQuantity;
+}
+
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export interface CraftTarget extends ItemReference {
@@ -175,9 +232,7 @@ export function buildPartialPlan(
     }
     if (itemEntry.crafted_from.length === 1) {
       const recipe = recipesCodex.get(itemEntry.crafted_from[0]!)!;
-      const outputPerCraft =
-        recipe.outputs.find((stack) => referenceKey(stack) === key)?.quantity ||
-        1;
+      const outputPerCraft = effectiveOutputPerCraft(recipe, key);
 
       plan.addRecipe(recipe, target.quantity / outputPerCraft, depth);
 
@@ -186,9 +241,7 @@ export function buildPartialPlan(
 
     const branches = itemEntry.crafted_from.map((recipeId) => {
       const recipe = recipesCodex.get(recipeId)!;
-      const outputPerCraft =
-        recipe.outputs.find((stack) => referenceKey(stack) === key)?.quantity ||
-        1;
+      const outputPerCraft = effectiveOutputPerCraft(recipe, key);
       const branchPlan = PartialPlan.empty(next.inventory, capabilities);
 
       branchPlan.addRecipe(recipe, target.quantity / outputPerCraft, depth);
