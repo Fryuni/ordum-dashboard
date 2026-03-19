@@ -91,6 +91,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       - name: Delete preview worker
         uses: cloudflare/wrangler-action@v3
         with:
