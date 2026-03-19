@@ -394,6 +394,17 @@ body {
   font-weight: 500;
   border: 1px solid var(--border);
 }
+.badge-warning {
+  background: rgba(255, 170, 0, 0.15);
+  color: #ffaa00;
+  border-color: rgba(255, 170, 0, 0.3);
+}
+.step-unavailable .timeline-card {
+  border-color: rgba(255, 170, 0, 0.4);
+}
+.raw-unavailable {
+  border-color: rgba(255, 170, 0, 0.4);
+}
 .filters {
   display: flex;
   gap: 12px;

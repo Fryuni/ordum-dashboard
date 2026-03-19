@@ -64,6 +64,13 @@ export interface ToolEntry {
   power: number;
 }
 
+export interface ToolItemEntry {
+  item_id: number;
+  name: string;
+  toolType: string;
+  tier: number;
+}
+
 export function unifiedKey(itemType: string, itemId: number): string {
   const typeName = { item: "Item", cargo: "Cargo" }[
     itemType.toLowerCase().trim()

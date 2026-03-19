@@ -35,6 +35,11 @@ import {
   type ItemStack,
   type ItemType,
 } from "./gamedata/definition";
+import {
+  canMeetSkillRequirements,
+  canMeetToolRequirements,
+  type PlayerCapabilities,
+} from "./player-capabilities";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -66,6 +71,10 @@ export interface CraftStep {
   inputs: StepInput[];
   outputs: StepOutput[];
   depth: number;
+  /** True if the player lacks the skill level for this recipe */
+  missing_skill: boolean;
+  /** True if the player lacks the tool tier for this recipe */
+  missing_tool: boolean;
 }
 
 export interface RawMaterial {
@@ -81,6 +90,10 @@ export interface RawMaterial {
   skill_requirements: { skill: string; level: number }[];
   tool_requirements: { tool: string; level: number }[];
   resource_sources: string[];
+  /** True if the player lacks the skill level for extraction */
+  missing_skill: boolean;
+  /** True if the player lacks the tool tier for extraction */
+  missing_tool: boolean;
 }
 
 export interface FulfilledItem extends ItemReference {
@@ -103,10 +116,11 @@ const MAX_DEPTH = 450;
 export function buildCraftPlan(
   targets: CraftTarget[],
   inventory: Map<string, number>,
+  capabilities?: PlayerCapabilities,
 ): CraftPlan {
   try {
-    const plan = buildPartialPlan(targets, inventory);
-    return plan.finalize();
+    const plan = buildPartialPlan(targets, inventory, 1, capabilities);
+    return plan.finalize(capabilities);
   } catch (error) {
     console.error("Failed to build craft plan:", error);
     throw error;
@@ -117,8 +131,9 @@ export function buildPartialPlan(
   targets: CraftTarget[],
   inventory: Map<string, number>,
   initialDepth = 1,
+  capabilities?: PlayerCapabilities,
 ): PartialPlan {
-  const plan = PartialPlan.empty(inventory);
+  const plan = PartialPlan.empty(inventory, capabilities);
 
   for (const t of targets) {
     plan.addTarget(t);
@@ -174,14 +189,14 @@ export function buildPartialPlan(
       const outputPerCraft =
         recipe.outputs.find((stack) => referenceKey(stack) === key)?.quantity ||
         1;
-      const branchPlan = PartialPlan.empty(next.inventory);
+      const branchPlan = PartialPlan.empty(next.inventory, capabilities);
 
       branchPlan.addRecipe(recipe, target.quantity / outputPerCraft, depth);
 
       const branchNext = branchPlan.delta();
       if (branchNext.targets.length === 0) return branchPlan;
       branchPlan.addSubplan(
-        buildPartialPlan(branchNext.targets, branchNext.inventory, depth + 1),
+        buildPartialPlan(branchNext.targets, branchNext.inventory, depth + 1, capabilities),
       );
       return branchPlan;
     });
@@ -205,14 +220,20 @@ class PartialPlan {
   >();
   rawMaterials = new Map<string, ItemStack>();
 
-  private constructor(private inventory: ReadonlyMap<string, number>) {}
+  private constructor(
+    private inventory: ReadonlyMap<string, number>,
+    private capabilities: PlayerCapabilities | undefined,
+  ) {}
 
-  static empty(inventory: ReadonlyMap<string, number>): PartialPlan {
-    return new this(inventory);
+  static empty(
+    inventory: ReadonlyMap<string, number>,
+    capabilities?: PlayerCapabilities,
+  ): PartialPlan {
+    return new this(inventory, capabilities);
   }
 
   clone(): PartialPlan {
-    const other = PartialPlan.empty(this.inventory);
+    const other = PartialPlan.empty(this.inventory, this.capabilities);
     other.targets = new Map(
       this.targets.entries().map(([k, v]) => [k, { ...v }]),
     );
@@ -317,7 +338,14 @@ class PartialPlan {
   totalEffort(): number {
     let totalEffort = 0;
     for (const { recipe, quantity } of this.recipes.values()) {
-      totalEffort += quantity * recipe.effort;
+      let effort = quantity * recipe.effort;
+      if (
+        !canMeetSkillRequirements(this.capabilities, recipe.requiredSkills) ||
+        !canMeetToolRequirements(this.capabilities, recipe.requiredTool)
+      ) {
+        effort *= 100;
+      }
+      totalEffort += effort;
     }
     for (const material of this.rawMaterials.values()) {
       const key = referenceKey(material);
@@ -334,12 +362,24 @@ class PartialPlan {
           ? 1
           : quantitiesPerStrike.reduce((a, b) => a + b) /
             quantitiesPerStrike.length;
-      totalEffort += material.quantity / averageQuantityPerStrike;
+      let effort = material.quantity / averageQuantityPerStrike;
+      // Apply 100x penalty if any extraction recipe is unavailable
+      const anyExtractionUnavailable = item.extracted_from.some((recipeId) => {
+        const recipe = extractionsCodex.get(recipeId)!;
+        return (
+          !canMeetSkillRequirements(this.capabilities, recipe.requiredSkills) ||
+          !canMeetToolRequirements(this.capabilities, recipe.requiredTool)
+        );
+      });
+      if (anyExtractionUnavailable) {
+        effort *= 100;
+      }
+      totalEffort += effort;
     }
     return totalEffort;
   }
 
-  finalize(): CraftPlan {
+  finalize(capabilities?: PlayerCapabilities): CraftPlan {
     const available = new Map(this.inventory);
     const totalNeeded = new Map<string, number>();
     const plan: CraftPlan = {
@@ -358,6 +398,8 @@ class PartialPlan {
         building_tier: recipe.requiredBuildingTier,
         skill_requirements: recipe.requiredSkills,
         tool_requirements: recipe.requiredTool,
+        missing_skill: !canMeetSkillRequirements(capabilities, recipe.requiredSkills),
+        missing_tool: !canMeetToolRequirements(capabilities, recipe.requiredTool),
         inputs: recipe.inputs.map((stack): StepInput => {
           const itemKey = referenceKey(stack);
           const totalAvailable = available.get(itemKey) ?? 0;
@@ -440,6 +482,12 @@ class PartialPlan {
         source: firstExtraction?.verb || "Obtain",
         skill_requirements: firstExtraction?.requiredSkills ?? [],
         tool_requirements: firstExtraction?.requiredTool ?? [],
+        missing_skill: firstExtraction
+          ? !canMeetSkillRequirements(capabilities, firstExtraction.requiredSkills)
+          : false,
+        missing_tool: firstExtraction
+          ? !canMeetToolRequirements(capabilities, firstExtraction.requiredTool)
+          : false,
         resource_sources: item.extracted_from.map(
           (recipe) => extractionsCodex.get(recipe)!.name,
         ),
