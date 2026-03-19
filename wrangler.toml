@@ -14,3 +14,7 @@ run_worker_first = ["/api/*", "/jita/*"]
 
 [observability]
 enabled = true
+
+[[kv_namespaces]]
+binding = "jita_api_cache"
+id = "4841edcb05cd4978bec7f705a82d12de"

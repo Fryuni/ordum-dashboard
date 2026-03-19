@@ -26,6 +26,7 @@ import {
   LruCache,
   SharedInFlightCache,
   StaleWhileRevalidateCache,
+  TimestampedCacheEntry,
   type CacheProvider,
 } from "@croct/cache";
 import { hash } from "ohash";
@@ -36,7 +37,11 @@ class CachedBitJita extends BitJitaClient {
     new SharedInFlightCache(
       new StaleWhileRevalidateCache({
         freshPeriod: 20,
-        cacheProvider: LruCache.ofCapacity(1 << 15),
+        cacheProvider: AdaptedCache.transformValues(
+          LruCache.ofCapacity(1 << 15),
+          TimestampedCacheEntry.toJSON,
+          TimestampedCacheEntry.fromJSON,
+        ),
       }),
     ),
     hash,
