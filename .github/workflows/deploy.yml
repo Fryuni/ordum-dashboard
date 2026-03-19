@@ -47,21 +47,26 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: versions upload
+          command: versions upload --preview-alias pr-${{ github.event.pull_request.number }}
 
       - name: Comment preview URL on PR
         if: github.event_name == 'pull_request' && steps.preview.outputs.deployment-url
         uses: actions/github-script@v7
         with:
           script: |
-            const url = '${{ steps.preview.outputs.deployment-url }}';
-            const body = `🚀 Preview deployment: ${url}`;
+            const versionUrl = '${{ steps.preview.outputs.deployment-url }}';
+            // Build the stable alias URL from the version URL by replacing the version hash with the alias
+            const aliasUrl = versionUrl.replace(/^(https:\/\/)[^.]+/, `$1pr-${context.issue.number}`);
+            const body = [
+              `🚀 **Preview:** ${aliasUrl}`,
+              `<sub>Version: ${versionUrl}</sub>`,
+            ].join('\n');
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
             });
-            const existing = comments.find(c => c.body.startsWith('🚀 Preview deployment:'));
+            const existing = comments.find(c => c.body.startsWith('🚀 **Preview:**'));
             if (existing) {
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
