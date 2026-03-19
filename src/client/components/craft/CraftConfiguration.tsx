@@ -30,7 +30,7 @@ export default function CraftConfiguration() {
 
   const handleShare = useCallback(async () => {
     if (!shareableUrl) return;
-    await navigator.clipboard.writeText(shareableUrl.toString());
+    await navigator.clipboard.writeText(shareableUrl.href);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, [shareableUrl]);
