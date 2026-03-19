@@ -27,3 +27,14 @@ enabled = true
 [[kv_namespaces]]
 binding = "jita_api_cache"
 id = "4841edcb05cd4978bec7f705a82d12de"
+
+# ─── PR preview environment ─────────────────────────────────────────────────────
+# `wrangler deploy --env preview` creates a separate worker so that
+# observability (logs, traces) works — `versions upload` skips those settings.
+# The worker name is overridden per-PR via --name in CI.
+[env.preview]
+workers_dev = true
+
+[[env.preview.kv_namespaces]]
+binding = "jita_api_cache"
+id = "4841edcb05cd4978bec7f705a82d12de"

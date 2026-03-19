@@ -4,10 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
+    types: [opened, synchronize, reopened, closed]
   workflow_dispatch:
 
 jobs:
   deploy:
+    if: github.event.action != 'closed'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -40,28 +42,23 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: Upload preview version
-        if: github.ref != 'refs/heads/main'
+      - name: Deploy preview worker
+        if: github.event_name == 'pull_request'
         id: preview
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: versions upload --preview-alias pr-${{ github.event.pull_request.number }}
+          command: deploy --env preview --name ordum-dashboard-pr-${{ github.event.pull_request.number }}
 
       - name: Comment preview URL on PR
-        if: github.event_name == 'pull_request' && steps.preview.outputs.deployment-url
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
-            const versionUrl = '${{ steps.preview.outputs.deployment-url }}';
-            // Build the stable alias URL: replace the version hash prefix with the alias name
-            // e.g. https://e4c54188-ordum-dashboard.x.workers.dev -> https://pr-9-ordum-dashboard.x.workers.dev
-            const aliasUrl = versionUrl.replace(/^(https:\/\/)[^-]+-/, `$1pr-${context.issue.number}-`);
-            const body = [
-              `🚀 **Preview:** ${aliasUrl}`,
-              `<sub>Version: ${versionUrl}</sub>`,
-            ].join('\n');
+            const url = '${{ steps.preview.outputs.deployment-url }}'
+              || `https://ordum-dashboard-pr-${context.issue.number}.${context.repo.owner}.workers.dev`;
+            const body = `🚀 **Preview:** ${url}`;
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -83,3 +80,20 @@ jobs:
                 body,
               });
             }
+
+  cleanup-preview:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Delete preview worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: delete --name ordum-dashboard-pr-${{ github.event.pull_request.number }} --force
