@@ -293,7 +293,9 @@ app.all("/jita/*", async (c) => {
   try {
     // Cache GET requests through the SWR proxy cache
     if (c.req.method === "GET" && proxyCache !== null) {
-      const body = await proxyCache.get(target, () => fetchUpstream(target, "GET"));
+      const body = await proxyCache.get(target, () =>
+        fetchUpstream(target, "GET"),
+      );
       return c.json(body);
     }
 

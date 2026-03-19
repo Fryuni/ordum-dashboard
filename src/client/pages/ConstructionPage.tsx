@@ -181,9 +181,7 @@ function ProjectCard({ project }: { project: ConstructionProject }) {
   const isDone = project.progress_pct === 100;
 
   return (
-    <div
-      class={`tier-plan ${isDone ? "tier-completed" : "tier-active"}`}
-    >
+    <div class={`tier-plan ${isDone ? "tier-completed" : "tier-active"}`}>
       <div class="tier-header">
         <div class="tier-header-left">
           <div
@@ -203,13 +201,26 @@ function ProjectCard({ project }: { project: ConstructionProject }) {
       </div>
 
       {missingItems.length > 0 && (
-        <div class="summary-section" style={{ marginTop: 0, paddingTop: 0, borderTop: "none" }}>
-          <h4 style={{ fontSize: "0.9rem", marginBottom: "12px", color: "var(--red)" }}>
-            Still Needed ({missingItems.length} material{missingItems.length !== 1 ? "s" : ""})
+        <div
+          class="summary-section"
+          style={{ marginTop: 0, paddingTop: 0, borderTop: "none" }}
+        >
+          <h4
+            style={{
+              fontSize: "0.9rem",
+              marginBottom: "12px",
+              color: "var(--red)",
+            }}
+          >
+            Still Needed ({missingItems.length} material
+            {missingItems.length !== 1 ? "s" : ""})
           </h4>
           <div class="req-grid">
             {missingItems.map((req) => (
-              <RequirementRow key={`${req.item_type}:${req.item_id}`} req={req} />
+              <RequirementRow
+                key={`${req.item_type}:${req.item_id}`}
+                req={req}
+              />
             ))}
           </div>
         </div>
@@ -218,11 +229,15 @@ function ProjectCard({ project }: { project: ConstructionProject }) {
       {fulfilledItems.length > 0 && (
         <details class="loc-details" style={{ marginTop: "12px" }}>
           <summary>
-            {fulfilledItems.length} material{fulfilledItems.length !== 1 ? "s" : ""} fully deposited
+            {fulfilledItems.length} material
+            {fulfilledItems.length !== 1 ? "s" : ""} fully deposited
           </summary>
           <div class="req-grid" style={{ marginTop: "8px" }}>
             {fulfilledItems.map((req) => (
-              <RequirementRow key={`${req.item_type}:${req.item_id}`} req={req} />
+              <RequirementRow
+                key={`${req.item_type}:${req.item_id}`}
+                req={req}
+              />
             ))}
           </div>
         </details>
@@ -254,17 +269,17 @@ function RequirementRow({ req }: { req: MaterialRequirement }) {
           {req.quantity_deposited.toLocaleString()} /{" "}
           {req.quantity_required.toLocaleString()}
           {deficit > 0 && (
-            <span class="text-red" style={{ marginLeft: "8px", fontSize: "0.8rem" }}>
+            <span
+              class="text-red"
+              style={{ marginLeft: "8px", fontSize: "0.8rem" }}
+            >
               (-{deficit.toLocaleString()})
             </span>
           )}
         </span>
       </div>
       <div class="progress-bar-bg">
-        <div
-          class="progress-bar-fill"
-          style={{ width: `${pct}%` }}
-        />
+        <div class="progress-bar-fill" style={{ width: `${pct}%` }} />
       </div>
     </div>
   );

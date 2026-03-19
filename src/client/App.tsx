@@ -24,7 +24,12 @@ import CraftPage from "./pages/CraftPage";
 import TravelerTaskPage from "./pages/TravelerTaskPage";
 import ConstructionPage from "./pages/ConstructionPage";
 
-type RouteName = "dashboard" | "settlement" | "construction" | "craft" | "travelerTask";
+type RouteName =
+  | "dashboard"
+  | "settlement"
+  | "construction"
+  | "craft"
+  | "travelerTask";
 
 function PageContent({ route }: { route: RouteName | null }) {
   switch (route) {
