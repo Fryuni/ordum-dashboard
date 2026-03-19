@@ -1,5 +1,5 @@
 declare namespace Cloudflare {
   interface Env {
-    KV: KVNamespace;
+    jita_api_cache: KVNamespace;
   }
 }

@@ -25,23 +25,41 @@
 import { Hono } from "hono";
 import { fetchEmpireData } from "./server/ordum-data";
 import { ORDUM_MAIN_CLAIM_ID } from "./server/ordum-data";
-import { serverJita } from "./server/api-server";
+import { createServerJita } from "./server/api-server";
 import { ORDUM_EMPIRE_NAME } from "./common/ordum-types";
 import { buildClaimInventory } from "./common/claim-inventory";
 import { buildSettlementPlan } from "./common/settlement-planner";
 import { gd } from "./common/gamedata";
+import type BitJitaClient from "./common/bitjita-client";
 
 type Bindings = {
   ASSETS: Fetcher;
+  jita_api_cache: KVNamespace;
 };
 
-const app = new Hono<{ Bindings: Bindings }>();
+type Variables = {
+  jita: BitJitaClient;
+};
+
+const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
+
+// ─── Middleware: create a KV-backed API client per-isolate ───────────────────
+
+let cachedJita: BitJitaClient | null = null;
+
+app.use("*", async (c, next) => {
+  if (cachedJita === null) {
+    cachedJita = createServerJita(c.env.jita_api_cache);
+  }
+  c.set("jita", cachedJita);
+  return next();
+});
 
 // ─── API Routes ────────────────────────────────────────────────────────────────
 
 app.get("/api/empire", async (c) => {
   try {
-    const empire = await fetchEmpireData();
+    const empire = await fetchEmpireData(c.get("jita"));
     return c.json(empire);
   } catch (e) {
     console.error("Failed to fetch empire data:", e);
@@ -51,7 +69,8 @@ app.get("/api/empire", async (c) => {
 
 app.get("/api/empire-claims", async (c) => {
   try {
-    const empires = await serverJita.listEmpires({ q: ORDUM_EMPIRE_NAME });
+    const jita = c.get("jita");
+    const empires = await jita.listEmpires({ q: ORDUM_EMPIRE_NAME });
     const empire = (empires.empires as any[]).find(
       (e: any) => e.name?.toLowerCase() === ORDUM_EMPIRE_NAME.toLowerCase(),
     );
@@ -59,7 +78,7 @@ app.get("/api/empire-claims", async (c) => {
       return c.json({ error: "Empire not found" }, 404);
     }
 
-    const claimsData = await serverJita.getEmpireClaims(empire.entityId);
+    const claimsData = await jita.getEmpireClaims(empire.entityId);
     const claims = (claimsData.claims as any[]).map((cl: any) => ({
       id: cl.entityId,
       name: cl.name,
@@ -74,8 +93,9 @@ app.get("/api/empire-claims", async (c) => {
 
 app.get("/api/settlement", async (c) => {
   try {
+    const jita = c.get("jita");
     const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
-    const { claim } = await serverJita.getClaim(claimId);
+    const { claim } = await jita.getClaim(claimId);
     const currentTier = claim.tier ?? 1;
     const supplies = Number(claim.supplies) || 0;
     const learnedIds = new Set<number>(
