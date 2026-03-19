@@ -1,7 +1,7 @@
 #:schema node_modules/wrangler/config-schema.json
 name = "ordum-dashboard"
 main = "src/worker.ts"
-compatibility_date = "2025-04-01"
+compatibility_date = "2026-02-24"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = false
 preview_urls = true
@@ -13,6 +13,15 @@ binding = "ASSETS"
 run_worker_first = ["/api/*", "/jita/*"]
 
 [observability]
+enabled = true
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
+
+[observability.traces]
 enabled = true
 
 [[kv_namespaces]]
