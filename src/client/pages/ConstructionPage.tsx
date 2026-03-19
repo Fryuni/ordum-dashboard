@@ -16,14 +16,31 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { useState, useEffect } from "preact/hooks";
+import { useState, useEffect, useMemo } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
+import type { TargetItem } from "../stores/craft";
 import {
   $empireClaims,
   $empireClaimsLoading,
   fetchEmpireClaims,
 } from "../stores/craftSource";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
+import { $router } from "../stores/router";
+
+async function openCraftPlanner(targets: TargetItem[]) {
+  const compressedBuffer = await new Response(
+    new Blob([JSON.stringify(targets)])
+      .stream()
+      .pipeThrough(new CompressionStream("gzip")),
+  ).arrayBuffer();
+
+  const encoded = new Uint8Array(compressedBuffer).toBase64({
+    alphabet: "base64url",
+    omitPadding: true,
+  });
+
+  $router.open(`/craft?targets=${encoded}`);
+}
 
 interface MaterialRequirement {
   item_type: "Item" | "Cargo";
@@ -180,6 +197,17 @@ function ProjectCard({ project }: { project: ConstructionProject }) {
   const progressDeg = `${(project.progress_pct / 100) * 360}deg`;
   const isDone = project.progress_pct === 100;
 
+  const missingTargets: TargetItem[] = useMemo(
+    () =>
+      missingItems.map((r) => ({
+        item_id: r.item_id,
+        item_type: r.item_type,
+        name: r.name,
+        quantity: r.quantity_required - r.quantity_deposited,
+      })),
+    [missingItems],
+  );
+
   return (
     <div class={`tier-plan ${isDone ? "tier-completed" : "tier-active"}`}>
       <div class="tier-header">
@@ -191,7 +219,20 @@ function ProjectCard({ project }: { project: ConstructionProject }) {
             <span>{project.progress_pct}%</span>
           </div>
           <div>
-            <h3 class="tier-title">{project.building_name}</h3>
+            <h3 class="tier-title">
+              {project.building_name}
+              {missingTargets.length > 0 && (
+                <button
+                  type="button"
+                  class="btn btn-small btn-secondary"
+                  style={{ marginLeft: "8px", fontSize: "0.75rem" }}
+                  onClick={() => openCraftPlanner(missingTargets)}
+                  title="Plan all missing materials in Craft Planner"
+                >
+                  ⚒️ Plan All
+                </button>
+              )}
+            </h3>
             {project.recipe_name !== project.building_name && (
               <p class="tier-subtitle text-muted">{project.recipe_name}</p>
             )}
@@ -264,6 +305,30 @@ function RequirementRow({ req }: { req: MaterialRequirement }) {
           )}
           <span class="req-name">{req.name}</span>
           {req.tag && <span class="tag-pill">{req.tag}</span>}
+          {deficit > 0 && (
+            <button
+              type="button"
+              class="btn btn-small btn-secondary"
+              style={{
+                marginLeft: "4px",
+                fontSize: "0.7rem",
+                padding: "1px 6px",
+              }}
+              onClick={() =>
+                openCraftPlanner([
+                  {
+                    item_id: req.item_id,
+                    item_type: req.item_type,
+                    name: req.name,
+                    quantity: deficit,
+                  },
+                ])
+              }
+              title={`Plan ${req.name} in Craft Planner`}
+            >
+              ⚒️
+            </button>
+          )}
         </div>
         <span class="req-fraction">
           {req.quantity_deposited.toLocaleString()} /{" "}
