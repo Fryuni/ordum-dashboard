@@ -22,8 +22,9 @@ import DashboardPage from "./pages/DashboardPage";
 import SettlementPage from "./pages/SettlementPage";
 import CraftPage from "./pages/CraftPage";
 import TravelerTaskPage from "./pages/TravelerTaskPage";
+import ConstructionPage from "./pages/ConstructionPage";
 
-type RouteName = "dashboard" | "settlement" | "craft" | "travelerTask";
+type RouteName = "dashboard" | "settlement" | "construction" | "craft" | "travelerTask";
 
 function PageContent({ route }: { route: RouteName | null }) {
   switch (route) {
@@ -31,6 +32,8 @@ function PageContent({ route }: { route: RouteName | null }) {
       return <DashboardPage />;
     case "settlement":
       return <SettlementPage />;
+    case "construction":
+      return <ConstructionPage />;
     case "craft":
       return <CraftPage />;
     case "travelerTask":
@@ -54,6 +57,12 @@ const NAV_ITEMS = [
     href: "/settlement",
     icon: "🏰",
     label: "Settlement",
+  },
+  {
+    route: "construction" as const,
+    href: "/construction",
+    icon: "🏗️",
+    label: "Construction",
   },
   {
     route: "craft" as const,

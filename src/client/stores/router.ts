@@ -22,6 +22,7 @@ import { computed } from "nanostores";
 export const $router = createRouter({
   dashboard: "/",
   settlement: "/settlement",
+  construction: "/construction",
   craft: "/craft",
   travelerTask: "/traveler-task",
 });
