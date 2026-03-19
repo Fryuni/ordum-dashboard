@@ -81,13 +81,13 @@ export default function RawMaterials({
                       <span
                         class={`badge ${isMissing ? "badge-warning" : ""}`}
                         key={s.skill}
-                        title={
-                          isMissing
-                            ? `Your ${s.skill} is Lv${playerLevel}, need Lv${s.level}`
-                            : undefined
-                        }
                       >
                         ⚡ {s.skill} Lv{s.level}
+                        {isMissing && (
+                          <span class="badge-tooltip">
+                            Your {s.skill} is Lv{playerLevel}, need Lv{s.level}
+                          </span>
+                        )}
                       </span>
                     );
                   })}
@@ -102,15 +102,15 @@ export default function RawMaterials({
                       <span
                         class={`badge ${isMissing ? "badge-warning" : ""}`}
                         key={t.tool}
-                        title={
-                          isMissing
-                            ? playerTier === 0
-                              ? `You don't have a ${t.tool} (need T${t.level})`
-                              : `Your best ${t.tool} is T${playerTier}, need T${t.level}`
-                            : undefined
-                        }
                       >
                         🔧 {t.tool} T{t.level}
+                        {isMissing && (
+                          <span class="badge-tooltip">
+                            {playerTier === 0
+                              ? `You don't have a ${t.tool} (need T${t.level})`
+                              : `Your best ${t.tool} is T${playerTier}, need T${t.level}`}
+                          </span>
+                        )}
                       </span>
                     );
                   })}
