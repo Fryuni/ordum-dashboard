@@ -82,6 +82,18 @@ function bucketToTime(bucket: string): Time {
   return (Date.parse(bucket + ":00:00Z") / 1000) as unknown as Time;
 }
 
+function formatTime(time: Time): string {
+  if (typeof time === "string") return time; // "YYYY-MM-DD" daily bucket
+  // Unix timestamp (seconds) → readable date+hour
+  const d = new Date((time as number) * 1000);
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function StorageChart({ data: data }: { data: StorageAuditChartPoint[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -176,7 +188,7 @@ function StorageChart({ data: data }: { data: StorageAuditChartPoint[] }) {
         const vol = volData?.value ?? 0;
 
         tooltip.innerHTML = `
-          <div style="font-weight:600;margin-bottom:4px">${String(candleData.time)}</div>
+          <div style="font-weight:600;margin-bottom:4px">${formatTime(candleData.time)}</div>
           <div>Open: <b>${Math.round(candleData.open).toLocaleString()}</b></div>
           <div>Close: <b>${Math.round(candleData.close).toLocaleString()}</b></div>
           <div>Net: <b style="color:${netColor}">${netSign}${Math.round(net).toLocaleString()}</b></div>
