@@ -16,11 +16,9 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { useState, useEffect } from "preact/hooks";
+import { useEffect, useState } from "preact/hooks";
 import type { EmpireSummary } from "../../common/ordum-types";
 import StatCard from "../components/StatCard";
-import ResourceTable from "../components/ResourceTable";
-import MembersTable from "../components/MembersTable";
 
 export default function DashboardPage() {
   const [empire, setEmpire] = useState<EmpireSummary | null>(null);
@@ -56,8 +54,6 @@ export default function DashboardPage() {
     );
   }
 
-  const mainClaim = empire.claims[0];
-
   return (
     <>
       <div class="page-header">
@@ -92,63 +88,48 @@ export default function DashboardPage() {
           accent="var(--accent-2)"
         />
         <StatCard
-          label="Building Resources"
-          value={empire.totals.total_building_resource_count}
-          icon="📦"
+          label="Hexite Reserve"
+          value={empire.hexite_reserve}
+          icon="💎"
           accent="var(--accent-4)"
         />
         <StatCard
-          label="Player Resources"
-          value={empire.totals.total_player_resource_count}
-          icon="🎒"
-          accent="var(--accent)"
-        />
-        <StatCard
-          label="Resource Types"
-          value={
-            empire.totals.total_building_resource_types +
-            empire.totals.total_player_resource_types
-          }
-          icon="📋"
+          label="Total Land"
+          value={empire.totals.total_tiles}
+          icon="🧱"
           accent="var(--accent-2)"
         />
         <StatCard
-          label="Tools"
-          value={empire.totals.total_tool_count}
-          icon="⛏️"
-          accent="var(--accent-3)"
-        />
-        <StatCard
           label="Treasury"
-          value={mainClaim ? mainClaim.treasury : "—"}
+          value={empire.claims.reduce((s, c) => s + c.treasury, 0)}
           icon="💰"
           accent="var(--accent-4)"
         />
       </div>
 
-      {empire.claims.map((c, i) => (
-        <ClaimSection key={c.entity_id} claim={c} index={i} />
+      {empire.claims.map((c) => (
+        <ClaimSection
+          key={c.entity_id}
+          claim={c}
+          isCapital={String(c.entity_id) === empire.capital_claim_entity_id}
+        />
       ))}
-
-      {empire.claims.length > 1 && <EmpireTotals empire={empire} />}
     </>
   );
 }
 
 function ClaimSection({
   claim: c,
-  index: i,
+  isCapital,
 }: {
   claim: EmpireSummary["claims"][0];
-  index: number;
+  isCapital: boolean;
 }) {
-  const [activeTab, setActiveTab] = useState("buildings");
-
   return (
     <div class="claim-section">
       <div class="claim-bar">
         <div class="claim-title-area">
-          <span class="claim-icon">{i === 0 ? "👑" : "🏰"}</span>
+          <span class="claim-icon">{isCapital ? "👑" : "🏰"}</span>
           <h2 class="claim-name">{c.name}</h2>
           <span class="tier-badge-label">Tier {c.tier ?? "?"}</span>
         </div>
@@ -173,128 +154,6 @@ function ClaimSection({
           </div>
         </div>
       </div>
-
-      <div class="tabs-container">
-        <div class="tabs">
-          {(
-            [
-              ["buildings", "🏠", "Building Storage"],
-              ["players", "🎒", "Player Inventory"],
-              ["tools", "⛏️", "Tools"],
-              ["members", "👥", "Members"],
-            ] as const
-          ).map(([key, icon, label]) => (
-            <button
-              key={key}
-              class={`tab-btn ${activeTab === key ? "active" : ""}`}
-              onClick={() => setActiveTab(key)}
-            >
-              <span class="tab-icon">{icon}</span> {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {activeTab === "buildings" && (
-        <ResourceTable
-          title="Building Storage"
-          resources={c.building_resources}
-          showLocations={true}
-          id={`building-res-${i}`}
-        />
-      )}
-      {activeTab === "players" && (
-        <>
-          <ResourceTable
-            title="Online Player Inventory"
-            resources={c.player_resources}
-            showLocations={true}
-            id={`player-res-${i}`}
-          />
-          <div style={{ height: 16 }} />
-          <ResourceTable
-            title="Offline Player Inventory"
-            resources={c.player_offline_resources}
-            showLocations={true}
-            id={`offline-res-${i}`}
-          />
-        </>
-      )}
-      {activeTab === "tools" && (
-        <>
-          <ResourceTable
-            title="Online Player Tools"
-            resources={c.tool_resources}
-            id={`tools-online-${i}`}
-          />
-          <div style={{ height: 16 }} />
-          <ResourceTable
-            title="Offline Player Tools"
-            resources={c.tool_offline_resources}
-            id={`tools-offline-${i}`}
-          />
-        </>
-      )}
-      {activeTab === "members" && (
-        <MembersTable members={c.members} claimName={c.name} />
-      )}
-    </div>
-  );
-}
-
-function EmpireTotals({ empire }: { empire: EmpireSummary }) {
-  const [activeTab, setActiveTab] = useState("buildings");
-
-  return (
-    <div class="claim-section">
-      <div class="claim-bar empire-bar">
-        <div class="claim-title-area">
-          <span class="claim-icon">🌐</span>
-          <h2 class="claim-name">Empire-Wide Totals</h2>
-        </div>
-      </div>
-
-      <div class="tabs-container">
-        <div class="tabs">
-          {(
-            [
-              ["buildings", "🏠", "All Building Resources"],
-              ["players", "🎒", "All Player Resources"],
-              ["tools", "⛏️", "All Tools"],
-            ] as const
-          ).map(([key, icon, label]) => (
-            <button
-              key={key}
-              class={`tab-btn ${activeTab === key ? "active" : ""}`}
-              onClick={() => setActiveTab(key)}
-            >
-              <span class="tab-icon">{icon}</span> {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {activeTab === "buildings" && (
-        <ResourceTable
-          title="All Building Resources (Empire)"
-          resources={empire.all_building_resources}
-          id="empire-building-res"
-        />
-      )}
-      {activeTab === "players" && (
-        <ResourceTable
-          title="All Player Resources (Empire)"
-          resources={empire.all_player_resources}
-          id="empire-player-res"
-        />
-      )}
-      {activeTab === "tools" && (
-        <ResourceTable
-          title="All Tools (Empire)"
-          resources={empire.all_tool_resources}
-          id="empire-tool-res"
-        />
-      )}
     </div>
   );
 }
