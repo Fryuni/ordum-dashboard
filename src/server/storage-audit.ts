@@ -78,11 +78,14 @@ export interface StorageAuditLogRow {
 }
 
 export interface StorageAuditChartPoint {
-  date: string;
+  /** ISO hour bucket, e.g. "2026-03-20T05" */
+  bucket: string;
   deposits: number;
   withdrawals: number;
   net: number;
-  cumulative: number;
+  /** Cumulative net at the END of this bucket (open + net) */
+  cumOpen: number;
+  cumClose: number;
 }
 
 export interface StorageAuditResponse {
@@ -365,32 +368,34 @@ export async function queryStorageAudit(
     .bind(...params, filters.pageSize, offset)
     .all<StorageAuditLogRow>();
 
-  // Chart data: daily aggregates
+  // Chart data: hourly aggregates
   const chartResult = await db
     .prepare(
       `SELECT
-         DATE(timestamp) as date,
+         STRFTIME('%Y-%m-%dT%H', timestamp) as bucket,
          SUM(CASE WHEN action = 'deposit' THEN quantity ELSE 0 END) as deposits,
          SUM(CASE WHEN action = 'withdraw' THEN quantity ELSE 0 END) as withdrawals
        FROM storage_logs
        WHERE ${whereClause}
-       GROUP BY DATE(timestamp)
-       ORDER BY date ASC`,
+       GROUP BY STRFTIME('%Y-%m-%dT%H', timestamp)
+       ORDER BY bucket ASC`,
     )
     .bind(...params)
-    .all<{ date: string; deposits: number; withdrawals: number }>();
+    .all<{ bucket: string; deposits: number; withdrawals: number }>();
 
   let cumulative = 0;
   const chartData: StorageAuditChartPoint[] = (chartResult.results ?? []).map(
     (row) => {
       const net = row.deposits - row.withdrawals;
+      const cumOpen = cumulative;
       cumulative += net;
       return {
-        date: row.date,
+        bucket: row.bucket,
         deposits: row.deposits,
         withdrawals: row.withdrawals,
         net,
-        cumulative,
+        cumOpen,
+        cumClose: cumulative,
       };
     },
   );

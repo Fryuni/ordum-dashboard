@@ -26,8 +26,14 @@ import {
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import type { StorageAuditResponse, StorageAuditChartPoint } from "../../server/storage-audit";
 
-// ─── Chart Component (pure canvas) ─────────────────────────────────────────────
+// ─── Candlestick + Volume Chart (pure canvas) ──────────────────────────────────
 
+/**
+ * Candlestick chart: each hourly bucket is a candle whose body spans
+ * cumOpen → cumClose.  Green candle = net positive (close ≥ open),
+ * red candle = net negative.  Below the candles a volume sub-chart shows
+ * deposit (green) and withdrawal (red) bars side-by-side.
+ */
 function StorageChart({ data }: { data: StorageAuditChartPoint[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -46,104 +52,138 @@ function StorageChart({ data }: { data: StorageAuditChartPoint[] }) {
 
     const w = rect.width;
     const h = rect.height;
-    const pad = { top: 24, right: 16, bottom: 40, left: 60 };
-    const plotW = w - pad.left - pad.right;
-    const plotH = h - pad.top - pad.bottom;
+    const pad = { top: 20, right: 16, bottom: 36, left: 60 };
+    const totalPlotH = h - pad.top - pad.bottom;
+    // 70% for candles, 30% for volume, with a small gap
+    const candleH = totalPlotH * 0.65;
+    const volGap = totalPlotH * 0.05;
+    const volH = totalPlotH * 0.3;
+    const volTop = pad.top + candleH + volGap;
 
-    // Clear
     ctx.clearRect(0, 0, w, h);
 
-    // Find value range
-    const maxCum = Math.max(...data.map((d) => d.cumulative), 0);
-    const minCum = Math.min(...data.map((d) => d.cumulative), 0);
-    const range = maxCum - minCum || 1;
-    const yScale = plotH / (range * 1.1);
-    const yOffset = maxCum * 1.05;
+    const plotW = w - pad.left - pad.right;
+    const n = data.length;
+    const gap = plotW / n;
+    const candleW = Math.max(1, gap * 0.6);
+    const wickW = Math.max(1, Math.min(2, candleW * 0.15));
 
-    const barW = Math.max(2, (plotW / data.length) * 0.7);
-    const gap = plotW / data.length;
+    // ── Candle Y-axis ────────────────────────────────────────────────────
+    const allVals = data.flatMap((d) => [d.cumOpen, d.cumClose]);
+    let minVal = Math.min(...allVals);
+    let maxVal = Math.max(...allVals);
+    if (minVal === maxVal) {
+      minVal -= 1;
+      maxVal += 1;
+    }
+    const valRange = maxVal - minVal;
+    const valPad = valRange * 0.08;
+    const yMin = minVal - valPad;
+    const yMax = maxVal + valPad;
+    const yScale = candleH / (yMax - yMin);
+    const toY = (v: number) => pad.top + (yMax - v) * yScale;
 
-    // Grid lines
+    // ── Volume Y-axis ────────────────────────────────────────────────────
+    const maxVol = Math.max(...data.map((d) => Math.max(d.deposits, d.withdrawals)), 1);
+    const volScale = volH / maxVol;
+
+    // ── Grid lines (candle area) ─────────────────────────────────────────
     ctx.strokeStyle = "rgba(255,255,255,0.06)";
     ctx.lineWidth = 1;
     const gridSteps = 5;
     for (let i = 0; i <= gridSteps; i++) {
-      const y = pad.top + (plotH / gridSteps) * i;
+      const y = pad.top + (candleH / gridSteps) * i;
       ctx.beginPath();
       ctx.moveTo(pad.left, y);
       ctx.lineTo(w - pad.right, y);
       ctx.stroke();
 
-      // Y-axis labels
-      const val = yOffset - (plotH / gridSteps / yScale) * i;
+      const val = yMax - ((yMax - yMin) / gridSteps) * i;
       ctx.fillStyle = "#7c8495";
       ctx.font = "11px Inter, sans-serif";
       ctx.textAlign = "right";
       ctx.fillText(formatCompact(val), pad.left - 8, y + 4);
     }
 
-    // Cumulative line
+    // Separator line between candle and volume areas
+    ctx.strokeStyle = "rgba(255,255,255,0.08)";
     ctx.beginPath();
-    ctx.strokeStyle = "#6c8cff";
-    ctx.lineWidth = 2;
-    ctx.lineJoin = "round";
-    for (let i = 0; i < data.length; i++) {
-      const x = pad.left + gap * i + gap / 2;
-      const y = pad.top + (yOffset - data[i]!.cumulative) * yScale;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
+    ctx.moveTo(pad.left, volTop - volGap / 2);
+    ctx.lineTo(w - pad.right, volTop - volGap / 2);
     ctx.stroke();
 
-    // Area fill under cumulative
-    ctx.lineTo(pad.left + gap * (data.length - 1) + gap / 2, pad.top + plotH);
-    ctx.lineTo(pad.left + gap / 2, pad.top + plotH);
-    ctx.closePath();
-    ctx.fillStyle = "rgba(108, 140, 255, 0.08)";
-    ctx.fill();
+    // ── Candles ──────────────────────────────────────────────────────────
+    const GREEN = "#4ade80";
+    const RED = "#f87171";
+    const GREEN_DIM = "rgba(74, 222, 128, 0.25)";
+    const RED_DIM = "rgba(248, 113, 113, 0.25)";
 
-    // Deposit/withdraw bars
-    const maxBar = Math.max(
-      ...data.map((d) => Math.max(d.deposits, d.withdrawals)),
-      1,
-    );
-    const barScale = (plotH * 0.3) / maxBar;
+    for (let i = 0; i < n; i++) {
+      const d = data[i]!;
+      const cx = pad.left + gap * i + gap / 2;
+      const bullish = d.cumClose >= d.cumOpen;
+      const color = bullish ? GREEN : RED;
+      const dimColor = bullish ? GREEN_DIM : RED_DIM;
 
-    for (let i = 0; i < data.length; i++) {
-      const x = pad.left + gap * i + (gap - barW * 2) / 2;
-      const baseY = pad.top + plotH;
+      const bodyTop = toY(Math.max(d.cumOpen, d.cumClose));
+      const bodyBot = toY(Math.min(d.cumOpen, d.cumClose));
+      const bodyH = Math.max(1, bodyBot - bodyTop);
 
-      // Deposit bar (green, going up from bottom)
-      const point = data[i]!;
-      if (point.deposits > 0) {
-        const bh = point.deposits * barScale;
-        ctx.fillStyle = "rgba(74, 222, 128, 0.5)";
-        ctx.fillRect(x, baseY - bh, barW, bh);
+      // Wick (high/low = open/close for hourly candles since we don't
+      // have intra-hour resolution; draw a thin wick anyway for the look)
+      ctx.strokeStyle = color;
+      ctx.lineWidth = wickW;
+      ctx.beginPath();
+      ctx.moveTo(cx, bodyTop);
+      ctx.lineTo(cx, bodyBot);
+      ctx.stroke();
+
+      // Body
+      ctx.fillStyle = dimColor;
+      ctx.fillRect(cx - candleW / 2, bodyTop, candleW, bodyH);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(cx - candleW / 2, bodyTop, candleW, bodyH);
+    }
+
+    // ── Volume bars ──────────────────────────────────────────────────────
+    const halfBar = Math.max(1, candleW * 0.45);
+    for (let i = 0; i < n; i++) {
+      const d = data[i]!;
+      const cx = pad.left + gap * i + gap / 2;
+      const volBase = volTop + volH;
+
+      if (d.deposits > 0) {
+        const bh = d.deposits * volScale;
+        ctx.fillStyle = "rgba(74, 222, 128, 0.45)";
+        ctx.fillRect(cx - halfBar, volBase - bh, halfBar, bh);
       }
-
-      // Withdraw bar (red, going up from bottom)
-      if (point.withdrawals > 0) {
-        const bh = point.withdrawals * barScale;
-        ctx.fillStyle = "rgba(248, 113, 113, 0.5)";
-        ctx.fillRect(x + barW, baseY - bh, barW, bh);
+      if (d.withdrawals > 0) {
+        const bh = d.withdrawals * volScale;
+        ctx.fillStyle = "rgba(248, 113, 113, 0.45)";
+        ctx.fillRect(cx, volBase - bh, halfBar, bh);
       }
     }
 
-    // X-axis labels (show subset to avoid overlap)
+    // ── X-axis labels ────────────────────────────────────────────────────
     ctx.fillStyle = "#7c8495";
     ctx.font = "10px Inter, sans-serif";
     ctx.textAlign = "center";
-    const maxLabels = Math.floor(plotW / 70);
-    const labelStep = Math.max(1, Math.ceil(data.length / maxLabels));
-    for (let i = 0; i < data.length; i += labelStep) {
+    const maxLabels = Math.floor(plotW / 80);
+    const labelStep = Math.max(1, Math.ceil(n / maxLabels));
+    for (let i = 0; i < n; i += labelStep) {
+      const d = data[i]!;
       const x = pad.left + gap * i + gap / 2;
-      const label = data[i]!.date.slice(5); // MM-DD
-      ctx.fillText(label, x, h - pad.bottom + 16);
+      // Format: "Mar 20 05h" or "03-20 05h"
+      const parts = d.bucket.split("T");
+      const datePart = (parts[0] ?? "").slice(5); // MM-DD
+      const hourPart = (parts[1] ?? "00") + "h";
+      ctx.fillText(`${datePart} ${hourPart}`, x, h - pad.bottom + 14);
     }
 
-    // Zero line if range crosses zero
-    if (minCum < 0 && maxCum > 0) {
-      const zeroY = pad.top + yOffset * yScale;
+    // ── Zero line ────────────────────────────────────────────────────────
+    if (yMin < 0 && yMax > 0) {
+      const zeroY = toY(0);
       ctx.strokeStyle = "rgba(255,255,255,0.15)";
       ctx.lineWidth = 1;
       ctx.setLineDash([4, 4]);
@@ -166,7 +206,7 @@ function StorageChart({ data }: { data: StorageAuditChartPoint[] }) {
   return (
     <canvas
       ref={canvasRef}
-      style="width: 100%; height: 280px; display: block"
+      style="width: 100%; height: 320px; display: block"
     />
   );
 }
@@ -359,28 +399,32 @@ export default function StorageAuditPage() {
       {/* Chart */}
       <div class="planner-card" style="margin-bottom: 16px">
         <h3 style="margin-bottom: 12px; font-size: 14px; color: var(--text-muted)">
-          📈 Cumulative Storage Progress
+          📈 Storage Progress (hourly)
         </h3>
         <StorageChart data={data?.chartData ?? []} />
         {data && data.chartData.length > 0 && (
           <div class="chart-legend">
             <span class="legend-item">
-              <span class="legend-swatch" style="background: #6c8cff" />
-              Cumulative Net
+              <span class="legend-swatch" style="background: #4ade80; border: 1px solid #4ade80" />
+              Net positive (candle)
+            </span>
+            <span class="legend-item">
+              <span class="legend-swatch" style="background: #f87171; border: 1px solid #f87171" />
+              Net negative (candle)
             </span>
             <span class="legend-item">
               <span
                 class="legend-swatch"
-                style="background: rgba(74, 222, 128, 0.5)"
+                style="background: rgba(74, 222, 128, 0.45)"
               />
-              Deposits
+              Deposit vol.
             </span>
             <span class="legend-item">
               <span
                 class="legend-swatch"
-                style="background: rgba(248, 113, 113, 0.5)"
+                style="background: rgba(248, 113, 113, 0.45)"
               />
-              Withdrawals
+              Withdrawal vol.
             </span>
           </div>
         )}
