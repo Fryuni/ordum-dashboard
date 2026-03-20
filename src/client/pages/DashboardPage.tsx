@@ -107,8 +107,12 @@ export default function DashboardPage() {
         />
       </div>
 
-      {empire.claims.map((c, i) => (
-        <ClaimSection key={c.entity_id} claim={c} index={i} />
+      {empire.claims.map((c) => (
+        <ClaimSection
+          key={c.entity_id}
+          claim={c}
+          isCapital={String(c.entity_id) === empire.capital_claim_entity_id}
+        />
       ))}
     </>
   );
@@ -116,16 +120,16 @@ export default function DashboardPage() {
 
 function ClaimSection({
   claim: c,
-  index: i,
+  isCapital,
 }: {
   claim: EmpireSummary["claims"][0];
-  index: number;
+  isCapital: boolean;
 }) {
   return (
     <div class="claim-section">
       <div class="claim-bar">
         <div class="claim-title-area">
-          <span class="claim-icon">{i === 0 ? "👑" : "🏰"}</span>
+          <span class="claim-icon">{isCapital ? "👑" : "🏰"}</span>
           <h2 class="claim-name">{c.name}</h2>
           <span class="tier-badge-label">Tier {c.tier ?? "?"}</span>
         </div>

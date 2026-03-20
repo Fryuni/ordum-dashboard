@@ -85,6 +85,7 @@ export interface MemberInfo {
 
 export interface ClaimSummary {
   entity_id: number;
+  owner_building_entity_id: string;
   name: string;
   region: string;
   tier: number | null;
@@ -116,6 +117,7 @@ export interface EmpireSummary {
     total_tool_count: number;
   };
   hexite_reserve: number;
+  capital_claim_entity_id: string | null;
   all_building_resources: ResourceItem[];
   all_player_resources: ResourceItem[];
   all_tool_resources: ResourceItem[];

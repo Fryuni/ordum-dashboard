@@ -93,6 +93,7 @@ export interface MemberInfo {
 
 export interface ClaimSummary {
   entity_id: string;
+  owner_building_entity_id: string;
   name: string;
   region: string;
   tier: number | null;
@@ -124,6 +125,7 @@ export interface EmpireSummary {
     total_tool_count: number;
   };
   hexite_reserve: number;
+  capital_claim_entity_id: string | null;
   /** All resources across the empire, merged and sorted by quantity desc */
   all_building_resources: ResourceItem[];
   all_player_resources: ResourceItem[];
@@ -303,6 +305,7 @@ export async function fetchClaimData(
 
   return {
     entity_id: claim.entityId,
+    owner_building_entity_id: claim.ownerBuildingEntityId,
     name: claim.name,
     region: claim.regionName,
     tier: claim.tier ?? null,
@@ -329,6 +332,7 @@ export async function fetchEmpireData(
   // Dynamically discover empire claims if not provided
   let resolvedClaimIds = claimIds;
   let hexite_reserve = 0;
+  let capitalBuildingEntityId: string | null = null;
 
   if (!resolvedClaimIds) {
     try {
@@ -341,6 +345,7 @@ export async function fetchEmpireData(
           Number(empire.empireCurrencyTreasury) ||
           Number(empire.shardTreasury) ||
           0;
+        capitalBuildingEntityId = empire.capitalBuildingEntityId ?? null;
         const claimsData = await api.getEmpireClaims(empire.entityId);
         resolvedClaimIds = (claimsData.claims as any[]).map((cl: any) => ({
           id: cl.entityId,
@@ -422,6 +427,12 @@ export async function fetchEmpireData(
       total_tool_count: mergedTools.reduce((s, r) => s + r.quantity, 0),
     },
     hexite_reserve,
+    capital_claim_entity_id:
+      capitalBuildingEntityId !== null
+        ? (claims.find(
+            (c) => c.owner_building_entity_id === capitalBuildingEntityId,
+          )?.entity_id ?? null)
+        : null,
     all_building_resources: mergedBuilding,
     all_player_resources: mergedPlayer,
     all_tool_resources: mergedTools,
