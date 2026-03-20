@@ -30,7 +30,7 @@ import {
   $auditPage,
   $auditData,
   $auditTotalPages,
-  PAGE_SIZE,
+  $auditIngesting,
 } from "../stores/storageAudit";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import type { StorageAuditChartPoint } from "../../server/storage-audit";
@@ -250,6 +250,7 @@ export default function StorageAuditPage() {
   const page = useStore($auditPage);
   const dataAsync = useStore($auditData);
   const totalPages = useStore($auditTotalPages);
+  const ingesting = useStore($auditIngesting);
 
   useEffect(() => {
     fetchEmpireClaims();
@@ -265,7 +266,7 @@ export default function StorageAuditPage() {
         <h1>Storage Audit</h1>
         <p class="subtitle">
           Track every deposit and withdrawal from claim inventories
-          {data?.ingesting && (
+          {ingesting && (
             <span class="ingesting-badge">
               <span class="spinner-small" /> Syncing logs...
             </span>
@@ -428,7 +429,7 @@ export default function StorageAuditPage() {
                       colSpan={6}
                       style="text-align: center; color: var(--text-muted); padding: 24px"
                     >
-                      {data.ingesting
+                      {ingesting
                         ? "Logs are still syncing from BitJita — check back shortly"
                         : "No storage events found for this filter combination"}
                     </td>

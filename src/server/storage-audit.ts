@@ -322,14 +322,18 @@ export async function queryStorageAudit(
     itemType?: string;
     page: number;
     pageSize: number;
+    /** When true, skip ingestion — only query the DB. */
+    interactive?: boolean;
   },
 ): Promise<StorageAuditResponse> {
-  // Kick off ingestion in the background (best effort)
+  // Only run ingestion on background (non-interactive) requests
   let ingesting = false;
-  try {
-    ingesting = await ingestLogs(jita, db, claimId);
-  } catch (e) {
-    console.error("Storage audit ingestion error:", e);
+  if (!filters.interactive) {
+    try {
+      ingesting = await ingestLogs(jita, db, claimId);
+    } catch (e) {
+      console.error("Storage audit ingestion error:", e);
+    }
   }
 
   // Build WHERE clause

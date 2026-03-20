@@ -296,6 +296,8 @@ app.get("/api/storage-audit", async (c) => {
     const page = Math.max(1, Number(c.req.query("page")) || 1);
     const pageSize = Math.min(100, Math.max(1, Number(c.req.query("pageSize")) || 50));
 
+    const interactive = c.req.query("interactive") === "true";
+
     const result = await queryStorageAudit(
       jita,
       c.env.ordum_storage_audit,
@@ -306,6 +308,7 @@ app.get("/api/storage-audit", async (c) => {
         itemType,
         page,
         pageSize,
+        interactive,
       },
     );
     return c.json(result);

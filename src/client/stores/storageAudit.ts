@@ -44,19 +44,21 @@ onMount($auditPage, () => {
   return () => unsubs.forEach((u) => u());
 });
 
-// ─── Data Store ─────────────────────────────────────────────────────────────────
+// ─── Fetch Helper ───────────────────────────────────────────────────────────────
 
-async function fetchAuditData(
+function buildAuditUrl(
   claimId: string,
   player: string,
   item: string,
   page: number,
-): Promise<StorageAuditResponse> {
+  interactive: boolean,
+): string {
   const params = new URLSearchParams({
     claim: claimId,
     page: String(page),
     pageSize: String(PAGE_SIZE),
   });
+  if (interactive) params.set("interactive", "true");
   if (player) params.set("player", player);
   if (item) {
     const [type, id] = item.split(":");
@@ -65,17 +67,27 @@ async function fetchAuditData(
       params.set("itemId", id);
     }
   }
+  return `/api/storage-audit?${params}`;
+}
 
-  const resp = await fetch(`/api/storage-audit?${params}`);
+async function fetchAuditData(
+  url: string,
+): Promise<StorageAuditResponse> {
+  const resp = await fetch(url);
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return resp.json() as Promise<StorageAuditResponse>;
 }
 
-/** Incremented to force a re-fetch (e.g. for ingestion polling). */
-const $fetchTick = atom(0);
+// ─── Data Store (interactive — DB only, fast) ───────────────────────────────────
+
+/**
+ * Bumped after a background ingestion completes to make the interactive
+ * query re-read fresh data from D1.
+ */
+const $refreshTick = atom(0);
 
 export const $auditData = computedAsync(
-  [$auditClaim, $auditPlayer, $auditItem, $auditPage, $fetchTick],
+  [$auditClaim, $auditPlayer, $auditItem, $auditPage, $refreshTick],
   async (
     claimId,
     player,
@@ -83,26 +95,67 @@ export const $auditData = computedAsync(
     page,
   ): Promise<StorageAuditResponse | null> => {
     if (!claimId) return null;
-    return fetchAuditData(claimId, player, item, page);
+    const url = buildAuditUrl(claimId, player, item, page, true);
+    return fetchAuditData(url);
   },
 );
 
-// ─── Ingestion Polling ──────────────────────────────────────────────────────────
+// ─── Background Ingestion ───────────────────────────────────────────────────────
 
 /**
- * When the server reports `ingesting: true`, automatically re-fetch every 5s
- * so the UI stays up to date as logs stream in.
+ * Runs a non-interactive request in the background to trigger BitJita
+ * ingestion. When it completes, bumps $refreshTick so the interactive
+ * query re-reads the now-updated D1 data.
+ *
+ * Polls every 5 s while the server reports ingesting: true.
  */
-onMount($fetchTick, () =>
-  effect($auditData, (state) => {
-    if (state.state !== "loaded" || !state.value?.ingesting) return;
+const $ingesting = atom(false);
+export { $ingesting as $auditIngesting };
 
+let ingestAbort: AbortController | null = null;
+
+async function triggerIngestion(claimId: string) {
+  // Abort any in-flight ingestion request
+  ingestAbort?.abort();
+  ingestAbort = new AbortController();
+
+  try {
+    // Minimal request — page 1, pageSize 1, just to trigger ingestion
+    const url = buildAuditUrl(claimId, "", "", 1, false);
+    const resp = await fetch(url, { signal: ingestAbort.signal });
+    if (!resp.ok) return;
+    const data: StorageAuditResponse = await resp.json();
+    $ingesting.set(data.ingesting);
+    // Bump tick so the interactive store re-fetches with fresh D1 data
+    $refreshTick.set($refreshTick.get() + 1);
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") return;
+    console.error("Ingestion trigger error:", e);
+  }
+}
+
+onMount($ingesting, () => {
+  // Kick off initial ingestion when the claim is set
+  const unsubClaim = $auditClaim.subscribe((claimId) => {
+    if (claimId) triggerIngestion(claimId);
+  });
+
+  // Poll while ingesting
+  const unsubPoll = effect($ingesting, (ingesting) => {
+    if (!ingesting) return;
     const timer = setTimeout(() => {
-      $fetchTick.set($fetchTick.get() + 1);
+      const claimId = $auditClaim.get();
+      if (claimId) triggerIngestion(claimId);
     }, 5000);
     return () => clearTimeout(timer);
-  }),
-);
+  });
+
+  return () => {
+    unsubClaim();
+    unsubPoll();
+    ingestAbort?.abort();
+  };
+});
 
 // ─── Derived ────────────────────────────────────────────────────────────────────
 
