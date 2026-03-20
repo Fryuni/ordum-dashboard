@@ -194,22 +194,20 @@ function StorageChart({ data: rawData }: { data: StorageAuditChartPoint[] }) {
       ctx.strokeRect(cx - candleW / 2, bodyTop, candleW, bodyH);
     }
 
-    // ── Volume bars ──────────────────────────────────────────────────────
-    const halfBar = Math.max(1, candleW * 0.45);
+    // ── Volume bars (total volume per bucket, colored by net direction) ─
+    const volBarW = Math.max(1, candleW * 0.8);
     for (let i = 0; i < n; i++) {
       const d = data[i]!;
       const cx = pad.left + gap * i + gap / 2;
       const volBase = volTop + volH;
-
-      if (d.deposits > 0) {
-        const bh = d.deposits * volScale;
-        ctx.fillStyle = "rgba(74, 222, 128, 0.45)";
-        ctx.fillRect(cx - halfBar, volBase - bh, halfBar, bh);
-      }
-      if (d.withdrawals > 0) {
-        const bh = d.withdrawals * volScale;
-        ctx.fillStyle = "rgba(248, 113, 113, 0.45)";
-        ctx.fillRect(cx, volBase - bh, halfBar, bh);
+      const totalVol = d.deposits + d.withdrawals;
+      if (totalVol > 0) {
+        const bh = totalVol * volScale;
+        const bullish = d.cumClose >= d.cumOpen;
+        ctx.fillStyle = bullish
+          ? "rgba(74, 222, 128, 0.4)"
+          : "rgba(248, 113, 113, 0.4)";
+        ctx.fillRect(cx - volBarW / 2, volBase - bh, volBarW, bh);
       }
     }
 
@@ -412,26 +410,12 @@ export default function StorageAuditPage() {
         {data && data.chartData.length > 0 && (
           <div class="chart-legend">
             <span class="legend-item">
-              <span class="legend-swatch" style="background: #4ade80; border: 1px solid #4ade80" />
-              Net positive (candle)
+              <span class="legend-swatch" style="background: rgba(74, 222, 128, 0.25); border: 1px solid #4ade80" />
+              Net deposit
             </span>
             <span class="legend-item">
-              <span class="legend-swatch" style="background: #f87171; border: 1px solid #f87171" />
-              Net negative (candle)
-            </span>
-            <span class="legend-item">
-              <span
-                class="legend-swatch"
-                style="background: rgba(74, 222, 128, 0.45)"
-              />
-              Deposit vol.
-            </span>
-            <span class="legend-item">
-              <span
-                class="legend-swatch"
-                style="background: rgba(248, 113, 113, 0.45)"
-              />
-              Withdrawal vol.
+              <span class="legend-swatch" style="background: rgba(248, 113, 113, 0.25); border: 1px solid #f87171" />
+              Net withdrawal
             </span>
           </div>
         )}
