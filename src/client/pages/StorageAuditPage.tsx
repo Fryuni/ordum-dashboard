@@ -16,15 +16,24 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { useState, useEffect, useCallback, useRef } from "preact/hooks";
+import { useEffect, useRef } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
 import {
   $empireClaims,
   $empireClaimsLoading,
   fetchEmpireClaims,
 } from "../stores/craftSource";
+import {
+  $auditClaim,
+  $auditPlayer,
+  $auditItem,
+  $auditPage,
+  $auditData,
+  $auditTotalPages,
+  PAGE_SIZE,
+} from "../stores/storageAudit";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
-import type { StorageAuditResponse, StorageAuditChartPoint } from "../../server/storage-audit";
+import type { StorageAuditChartPoint } from "../../server/storage-audit";
 
 // ─── Candlestick + Volume Chart (pure canvas) ──────────────────────────────────
 
@@ -129,8 +138,7 @@ function StorageChart({ data }: { data: StorageAuditChartPoint[] }) {
       const bodyBot = toY(Math.min(d.cumOpen, d.cumClose));
       const bodyH = Math.max(1, bodyBot - bodyTop);
 
-      // Wick (high/low = open/close for hourly candles since we don't
-      // have intra-hour resolution; draw a thin wick anyway for the look)
+      // Wick
       ctx.strokeStyle = color;
       ctx.lineWidth = wickW;
       ctx.beginPath();
@@ -174,7 +182,6 @@ function StorageChart({ data }: { data: StorageAuditChartPoint[] }) {
     for (let i = 0; i < n; i += labelStep) {
       const d = data[i]!;
       const x = pad.left + gap * i + gap / 2;
-      // Format: "Mar 20 05h" or "03-20 05h"
       const parts = d.bucket.split("T");
       const datePart = (parts[0] ?? "").slice(5); // MM-DD
       const hourPart = (parts[1] ?? "00") + "h";
@@ -234,76 +241,23 @@ function formatTimestamp(ts: string): string {
 
 // ─── Page Component ─────────────────────────────────────────────────────────────
 
-const PAGE_SIZE = 50;
-
 export default function StorageAuditPage() {
   const claims = useStore($empireClaims);
   const claimsLoading = useStore($empireClaimsLoading);
-
-  const [selectedClaim, setSelectedClaim] = useState(ORDUM_MAIN_CLAIM_ID);
-  const [selectedPlayer, setSelectedPlayer] = useState("");
-  const [selectedItem, setSelectedItem] = useState("");
-  const [page, setPage] = useState(1);
-
-  const [data, setData] = useState<StorageAuditResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const selectedClaim = useStore($auditClaim);
+  const selectedPlayer = useStore($auditPlayer);
+  const selectedItem = useStore($auditItem);
+  const page = useStore($auditPage);
+  const dataAsync = useStore($auditData);
+  const totalPages = useStore($auditTotalPages);
 
   useEffect(() => {
     fetchEmpireClaims();
   }, []);
 
-  // Reset page when filters change
-  useEffect(() => {
-    setPage(1);
-  }, [selectedClaim, selectedPlayer, selectedItem]);
-
-  // Fetch data
-  const fetchData = useCallback(async () => {
-    if (!selectedClaim) return;
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      const params = new URLSearchParams({
-        claim: selectedClaim,
-        page: String(page),
-        pageSize: String(PAGE_SIZE),
-      });
-      if (selectedPlayer) params.set("player", selectedPlayer);
-      if (selectedItem) {
-        // selectedItem format: "Type:id" e.g. "Item:2130001"
-        const [type, id] = selectedItem.split(":");
-        if (type && id) {
-          params.set("itemType", type);
-          params.set("itemId", id);
-        }
-      }
-
-      const resp = await fetch(`/api/storage-audit?${params}`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const result: StorageAuditResponse = await resp.json();
-      setData(result);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedClaim, selectedPlayer, selectedItem, page]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  // Auto-refresh while ingesting
-  useEffect(() => {
-    if (!data?.ingesting) return;
-    const timer = setTimeout(fetchData, 5000);
-    return () => clearTimeout(timer);
-  }, [data?.ingesting, fetchData]);
-
-  const totalPages = data ? Math.ceil(data.totalCount / PAGE_SIZE) : 0;
+  const loading = dataAsync.state === "loading";
+  const error = dataAsync.state === "failed" ? String(dataAsync.error) : null;
+  const data = dataAsync.state === "loaded" ? dataAsync.value : null;
 
   return (
     <>
@@ -329,7 +283,7 @@ export default function StorageAuditPage() {
               class="source-select"
               value={selectedClaim}
               onChange={(e) =>
-                setSelectedClaim((e.target as HTMLSelectElement).value)
+                $auditClaim.set((e.target as HTMLSelectElement).value)
               }
             >
               {claimsLoading && claims.length === 0 && (
@@ -353,7 +307,7 @@ export default function StorageAuditPage() {
               class="source-select"
               value={selectedPlayer}
               onChange={(e) =>
-                setSelectedPlayer((e.target as HTMLSelectElement).value)
+                $auditPlayer.set((e.target as HTMLSelectElement).value)
               }
             >
               <option value="">All Players</option>
@@ -372,7 +326,7 @@ export default function StorageAuditPage() {
               class="source-select"
               value={selectedItem}
               onChange={(e) =>
-                setSelectedItem((e.target as HTMLSelectElement).value)
+                $auditItem.set((e.target as HTMLSelectElement).value)
               }
             >
               <option value="">All Items</option>
@@ -512,14 +466,14 @@ export default function StorageAuditPage() {
               <button
                 class="pagination-btn"
                 disabled={page <= 1}
-                onClick={() => setPage(1)}
+                onClick={() => $auditPage.set(1)}
               >
                 «
               </button>
               <button
                 class="pagination-btn"
                 disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() => $auditPage.set(Math.max(1, page - 1))}
               >
                 ‹
               </button>
@@ -529,14 +483,14 @@ export default function StorageAuditPage() {
               <button
                 class="pagination-btn"
                 disabled={page >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => $auditPage.set(Math.min(totalPages, page + 1))}
               >
                 ›
               </button>
               <button
                 class="pagination-btn"
                 disabled={page >= totalPages}
-                onClick={() => setPage(totalPages)}
+                onClick={() => $auditPage.set(totalPages)}
               >
                 »
               </button>
