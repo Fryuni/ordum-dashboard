@@ -115,7 +115,6 @@ function StorageChart({ data: rawData }: { data: StorageAuditChartPoint[] }) {
     const n = data.length;
     const gap = plotW / n;
     const candleW = Math.max(1, gap * 0.6);
-    const wickW = Math.max(1, Math.min(2, candleW * 0.15));
 
     // ── Candle Y-axis ────────────────────────────────────────────────────
     const allVals = data.flatMap((d) => [d.cumOpen, d.cumClose]);
@@ -178,15 +177,7 @@ function StorageChart({ data: rawData }: { data: StorageAuditChartPoint[] }) {
       const bodyBot = toY(Math.min(d.cumOpen, d.cumClose));
       const bodyH = Math.max(1, bodyBot - bodyTop);
 
-      // Wick
-      ctx.strokeStyle = color;
-      ctx.lineWidth = wickW;
-      ctx.beginPath();
-      ctx.moveTo(cx, bodyTop);
-      ctx.lineTo(cx, bodyBot);
-      ctx.stroke();
-
-      // Body
+      // Body (no wick — we only have open/close, not high/low)
       ctx.fillStyle = dimColor;
       ctx.fillRect(cx - candleW / 2, bodyTop, candleW, bodyH);
       ctx.strokeStyle = color;
@@ -194,20 +185,22 @@ function StorageChart({ data: rawData }: { data: StorageAuditChartPoint[] }) {
       ctx.strokeRect(cx - candleW / 2, bodyTop, candleW, bodyH);
     }
 
-    // ── Volume bars (total volume per bucket, colored by net direction) ─
-    const volBarW = Math.max(1, candleW * 0.8);
+    // ── Volume bars (deposit + withdrawal side by side) ────────────────
+    const halfBar = Math.max(1, candleW * 0.45);
     for (let i = 0; i < n; i++) {
       const d = data[i]!;
       const cx = pad.left + gap * i + gap / 2;
       const volBase = volTop + volH;
-      const totalVol = d.deposits + d.withdrawals;
-      if (totalVol > 0) {
-        const bh = totalVol * volScale;
-        const bullish = d.cumClose >= d.cumOpen;
-        ctx.fillStyle = bullish
-          ? "rgba(74, 222, 128, 0.4)"
-          : "rgba(248, 113, 113, 0.4)";
-        ctx.fillRect(cx - volBarW / 2, volBase - bh, volBarW, bh);
+
+      if (d.deposits > 0) {
+        const bh = d.deposits * volScale;
+        ctx.fillStyle = "rgba(74, 222, 128, 0.45)";
+        ctx.fillRect(cx - halfBar, volBase - bh, halfBar, bh);
+      }
+      if (d.withdrawals > 0) {
+        const bh = d.withdrawals * volScale;
+        ctx.fillStyle = "rgba(248, 113, 113, 0.45)";
+        ctx.fillRect(cx, volBase - bh, halfBar, bh);
       }
     }
 
@@ -411,11 +404,19 @@ export default function StorageAuditPage() {
           <div class="chart-legend">
             <span class="legend-item">
               <span class="legend-swatch" style="background: rgba(74, 222, 128, 0.25); border: 1px solid #4ade80" />
-              Net deposit
+              Net positive
             </span>
             <span class="legend-item">
               <span class="legend-swatch" style="background: rgba(248, 113, 113, 0.25); border: 1px solid #f87171" />
-              Net withdrawal
+              Net negative
+            </span>
+            <span class="legend-item">
+              <span class="legend-swatch" style="background: rgba(74, 222, 128, 0.45)" />
+              Deposits
+            </span>
+            <span class="legend-item">
+              <span class="legend-swatch" style="background: rgba(248, 113, 113, 0.45)" />
+              Withdrawals
             </span>
           </div>
         )}
