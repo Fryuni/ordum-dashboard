@@ -35,12 +35,13 @@ import {
 } from "../stores/craftSource";
 import {
   $auditClaim,
-  $auditPlayer,
-  $auditItem,
+  $auditPlayers,
+  $auditItems,
   $auditPage,
   $auditView,
   triggerSync,
 } from "../stores/storageAudit";
+import { MultiSelect } from "../components/MultiSelect";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import type { StorageAuditChartPoint } from "../../server/storage-audit";
 
@@ -272,8 +273,8 @@ export default function StorageAuditPage() {
   const claims = useStore($empireClaims);
   const claimsLoading = useStore($empireClaimsLoading);
   const selectedClaim = useStore($auditClaim);
-  const selectedPlayer = useStore($auditPlayer);
-  const selectedItem = useStore($auditItem);
+  const selectedPlayers = useStore($auditPlayers);
+  const selectedItems = useStore($auditItems);
   const { dataAsync, page, totalPages, syncing } = useStore($auditView);
 
   useEffect(() => {
@@ -320,46 +321,27 @@ export default function StorageAuditPage() {
             </select>
           </div>
 
-          <div class="input-group source-select-container">
-            <label for="audit-player">Player</label>
-            <select
-              id="audit-player"
-              class="source-select"
-              value={selectedPlayer}
-              onChange={(e) =>
-                $auditPlayer.set((e.target as HTMLSelectElement).value)
-              }
-            >
-              <option value="">All Players</option>
-              {(data?.players ?? []).map((p) => (
-                <option key={p.entityId} value={p.entityId}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <MultiSelect
+            label="Player"
+            placeholder="All Players"
+            options={(data?.players ?? []).map((p) => ({
+              value: p.entityId,
+              label: p.name,
+            }))}
+            selected={selectedPlayers}
+            onChange={(v) => $auditPlayers.set(v)}
+          />
 
-          <div class="input-group source-select-container">
-            <label for="audit-item">Item</label>
-            <select
-              id="audit-item"
-              class="source-select"
-              value={selectedItem}
-              onChange={(e) =>
-                $auditItem.set((e.target as HTMLSelectElement).value)
-              }
-            >
-              <option value="">All Items</option>
-              {(data?.items ?? []).map((item) => (
-                <option
-                  key={`${item.type}:${item.id}`}
-                  value={`${item.type}:${item.id}`}
-                >
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </div>
+          <MultiSelect
+            label="Item"
+            placeholder="All Items"
+            options={(data?.items ?? []).map((item) => ({
+              value: `${item.type}:${item.id}`,
+              label: item.name,
+            }))}
+            selected={selectedItems}
+            onChange={(v) => $auditItems.set(v)}
+          />
 
           <div
             class="input-group source-select-container"

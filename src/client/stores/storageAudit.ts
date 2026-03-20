@@ -21,6 +21,21 @@ import { atom, computed, computedAsync, onMount } from "nanostores";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import type { StorageAuditResponse } from "../../server/storage-audit";
 
+// ─── JSON persistent atom helper ────────────────────────────────────────────────
+
+function persistentJsonAtom<T>(key: string, defaultValue: T) {
+  return persistentAtom<T>(key, defaultValue, {
+    encode: JSON.stringify,
+    decode: (s) => {
+      try {
+        return JSON.parse(s);
+      } catch {
+        return defaultValue;
+      }
+    },
+  });
+}
+
 // ─── Filter Atoms ───────────────────────────────────────────────────────────────
 
 export const $auditClaim = persistentAtom<string>(
@@ -28,9 +43,14 @@ export const $auditClaim = persistentAtom<string>(
   ORDUM_MAIN_CLAIM_ID,
 );
 
-export const $auditPlayer = persistentAtom<string>("auditPlayer", "");
+/** Selected player entity IDs (empty array = all players) */
+export const $auditPlayers = persistentJsonAtom<string[]>(
+  "auditPlayers",
+  [],
+);
 
-export const $auditItem = persistentAtom<string>("auditItem", "");
+/** Selected item keys as "Type:id" (empty array = all items) */
+export const $auditItems = persistentJsonAtom<string[]>("auditItems", []);
 
 export const $auditPage = atom(1);
 
@@ -38,7 +58,7 @@ export const PAGE_SIZE = 50;
 
 // Reset page to 1 when any filter changes
 onMount($auditPage, () => {
-  const unsubs = [$auditClaim, $auditPlayer, $auditItem].map((store) =>
+  const unsubs = [$auditClaim, $auditPlayers, $auditItems].map((store) =>
     store.listen(() => $auditPage.set(1)),
   );
   return () => unsubs.forEach((u) => u());
@@ -48,8 +68,8 @@ onMount($auditPage, () => {
 
 function buildAuditUrl(
   claimId: string,
-  player: string,
-  item: string,
+  players: string[],
+  items: string[],
   page: number,
 ): string {
   const params = new URLSearchParams({
@@ -57,14 +77,8 @@ function buildAuditUrl(
     page: String(page),
     pageSize: String(PAGE_SIZE),
   });
-  if (player) params.set("player", player);
-  if (item) {
-    const [type, id] = item.split(":");
-    if (type && id) {
-      params.set("itemType", type);
-      params.set("itemId", id);
-    }
-  }
+  for (const p of players) params.append("player", p);
+  for (const item of items) params.append("item", item);
   return `/api/storage-audit?${params}`;
 }
 
@@ -76,10 +90,15 @@ function buildAuditUrl(
 const $refreshTick = atom(0);
 
 export const $auditData = computedAsync(
-  [$auditClaim, $auditPlayer, $auditItem, $auditPage, $refreshTick],
-  async (claimId, player, item, page): Promise<StorageAuditResponse | null> => {
+  [$auditClaim, $auditPlayers, $auditItems, $auditPage, $refreshTick],
+  async (
+    claimId,
+    players,
+    items,
+    page,
+  ): Promise<StorageAuditResponse | null> => {
     if (!claimId) return null;
-    const url = buildAuditUrl(claimId, player, item, page);
+    const url = buildAuditUrl(claimId, players, items, page);
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return resp.json() as Promise<StorageAuditResponse>;

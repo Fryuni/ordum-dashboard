@@ -289,19 +289,22 @@ app.get("/api/contribution", async (c) => {
 app.get("/api/storage-audit", async (c) => {
   try {
     const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
-    const playerEntityId = c.req.query("player") || undefined;
-    const itemIdRaw = c.req.query("itemId");
-    const itemType = c.req.query("itemType") || undefined;
     const page = Math.max(1, Number(c.req.query("page")) || 1);
     const pageSize = Math.min(
       100,
       Math.max(1, Number(c.req.query("pageSize")) || 50),
     );
 
+    // Multi-value: ?player=id1&player=id2&item=Type:id1&item=Type:id2
+    const playerEntityIds = c.req.queries("player")?.filter(Boolean);
+    const itemKeys = c.req.queries("item")?.filter(Boolean);
+
     const result = await queryStorageAudit(c.env.ordum_storage_audit, claimId, {
-      playerEntityId,
-      itemId: itemIdRaw ? Number(itemIdRaw) : undefined,
-      itemType,
+      playerEntityIds:
+        playerEntityIds && playerEntityIds.length > 0
+          ? playerEntityIds
+          : undefined,
+      itemKeys: itemKeys && itemKeys.length > 0 ? itemKeys : undefined,
       page,
       pageSize,
     });

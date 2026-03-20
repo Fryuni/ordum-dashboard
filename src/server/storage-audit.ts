@@ -325,9 +325,10 @@ export async function queryStorageAudit(
   db: D1Database,
   claimId: string,
   filters: {
-    playerEntityId?: string;
-    itemId?: number;
-    itemType?: string;
+    /** Multiple player entity IDs (OR'd together) */
+    playerEntityIds?: string[];
+    /** Multiple item keys as "Type:id" (OR'd together) */
+    itemKeys?: string[];
     page: number;
     pageSize: number;
   },
@@ -336,13 +337,25 @@ export async function queryStorageAudit(
   const conditions: string[] = ["claim_id = ?"];
   const params: (string | number)[] = [claimId];
 
-  if (filters.playerEntityId) {
-    conditions.push("player_entity_id = ?");
-    params.push(filters.playerEntityId);
+  if (filters.playerEntityIds && filters.playerEntityIds.length > 0) {
+    const placeholders = filters.playerEntityIds.map(() => "?").join(", ");
+    conditions.push(`player_entity_id IN (${placeholders})`);
+    params.push(...filters.playerEntityIds);
   }
-  if (filters.itemId != null && filters.itemType) {
-    conditions.push("item_id = ? AND item_type = ?");
-    params.push(filters.itemId, filters.itemType);
+
+  if (filters.itemKeys && filters.itemKeys.length > 0) {
+    // Each key is "Type:id" — build (item_type = ? AND item_id = ?) OR ...
+    const itemConditions: string[] = [];
+    for (const key of filters.itemKeys) {
+      const [type, id] = key.split(":");
+      if (type && id) {
+        itemConditions.push("(item_type = ? AND item_id = ?)");
+        params.push(type, Number(id));
+      }
+    }
+    if (itemConditions.length > 0) {
+      conditions.push(`(${itemConditions.join(" OR ")})`);
+    }
   }
 
   const whereClause = conditions.join(" AND ");
