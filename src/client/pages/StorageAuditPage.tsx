@@ -87,116 +87,110 @@ function StorageChart({ data: rawData }: { data: StorageAuditChartPoint[] }) {
   const volSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
-  // Create chart once
+  // Create or update chart when data changes
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const chart = createChart(container, {
-      autoSize: true,
-      layout: {
-        background: { color: "transparent" },
-        textColor: "#7c8495",
-        fontFamily: "Inter, sans-serif",
-        fontSize: 11,
-      },
-      grid: {
-        vertLines: { color: "rgba(255,255,255,0.04)" },
-        horzLines: { color: "rgba(255,255,255,0.04)" },
-      },
-      crosshair: {
-        mode: 0, // Normal
-        vertLine: { labelVisible: false },
-      },
-      rightPriceScale: {
-        borderColor: "rgba(255,255,255,0.08)",
-      },
-      timeScale: {
-        borderColor: "rgba(255,255,255,0.08)",
-        timeVisible: true,
-        secondsVisible: false,
-      },
-    });
+    // Lazy-create chart on first data arrival
+    if (!chartRef.current) {
+      const chart = createChart(container, {
+        autoSize: true,
+        layout: {
+          background: { color: "transparent" },
+          textColor: "#7c8495",
+          fontFamily: "Inter, sans-serif",
+          fontSize: 11,
+        },
+        grid: {
+          vertLines: { color: "rgba(255,255,255,0.04)" },
+          horzLines: { color: "rgba(255,255,255,0.04)" },
+        },
+        crosshair: {
+          mode: 0, // Normal
+          vertLine: { labelVisible: false },
+        },
+        rightPriceScale: {
+          borderColor: "rgba(255,255,255,0.08)",
+        },
+        timeScale: {
+          borderColor: "rgba(255,255,255,0.08)",
+          timeVisible: true,
+          secondsVisible: false,
+        },
+      });
 
-    const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#4ade80",
-      downColor: "#f87171",
-      borderUpColor: "#4ade80",
-      borderDownColor: "#f87171",
-      wickUpColor: "#4ade80",
-      wickDownColor: "#f87171",
-      priceScaleId: "right",
-    });
+      const candleSeries = chart.addSeries(CandlestickSeries, {
+        upColor: "#4ade80",
+        downColor: "#f87171",
+        borderUpColor: "#4ade80",
+        borderDownColor: "#f87171",
+        wickUpColor: "#4ade80",
+        wickDownColor: "#f87171",
+        priceScaleId: "right",
+      });
 
-    const volSeries = chart.addSeries(HistogramSeries, {
-      priceFormat: { type: "volume" },
-      priceScaleId: "volume",
-    });
+      const volSeries = chart.addSeries(HistogramSeries, {
+        priceFormat: { type: "volume" },
+        priceScaleId: "volume",
+      });
 
-    chart.priceScale("volume").applyOptions({
-      scaleMargins: { top: 0.8, bottom: 0 },
-    });
+      chart.priceScale("volume").applyOptions({
+        scaleMargins: { top: 0.8, bottom: 0 },
+      });
 
-    // Tooltip on crosshair move
-    chart.subscribeCrosshairMove((param) => {
-      const tooltip = tooltipRef.current;
-      if (!tooltip) return;
+      // Tooltip on crosshair move
+      chart.subscribeCrosshairMove((param) => {
+        const tooltip = tooltipRef.current;
+        if (!tooltip) return;
 
-      if (!param.time || !param.point || param.point.x < 0 || param.point.y < 0) {
-        tooltip.style.display = "none";
-        return;
-      }
+        if (!param.time || !param.point || param.point.x < 0 || param.point.y < 0) {
+          tooltip.style.display = "none";
+          return;
+        }
 
-      const candleData = param.seriesData.get(candleSeries) as CandlestickData | undefined;
-      const volData = param.seriesData.get(volSeries) as HistogramData | undefined;
+        const candleData = param.seriesData.get(candleSeries) as CandlestickData | undefined;
+        const volData = param.seriesData.get(volSeries) as HistogramData | undefined;
 
-      if (!candleData) {
-        tooltip.style.display = "none";
-        return;
-      }
+        if (!candleData) {
+          tooltip.style.display = "none";
+          return;
+        }
 
-      const net = (candleData.close ?? 0) - (candleData.open ?? 0);
-      const netColor = net >= 0 ? "#4ade80" : "#f87171";
-      const netSign = net >= 0 ? "+" : "";
-      const vol = volData?.value ?? 0;
+        const net = (candleData.close ?? 0) - (candleData.open ?? 0);
+        const netColor = net >= 0 ? "#4ade80" : "#f87171";
+        const netSign = net >= 0 ? "+" : "";
+        const vol = volData?.value ?? 0;
 
-      tooltip.innerHTML = `
-        <div style="font-weight:600;margin-bottom:4px">${String(candleData.time)}</div>
-        <div>Open: <b>${Math.round(candleData.open).toLocaleString()}</b></div>
-        <div>Close: <b>${Math.round(candleData.close).toLocaleString()}</b></div>
-        <div>Net: <b style="color:${netColor}">${netSign}${Math.round(net).toLocaleString()}</b></div>
-        <div>Volume: <b>${Math.round(vol).toLocaleString()}</b></div>
-      `;
-      tooltip.style.display = "block";
+        tooltip.innerHTML = `
+          <div style="font-weight:600;margin-bottom:4px">${String(candleData.time)}</div>
+          <div>Open: <b>${Math.round(candleData.open).toLocaleString()}</b></div>
+          <div>Close: <b>${Math.round(candleData.close).toLocaleString()}</b></div>
+          <div>Net: <b style="color:${netColor}">${netSign}${Math.round(net).toLocaleString()}</b></div>
+          <div>Volume: <b>${Math.round(vol).toLocaleString()}</b></div>
+        `;
+        tooltip.style.display = "block";
 
-      // Position tooltip
-      const chartRect = container.getBoundingClientRect();
-      let left = param.point.x + 16;
-      if (left + 160 > chartRect.width) left = param.point.x - 170;
-      tooltip.style.left = `${left}px`;
-      tooltip.style.top = `${Math.max(0, param.point.y - 40)}px`;
-    });
+        const chartRect = container.getBoundingClientRect();
+        let left = param.point.x + 16;
+        if (left + 160 > chartRect.width) left = param.point.x - 170;
+        tooltip.style.left = `${left}px`;
+        tooltip.style.top = `${Math.max(0, param.point.y - 40)}px`;
+      });
 
-    chartRef.current = chart;
-    candleSeriesRef.current = candleSeries;
-    volSeriesRef.current = volSeries;
+      chartRef.current = chart;
+      candleSeriesRef.current = candleSeries;
+      volSeriesRef.current = volSeries;
+    }
 
-    return () => {
-      chart.remove();
-      chartRef.current = null;
-      candleSeriesRef.current = null;
-      volSeriesRef.current = null;
-    };
-  }, []);
+    // Update data
+    const chart = chartRef.current!;
+    const candleSeries = candleSeriesRef.current!;
+    const volSeries = volSeriesRef.current!;
 
-  // Update data when it changes
-  useEffect(() => {
-    const candleSeries = candleSeriesRef.current;
-    const volSeries = volSeriesRef.current;
-    const chart = chartRef.current;
-    if (!candleSeries || !volSeries || !chart || rawData.length === 0) return;
+    if (rawData.length === 0) return;
 
-    // Aggregate to daily if > 60 points (roughly 2.5 days of hourly data)
+    // Aggregate to daily if > 60 points
     const data = rawData.length > 60 ? aggregateToDaily(rawData) : rawData;
 
     const candleData: CandlestickData[] = data.map((d) => ({
@@ -218,15 +212,14 @@ function StorageChart({ data: rawData }: { data: StorageAuditChartPoint[] }) {
     candleSeries.setData(candleData);
     volSeries.setData(volData);
     chart.timeScale().fitContent();
-  }, [rawData]);
 
-  if (rawData.length === 0) {
-    return (
-      <div class="chart-empty">
-        <span class="text-muted">No data to chart yet</span>
-      </div>
-    );
-  }
+    return () => {
+      chart.remove();
+      chartRef.current = null;
+      candleSeriesRef.current = null;
+      volSeriesRef.current = null;
+    };
+  }, [rawData]);
 
   return (
     <div style="position: relative">
