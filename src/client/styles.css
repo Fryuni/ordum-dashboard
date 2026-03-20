@@ -2117,6 +2117,21 @@ body {
   padding: 0 8px;
 }
 
+.chart-tooltip {
+  position: absolute;
+  z-index: 10;
+  padding: 8px 12px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text);
+  pointer-events: none;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
 .chart-empty {
   display: flex;
   align-items: center;

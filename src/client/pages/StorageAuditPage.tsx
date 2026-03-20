@@ -19,6 +19,16 @@
 import { useEffect, useRef } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
 import {
+  createChart,
+  CandlestickSeries,
+  HistogramSeries,
+  type IChartApi,
+  type ISeriesApi,
+  type CandlestickData,
+  type HistogramData,
+  type Time,
+} from "lightweight-charts";
+import {
   $empireClaims,
   $empireClaimsLoading,
   fetchEmpireClaims,
@@ -34,25 +44,10 @@ import {
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import type { StorageAuditChartPoint } from "../../server/storage-audit";
 
-// ─── Candlestick + Volume Chart (pure canvas) ──────────────────────────────────
+// ─── Chart Component (TradingView Lightweight Charts) ───────────────────────────
 
-/**
- * Candlestick chart: each hourly bucket is a candle whose body spans
- * cumOpen → cumClose.  Green candle = net positive (close ≥ open),
- * red candle = net negative.  Below the candles a volume sub-chart shows
- * deposit (green) and withdrawal (red) bars side-by-side.
- */
-/**
- * Aggregate hourly candles into daily candles when there are too many
- * data points to render clearly.
- */
-function aggregateCandles(
-  data: StorageAuditChartPoint[],
-  maxCandles: number,
-): { points: StorageAuditChartPoint[]; daily: boolean } {
-  if (data.length <= maxCandles) return { points: data, daily: false };
-
-  // Group by day
+/** Aggregate hourly candles into daily when there are many data points. */
+function aggregateToDaily(data: StorageAuditChartPoint[]): StorageAuditChartPoint[] {
   const groups = new Map<string, StorageAuditChartPoint[]>();
   for (const d of data) {
     const day = d.bucket?.slice(0, 10) ?? "unknown";
@@ -74,169 +69,155 @@ function aggregateCandles(
       cumClose: last.cumClose,
     });
   }
+  return aggregated;
+}
 
-  return { points: aggregated, daily: true };
+/** Convert a bucket string like "2026-03-15" or "2026-03-15T14" to a unix timestamp. */
+function bucketToTime(bucket: string): Time {
+  // Daily: "2026-03-15" → use as string date
+  if (bucket.length === 10) return bucket as unknown as Time;
+  // Hourly: "2026-03-15T14" → unix timestamp
+  return (Date.parse(bucket + ":00:00Z") / 1000) as unknown as Time;
 }
 
 function StorageChart({ data: rawData }: { data: StorageAuditChartPoint[] }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const volSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
 
+  // Create chart once
   useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || rawData.length === 0) return;
+    const container = containerRef.current;
+    if (!container) return;
 
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const chart = createChart(container, {
+      autoSize: true,
+      layout: {
+        background: { color: "transparent" },
+        textColor: "#7c8495",
+        fontFamily: "Inter, sans-serif",
+        fontSize: 11,
+      },
+      grid: {
+        vertLines: { color: "rgba(255,255,255,0.04)" },
+        horzLines: { color: "rgba(255,255,255,0.04)" },
+      },
+      crosshair: {
+        mode: 0, // Normal
+        vertLine: { labelVisible: false },
+      },
+      rightPriceScale: {
+        borderColor: "rgba(255,255,255,0.08)",
+      },
+      timeScale: {
+        borderColor: "rgba(255,255,255,0.08)",
+        timeVisible: true,
+        secondsVisible: false,
+      },
+    });
 
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
+    const candleSeries = chart.addSeries(CandlestickSeries, {
+      upColor: "#4ade80",
+      downColor: "#f87171",
+      borderUpColor: "#4ade80",
+      borderDownColor: "#f87171",
+      wickUpColor: "#4ade80",
+      wickDownColor: "#f87171",
+      priceScaleId: "right",
+    });
 
-    const w = rect.width;
-    const h = rect.height;
-    const pad = { top: 20, right: 16, bottom: 36, left: 60 };
-    const plotW = w - pad.left - pad.right;
-    const totalPlotH = h - pad.top - pad.bottom;
+    const volSeries = chart.addSeries(HistogramSeries, {
+      priceFormat: { type: "volume" },
+      priceScaleId: "volume",
+    });
 
-    // Aggregate to daily if there are too many hourly candles
-    // Aim for candles at least 6px wide
-    const maxCandles = Math.floor(plotW / 6);
-    const { points: data, daily } = aggregateCandles(rawData, maxCandles);
-    // 70% for candles, 30% for volume, with a small gap
-    const candleH = totalPlotH * 0.65;
-    const volGap = totalPlotH * 0.05;
-    const volH = totalPlotH * 0.3;
-    const volTop = pad.top + candleH + volGap;
+    chart.priceScale("volume").applyOptions({
+      scaleMargins: { top: 0.8, bottom: 0 },
+    });
 
-    ctx.clearRect(0, 0, w, h);
+    // Tooltip on crosshair move
+    chart.subscribeCrosshairMove((param) => {
+      const tooltip = tooltipRef.current;
+      if (!tooltip) return;
 
-    const n = data.length;
-    const gap = plotW / n;
-    const candleW = Math.max(1, gap * 0.6);
-
-    // ── Candle Y-axis ────────────────────────────────────────────────────
-    const allVals = data.flatMap((d) => [d.cumOpen, d.cumClose]);
-    let minVal = Math.min(...allVals);
-    let maxVal = Math.max(...allVals);
-    if (minVal === maxVal) {
-      minVal -= 1;
-      maxVal += 1;
-    }
-    const valRange = maxVal - minVal;
-    const valPad = valRange * 0.08;
-    const yMin = minVal - valPad;
-    const yMax = maxVal + valPad;
-    const yScale = candleH / (yMax - yMin);
-    const toY = (v: number) => pad.top + (yMax - v) * yScale;
-
-    // ── Volume Y-axis ────────────────────────────────────────────────────
-    const maxVol = Math.max(...data.map((d) => Math.max(d.deposits, d.withdrawals)), 1);
-    const volScale = volH / maxVol;
-
-    // ── Grid lines (candle area) ─────────────────────────────────────────
-    ctx.strokeStyle = "rgba(255,255,255,0.06)";
-    ctx.lineWidth = 1;
-    const gridSteps = 5;
-    for (let i = 0; i <= gridSteps; i++) {
-      const y = pad.top + (candleH / gridSteps) * i;
-      ctx.beginPath();
-      ctx.moveTo(pad.left, y);
-      ctx.lineTo(w - pad.right, y);
-      ctx.stroke();
-
-      const val = yMax - ((yMax - yMin) / gridSteps) * i;
-      ctx.fillStyle = "#7c8495";
-      ctx.font = "11px Inter, sans-serif";
-      ctx.textAlign = "right";
-      ctx.fillText(formatCompact(val), pad.left - 8, y + 4);
-    }
-
-    // Separator line between candle and volume areas
-    ctx.strokeStyle = "rgba(255,255,255,0.08)";
-    ctx.beginPath();
-    ctx.moveTo(pad.left, volTop - volGap / 2);
-    ctx.lineTo(w - pad.right, volTop - volGap / 2);
-    ctx.stroke();
-
-    // ── Candles ──────────────────────────────────────────────────────────
-    const GREEN = "#4ade80";
-    const RED = "#f87171";
-    const GREEN_DIM = "rgba(74, 222, 128, 0.25)";
-    const RED_DIM = "rgba(248, 113, 113, 0.25)";
-
-    for (let i = 0; i < n; i++) {
-      const d = data[i]!;
-      const cx = pad.left + gap * i + gap / 2;
-      const bullish = d.cumClose >= d.cumOpen;
-      const color = bullish ? GREEN : RED;
-      const dimColor = bullish ? GREEN_DIM : RED_DIM;
-
-      const bodyTop = toY(Math.max(d.cumOpen, d.cumClose));
-      const bodyBot = toY(Math.min(d.cumOpen, d.cumClose));
-      const bodyH = Math.max(1, bodyBot - bodyTop);
-
-      // Body (no wick — we only have open/close, not high/low)
-      ctx.fillStyle = dimColor;
-      ctx.fillRect(cx - candleW / 2, bodyTop, candleW, bodyH);
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(cx - candleW / 2, bodyTop, candleW, bodyH);
-    }
-
-    // ── Volume bars (deposit + withdrawal side by side) ────────────────
-    const halfBar = Math.max(1, candleW * 0.45);
-    for (let i = 0; i < n; i++) {
-      const d = data[i]!;
-      const cx = pad.left + gap * i + gap / 2;
-      const volBase = volTop + volH;
-
-      if (d.deposits > 0) {
-        const bh = d.deposits * volScale;
-        ctx.fillStyle = "rgba(74, 222, 128, 0.45)";
-        ctx.fillRect(cx - halfBar, volBase - bh, halfBar, bh);
+      if (!param.time || !param.point || param.point.x < 0 || param.point.y < 0) {
+        tooltip.style.display = "none";
+        return;
       }
-      if (d.withdrawals > 0) {
-        const bh = d.withdrawals * volScale;
-        ctx.fillStyle = "rgba(248, 113, 113, 0.45)";
-        ctx.fillRect(cx, volBase - bh, halfBar, bh);
-      }
-    }
 
-    // ── X-axis labels ────────────────────────────────────────────────────
-    ctx.fillStyle = "#7c8495";
-    ctx.font = "10px Inter, sans-serif";
-    ctx.textAlign = "center";
-    const labelWidth = daily ? 50 : 80;
-    const maxLabels = Math.floor(plotW / labelWidth);
-    const labelStep = Math.max(1, Math.ceil(n / maxLabels));
-    for (let i = 0; i < n; i += labelStep) {
-      const d = data[i]!;
-      const x = pad.left + gap * i + gap / 2;
-      const bucket = d.bucket ?? "";
-      let label: string;
-      if (daily) {
-        label = bucket.slice(5); // MM-DD
-      } else {
-        const parts = bucket.split("T");
-        label = `${(parts[0] ?? "").slice(5)} ${(parts[1] ?? "00")}h`;
-      }
-      ctx.fillText(label, x, h - pad.bottom + 14);
-    }
+      const candleData = param.seriesData.get(candleSeries) as CandlestickData | undefined;
+      const volData = param.seriesData.get(volSeries) as HistogramData | undefined;
 
-    // ── Zero line ────────────────────────────────────────────────────────
-    if (yMin < 0 && yMax > 0) {
-      const zeroY = toY(0);
-      ctx.strokeStyle = "rgba(255,255,255,0.15)";
-      ctx.lineWidth = 1;
-      ctx.setLineDash([4, 4]);
-      ctx.beginPath();
-      ctx.moveTo(pad.left, zeroY);
-      ctx.lineTo(w - pad.right, zeroY);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
+      if (!candleData) {
+        tooltip.style.display = "none";
+        return;
+      }
+
+      const net = (candleData.close ?? 0) - (candleData.open ?? 0);
+      const netColor = net >= 0 ? "#4ade80" : "#f87171";
+      const netSign = net >= 0 ? "+" : "";
+      const vol = volData?.value ?? 0;
+
+      tooltip.innerHTML = `
+        <div style="font-weight:600;margin-bottom:4px">${String(candleData.time)}</div>
+        <div>Open: <b>${Math.round(candleData.open).toLocaleString()}</b></div>
+        <div>Close: <b>${Math.round(candleData.close).toLocaleString()}</b></div>
+        <div>Net: <b style="color:${netColor}">${netSign}${Math.round(net).toLocaleString()}</b></div>
+        <div>Volume: <b>${Math.round(vol).toLocaleString()}</b></div>
+      `;
+      tooltip.style.display = "block";
+
+      // Position tooltip
+      const chartRect = container.getBoundingClientRect();
+      let left = param.point.x + 16;
+      if (left + 160 > chartRect.width) left = param.point.x - 170;
+      tooltip.style.left = `${left}px`;
+      tooltip.style.top = `${Math.max(0, param.point.y - 40)}px`;
+    });
+
+    chartRef.current = chart;
+    candleSeriesRef.current = candleSeries;
+    volSeriesRef.current = volSeries;
+
+    return () => {
+      chart.remove();
+      chartRef.current = null;
+      candleSeriesRef.current = null;
+      volSeriesRef.current = null;
+    };
+  }, []);
+
+  // Update data when it changes
+  useEffect(() => {
+    const candleSeries = candleSeriesRef.current;
+    const volSeries = volSeriesRef.current;
+    const chart = chartRef.current;
+    if (!candleSeries || !volSeries || !chart || rawData.length === 0) return;
+
+    // Aggregate to daily if > 60 points (roughly 2.5 days of hourly data)
+    const data = rawData.length > 60 ? aggregateToDaily(rawData) : rawData;
+
+    const candleData: CandlestickData[] = data.map((d) => ({
+      time: bucketToTime(d.bucket ?? ""),
+      open: d.cumOpen,
+      high: Math.max(d.cumOpen, d.cumClose),
+      low: Math.min(d.cumOpen, d.cumClose),
+      close: d.cumClose,
+    }));
+
+    const volData: HistogramData[] = data.map((d) => ({
+      time: bucketToTime(d.bucket ?? ""),
+      value: d.deposits + d.withdrawals,
+      color: d.cumClose >= d.cumOpen
+        ? "rgba(74, 222, 128, 0.4)"
+        : "rgba(248, 113, 113, 0.4)",
+    }));
+
+    candleSeries.setData(candleData);
+    volSeries.setData(volData);
+    chart.timeScale().fitContent();
   }, [rawData]);
 
   if (rawData.length === 0) {
@@ -248,18 +229,11 @@ function StorageChart({ data: rawData }: { data: StorageAuditChartPoint[] }) {
   }
 
   return (
-    <canvas
-      ref={canvasRef}
-      style="width: 100%; height: 320px; display: block"
-    />
+    <div style="position: relative">
+      <div ref={containerRef} style="width: 100%; height: 350px" />
+      <div ref={tooltipRef} class="chart-tooltip" style="display: none" />
+    </div>
   );
-}
-
-function formatCompact(n: number): string {
-  const abs = Math.abs(n);
-  if (abs >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
-  if (abs >= 1_000) return (n / 1_000).toFixed(1) + "K";
-  return Math.round(n).toString();
 }
 
 function formatTimestamp(ts: string): string {
@@ -396,30 +370,7 @@ export default function StorageAuditPage() {
 
       {/* Chart */}
       <div class="planner-card" style="margin-bottom: 16px">
-        <h3 style="margin-bottom: 12px; font-size: 14px; color: var(--text-muted)">
-          📈 Storage Progress (hourly)
-        </h3>
         <StorageChart data={data?.chartData ?? []} />
-        {data && data.chartData.length > 0 && (
-          <div class="chart-legend">
-            <span class="legend-item">
-              <span class="legend-swatch" style="background: rgba(74, 222, 128, 0.25); border: 1px solid #4ade80" />
-              Net positive
-            </span>
-            <span class="legend-item">
-              <span class="legend-swatch" style="background: rgba(248, 113, 113, 0.25); border: 1px solid #f87171" />
-              Net negative
-            </span>
-            <span class="legend-item">
-              <span class="legend-swatch" style="background: rgba(74, 222, 128, 0.45)" />
-              Deposits
-            </span>
-            <span class="legend-item">
-              <span class="legend-swatch" style="background: rgba(248, 113, 113, 0.45)" />
-              Withdrawals
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Table */}
