@@ -145,10 +145,11 @@ function StorageChart({ data: data }: { data: StorageAuditChartPoint[] }) {
         wickUpColor: "#4ade80",
         wickDownColor: "#f87171",
         priceScaleId: "right",
+        priceFormat: { type: "price", precision: 0, minMove: 1 },
       });
 
       const volSeries = chart.addSeries(HistogramSeries, {
-        priceFormat: { type: "volume" },
+        priceFormat: { type: "volume", precision: 0 },
         priceScaleId: "volume",
       });
 
