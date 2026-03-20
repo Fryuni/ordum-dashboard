@@ -115,6 +115,7 @@ export interface EmpireSummary {
     total_members: number;
     online_members: number;
     total_buildings: number;
+    total_tiles: number;
     total_building_resource_types: number;
     total_building_resource_count: number;
     total_player_resource_types: number;
@@ -122,6 +123,7 @@ export interface EmpireSummary {
     total_tool_types: number;
     total_tool_count: number;
   };
+  hexite_reserve: number;
   /** All resources across the empire, merged and sorted by quantity desc */
   all_building_resources: ResourceItem[];
   all_player_resources: ResourceItem[];
@@ -322,10 +324,36 @@ export async function fetchClaimData(
 
 export async function fetchEmpireData(
   api: BitJitaClient,
-  claimIds: { id: string; name: string }[] = EMPIRE_CLAIM_IDS,
+  claimIds?: { id: string; name: string }[],
 ): Promise<EmpireSummary> {
+  // Dynamically discover empire claims if not provided
+  let resolvedClaimIds = claimIds;
+  let hexite_reserve = 0;
+
+  if (!resolvedClaimIds) {
+    try {
+      const empires = await api.listEmpires({ q: "Ordum" });
+      const empire = (empires.empires as any[]).find(
+        (e: any) => e.name?.toLowerCase() === "ordum",
+      );
+      if (empire) {
+        hexite_reserve = Number(empire.shardTreasury) || 0;
+        const claimsData = await api.getEmpireClaims(empire.entityId);
+        resolvedClaimIds = (claimsData.claims as any[]).map((cl: any) => ({
+          id: cl.entityId,
+          name: cl.name,
+        }));
+      }
+    } catch (err) {
+      console.error("Failed to discover empire claims dynamically:", err);
+    }
+    if (!resolvedClaimIds) {
+      resolvedClaimIds = EMPIRE_CLAIM_IDS;
+    }
+  }
+
   const claims: ClaimSummary[] = [];
-  for (const { id } of claimIds) {
+  for (const { id } of resolvedClaimIds) {
     try {
       const claim = await fetchClaimData(api, id);
       claims.push(claim);
@@ -338,6 +366,7 @@ export async function fetchEmpireData(
   let total_members = 0;
   let online_members = 0;
   let total_buildings = 0;
+  let total_tiles = 0;
   const allBuildingRes: ResourceItem[] = [];
   const allPlayerRes: ResourceItem[] = [];
   const allToolRes: ResourceItem[] = [];
@@ -346,6 +375,7 @@ export async function fetchEmpireData(
     total_members += claim.member_count;
     online_members += claim.members.filter((m) => m.online).length;
     total_buildings += claim.building_count;
+    total_tiles += claim.num_tiles;
 
     for (const r of claim.building_resources) {
       allBuildingRes.push(r);
@@ -374,6 +404,7 @@ export async function fetchEmpireData(
       total_members,
       online_members,
       total_buildings,
+      total_tiles,
       total_building_resource_types: mergedBuilding.length,
       total_building_resource_count: mergedBuilding.reduce(
         (s, r) => s + r.quantity,
@@ -387,6 +418,7 @@ export async function fetchEmpireData(
       total_tool_types: mergedTools.length,
       total_tool_count: mergedTools.reduce((s, r) => s + r.quantity, 0),
     },
+    hexite_reserve,
     all_building_resources: mergedBuilding,
     all_player_resources: mergedPlayer,
     all_tool_resources: mergedTools,

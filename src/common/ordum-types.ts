@@ -107,6 +107,7 @@ export interface EmpireSummary {
     total_members: number;
     online_members: number;
     total_buildings: number;
+    total_tiles: number;
     total_building_resource_types: number;
     total_building_resource_count: number;
     total_player_resource_types: number;
@@ -114,6 +115,7 @@ export interface EmpireSummary {
     total_tool_types: number;
     total_tool_count: number;
   };
+  hexite_reserve: number;
   all_building_resources: ResourceItem[];
   all_player_resources: ResourceItem[];
   all_tool_resources: ResourceItem[];
