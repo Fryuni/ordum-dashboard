@@ -47,7 +47,9 @@ import type { StorageAuditChartPoint } from "../../server/storage-audit";
 // ─── Chart Component (TradingView Lightweight Charts) ───────────────────────────
 
 /** Aggregate hourly candles into daily when there are many data points. */
-function aggregateToDaily(data: StorageAuditChartPoint[]): StorageAuditChartPoint[] {
+function aggregateToDaily(
+  data: StorageAuditChartPoint[],
+): StorageAuditChartPoint[] {
   const groups = new Map<string, StorageAuditChartPoint[]>();
   for (const d of data) {
     const day = d.bucket?.slice(0, 10) ?? "unknown";
@@ -80,7 +82,7 @@ function bucketToTime(bucket: string): Time {
   return (Date.parse(bucket + ":00:00Z") / 1000) as unknown as Time;
 }
 
-function StorageChart({ data: rawData }: { data: StorageAuditChartPoint[] }) {
+function StorageChart({ data: data }: { data: StorageAuditChartPoint[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -144,13 +146,22 @@ function StorageChart({ data: rawData }: { data: StorageAuditChartPoint[] }) {
         const tooltip = tooltipRef.current;
         if (!tooltip) return;
 
-        if (!param.time || !param.point || param.point.x < 0 || param.point.y < 0) {
+        if (
+          !param.time ||
+          !param.point ||
+          param.point.x < 0 ||
+          param.point.y < 0
+        ) {
           tooltip.style.display = "none";
           return;
         }
 
-        const candleData = param.seriesData.get(candleSeries) as CandlestickData | undefined;
-        const volData = param.seriesData.get(volSeries) as HistogramData | undefined;
+        const candleData = param.seriesData.get(candleSeries) as
+          | CandlestickData
+          | undefined;
+        const volData = param.seriesData.get(volSeries) as
+          | HistogramData
+          | undefined;
 
         if (!candleData) {
           tooltip.style.display = "none";
@@ -188,10 +199,7 @@ function StorageChart({ data: rawData }: { data: StorageAuditChartPoint[] }) {
     const candleSeries = candleSeriesRef.current!;
     const volSeries = volSeriesRef.current!;
 
-    if (rawData.length === 0) return;
-
-    // Aggregate to daily if > 60 points
-    const data = rawData.length > 60 ? aggregateToDaily(rawData) : rawData;
+    if (data.length === 0) return;
 
     const candleData: CandlestickData[] = data.map((d) => ({
       time: bucketToTime(d.bucket ?? ""),
@@ -204,9 +212,10 @@ function StorageChart({ data: rawData }: { data: StorageAuditChartPoint[] }) {
     const volData: HistogramData[] = data.map((d) => ({
       time: bucketToTime(d.bucket ?? ""),
       value: d.deposits + d.withdrawals,
-      color: d.cumClose >= d.cumOpen
-        ? "rgba(74, 222, 128, 0.4)"
-        : "rgba(248, 113, 113, 0.4)",
+      color:
+        d.cumClose >= d.cumOpen
+          ? "rgba(74, 222, 128, 0.4)"
+          : "rgba(248, 113, 113, 0.4)",
     }));
 
     candleSeries.setData(candleData);
@@ -219,7 +228,7 @@ function StorageChart({ data: rawData }: { data: StorageAuditChartPoint[] }) {
       candleSeriesRef.current = null;
       volSeriesRef.current = null;
     };
-  }, [rawData]);
+  }, [data]);
 
   return (
     <div style="position: relative">
@@ -338,14 +347,19 @@ export default function StorageAuditPage() {
             </select>
           </div>
 
-          <div class="input-group source-select-container" style="flex: 0 0 auto; align-self: flex-end">
+          <div
+            class="input-group source-select-container"
+            style="flex: 0 0 auto; align-self: flex-end"
+          >
             <button
               class="sync-btn"
               disabled={syncing}
               onClick={() => triggerSync()}
             >
               {syncing ? (
-                <><span class="spinner-small" /> Syncing...</>
+                <>
+                  <span class="spinner-small" /> Syncing...
+                </>
               ) : (
                 <>🔄 Sync Now</>
               )}
@@ -410,28 +424,27 @@ export default function StorageAuditPage() {
                       colSpan={6}
                       style="text-align: center; color: var(--text-muted); padding: 24px"
                     >
-                      No storage events found — try clicking "Sync Now" to fetch logs from BitJita
+                      No storage events found — try clicking "Sync Now" to fetch
+                      logs from BitJita
                     </td>
                   </tr>
                 )}
                 {data.logs.map((log) => (
                   <tr key={log.id}>
                     <td>{log.player_name}</td>
-                    <td style="color: var(--text-muted)">{log.building_name}</td>
+                    <td style="color: var(--text-muted)">
+                      {log.building_name}
+                    </td>
                     <td>{log.item_name}</td>
                     <td style="text-align: right">
                       {log.quantity.toLocaleString()}
                     </td>
                     <td style="text-align: center">
-                      <span
-                        class={`action-badge action-${log.action}`}
-                      >
+                      <span class={`action-badge action-${log.action}`}>
                         {log.action === "deposit" ? "▲ Deposit" : "▼ Withdraw"}
                       </span>
                     </td>
-                    <td
-                      style="text-align: right; color: var(--text-muted); white-space: nowrap"
-                    >
+                    <td style="text-align: right; color: var(--text-muted); white-space: nowrap">
                       {formatTimestamp(log.timestamp)}
                     </td>
                   </tr>

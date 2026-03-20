@@ -124,7 +124,8 @@ function resolveItemName(
   const meta = apiItems.get(String(itemId));
   if (meta?.name) return meta.name;
   const normalType = itemType === "cargo" ? "Cargo" : "Item";
-  if (normalType === "Item") return gd.items.get(itemId)?.name ?? `Item #${itemId}`;
+  if (normalType === "Item")
+    return gd.items.get(itemId)?.name ?? `Item #${itemId}`;
   return gd.cargo.get(itemId)?.name ?? `Cargo #${itemId}`;
 }
 
@@ -137,7 +138,9 @@ async function getStorageBuildings(
   claimId: string,
 ): Promise<BuildingInfo[]> {
   const resp = await jita.getClaimBuildings(claimId);
-  const buildings = (Array.isArray(resp) ? resp : (resp as any).buildings ?? resp) as BuildingInfo[];
+  const buildings = (
+    Array.isArray(resp) ? resp : ((resp as any).buildings ?? resp)
+  ) as BuildingInfo[];
   return buildings.filter((b) =>
     (b.functions ?? []).some(
       (f) => (f.storage_slots ?? 0) > 0 || (f.cargo_slots ?? 0) > 0,
@@ -193,7 +196,9 @@ export async function ingestLogs(
 
   // 4. Fetch logs for each stale building
   let totalPagesFetched = 0;
-  const buildingNameMap = new Map(buildings.map((b) => [b.entityId, b.buildingName ?? "Unknown"]));
+  const buildingNameMap = new Map(
+    buildings.map((b) => [b.entityId, b.buildingName ?? "Unknown"]),
+  );
 
   for (const state of staleBuildings.results) {
     if (totalPagesFetched >= MAX_PAGES_PER_REQUEST) break;
@@ -290,8 +295,7 @@ export async function ingestLogs(
     }
 
     // 6. Update fetch state
-    const newNewestId =
-      allNewLogs.length > 0 ? allNewLogs[0]!.id : newestLogId;
+    const newNewestId = allNewLogs.length > 0 ? allNewLogs[0]!.id : newestLogId;
     await db
       .prepare(
         `UPDATE storage_fetch_state
@@ -328,7 +332,6 @@ export async function queryStorageAudit(
     pageSize: number;
   },
 ): Promise<StorageAuditResponse> {
-
   // Build WHERE clause
   const conditions: string[] = ["claim_id = ?"];
   const params: (string | number)[] = [claimId];

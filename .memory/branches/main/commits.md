@@ -324,3 +324,25 @@ The project established a high-performance architecture for the Ordum Empire das
 - Replaced the automatic background polling mechanism with an explicit user-triggered sync state in the `$auditView` store to simplify client-side state management.
 - Verified through Playwright testing that the new sync architecture remains compatible with the previous DOM duplication fix, maintaining single-node reconciliation across manual updates.
 - Refined UI empty states and error handling to guide users toward manual synchronization when filtered data is not yet available in the local database.
+
+---
+
+## Commit 30ab6509 | 2026-03-20T20:53:53.519Z
+
+### Branch Purpose
+
+Main development track for the Ordum Dashboard, providing tools for aggregating and visualizing Bitcraft game data including resources, settlement research, crafting logistics, and storage audits.
+
+### Previous Progress Summary
+
+The project established a high-performance architecture for the Ordum Empire dashboard using a Cloudflare Workers backend (Hono) and a Preact SPA with Nanostores. It features robust TypeScript API clients automatically generated from Bitcraft Hub and BitJita, ensuring type safety and 64-bit ID integrity. The system provides unified visibility into empire resources, building storage, and player inventories, supporting a recursive craft planner with cycle detection, a 10-tier settlement upgrade tracker, and a persistent Storage Audit system using Cloudflare D1 for log caching. Recent optimizations moved storage audit ingestion to a Cloudflare Cron Trigger and on-demand sync endpoint, decoupled database queries from ingestion logic for improved latency, and resolved Preact DOM duplication issues by consolidating UI state into atomic Nanostores.
+
+### This Commit's Contribution
+
+- Replaced the custom Canvas-based chart with the TradingView `lightweight-charts` library to provide professional-grade candlestick and volume visualization with built-in crosshair tooltips, zoom/pan, and auto-sizing.
+- Identified and resolved a critical data aggregation bug where BitJita's `+00` timezone offset caused SQLite's `STRFTIME` to return NULL, collapsing all historical data into a single chart bucket; fixed by stripping offsets on ingestion.
+- Implemented client-side hourly-to-daily aggregation logic that automatically simplifies the chart when data density exceeds a readable threshold (approx. 6px per candle) to prevent visual noise.
+- Decided to remove redundant "wick" lines from candlesticks since the current audit data only provides open/close balances (net hourly/daily change) rather than true high/low price action.
+- Refined the volume sub-chart to display side-by-side deposit and withdrawal bars, providing a clear visual contrast between the gross activity and the resulting net balance change shown in the candles.
+- Adopted a lazy-initialization pattern for the chart component to ensure the library only attempts to create the chart instance once data has successfully loaded asynchronously.
+- Cleaned up the remote D1 database by executing a bulk `REPLACE` migration to fix existing malformed timestamps, restoring the full 20-day historical trend for the Ordum Empire.

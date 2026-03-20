@@ -293,19 +293,18 @@ app.get("/api/storage-audit", async (c) => {
     const itemIdRaw = c.req.query("itemId");
     const itemType = c.req.query("itemType") || undefined;
     const page = Math.max(1, Number(c.req.query("page")) || 1);
-    const pageSize = Math.min(100, Math.max(1, Number(c.req.query("pageSize")) || 50));
-
-    const result = await queryStorageAudit(
-      c.env.ordum_storage_audit,
-      claimId,
-      {
-        playerEntityId,
-        itemId: itemIdRaw ? Number(itemIdRaw) : undefined,
-        itemType,
-        page,
-        pageSize,
-      },
+    const pageSize = Math.min(
+      100,
+      Math.max(1, Number(c.req.query("pageSize")) || 50),
     );
+
+    const result = await queryStorageAudit(c.env.ordum_storage_audit, claimId, {
+      playerEntityId,
+      itemId: itemIdRaw ? Number(itemIdRaw) : undefined,
+      itemType,
+      page,
+      pageSize,
+    });
     return c.json(result);
   } catch (e) {
     console.error("Failed to fetch storage audit data:", e);
@@ -317,7 +316,11 @@ app.post("/api/storage-audit/ingest", async (c) => {
   try {
     const jita = c.get("jita");
     const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
-    const moreRemaining = await ingestLogs(jita, c.env.ordum_storage_audit, claimId);
+    const moreRemaining = await ingestLogs(
+      jita,
+      c.env.ordum_storage_audit,
+      claimId,
+    );
     return c.json({ ingested: true, moreRemaining });
   } catch (e) {
     console.error("Failed to ingest storage audit data:", e);
@@ -392,13 +395,22 @@ async function scheduledHandler(
     while (moreRemaining && rounds < MAX_ROUNDS) {
       rounds++;
       try {
-        moreRemaining = await ingestLogs(jita, env.ordum_storage_audit, claimId);
+        moreRemaining = await ingestLogs(
+          jita,
+          env.ordum_storage_audit,
+          claimId,
+        );
       } catch (e) {
-        console.error(`Cron ingestion error (claim=${claimId}, round=${rounds}):`, e);
+        console.error(
+          `Cron ingestion error (claim=${claimId}, round=${rounds}):`,
+          e,
+        );
         break;
       }
     }
-    console.log(`Cron ingestion: claim=${claimId}, rounds=${rounds}, moreRemaining=${moreRemaining}`);
+    console.log(
+      `Cron ingestion: claim=${claimId}, rounds=${rounds}, moreRemaining=${moreRemaining}`,
+    );
   }
 }
 

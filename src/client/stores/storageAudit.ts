@@ -77,12 +77,7 @@ const $refreshTick = atom(0);
 
 export const $auditData = computedAsync(
   [$auditClaim, $auditPlayer, $auditItem, $auditPage, $refreshTick],
-  async (
-    claimId,
-    player,
-    item,
-    page,
-  ): Promise<StorageAuditResponse | null> => {
+  async (claimId, player, item, page): Promise<StorageAuditResponse | null> => {
     if (!claimId) return null;
     const url = buildAuditUrl(claimId, player, item, page);
     const resp = await fetch(url);
