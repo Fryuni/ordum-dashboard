@@ -24,9 +24,17 @@ invocation_logs = true
 [observability.traces]
 enabled = true
 
+[triggers]
+crons = ["*/5 * * * *"]
+
 [[kv_namespaces]]
 binding = "jita_api_cache"
 id = "4841edcb05cd4978bec7f705a82d12de"
+
+[[d1_databases]]
+binding = "ordum_storage_audit"
+database_name = "ordum-storage-audit"
+database_id = "b0aed2a4-0c01-4ea4-ac26-c87d6aa4cfa8"
 
 # ─── PR preview environment ─────────────────────────────────────────────────────
 # `wrangler deploy --env preview` creates a separate worker so that
@@ -38,3 +46,8 @@ workers_dev = true
 [[env.preview.kv_namespaces]]
 binding = "jita_api_cache"
 id = "4841edcb05cd4978bec7f705a82d12de"
+
+[[env.preview.d1_databases]]
+binding = "ordum_storage_audit"
+database_name = "ordum-storage-audit"
+database_id = "b0aed2a4-0c01-4ea4-ac26-c87d6aa4cfa8"

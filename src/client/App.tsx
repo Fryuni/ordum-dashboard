@@ -24,6 +24,7 @@ import CraftPage from "./pages/CraftPage";
 import TravelerTaskPage from "./pages/TravelerTaskPage";
 import ConstructionPage from "./pages/ConstructionPage";
 import ContributionPage from "./pages/ContributionPage";
+import StorageAuditPage from "./pages/StorageAuditPage";
 
 type RouteName =
   | "dashboard"
@@ -31,7 +32,8 @@ type RouteName =
   | "construction"
   | "craft"
   | "travelerTask"
-  | "contribution";
+  | "contribution"
+  | "storageAudit";
 
 function PageContent({ route }: { route: RouteName | null }) {
   switch (route) {
@@ -47,6 +49,8 @@ function PageContent({ route }: { route: RouteName | null }) {
       return <TravelerTaskPage />;
     case "contribution":
       return <ContributionPage />;
+    case "storageAudit":
+      return <StorageAuditPage />;
     default:
       return (
         <div class="page-header">
@@ -90,6 +94,12 @@ const NAV_ITEMS = [
     href: "/contribution",
     icon: "📦",
     label: "Contribution",
+  },
+  {
+    route: "storageAudit" as const,
+    href: "/storage-audit",
+    icon: "🔍",
+    label: "Storage Audit",
   },
 ];
 

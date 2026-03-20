@@ -32,11 +32,13 @@ import { buildClaimInventory } from "./common/claim-inventory";
 import { buildSettlementPlan } from "./common/settlement-planner";
 import { gd } from "./common/gamedata";
 import { fetchContribution } from "./server/contribution";
+import { queryStorageAudit, ingestLogs } from "./server/storage-audit";
 import type BitJitaClient from "./common/bitjita-client";
 
 type Bindings = {
   ASSETS: Fetcher;
   jita_api_cache: KVNamespace;
+  ordum_storage_audit: D1Database;
 };
 
 type Variables = {
@@ -284,6 +286,51 @@ app.get("/api/contribution", async (c) => {
   }
 });
 
+app.get("/api/storage-audit", async (c) => {
+  try {
+    const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
+    const page = Math.max(1, Number(c.req.query("page")) || 1);
+    const pageSize = Math.min(
+      100,
+      Math.max(1, Number(c.req.query("pageSize")) || 50),
+    );
+
+    // Multi-value: ?player=id1&player=id2&item=Type:id1&item=Type:id2
+    const playerEntityIds = c.req.queries("player")?.filter(Boolean);
+    const itemKeys = c.req.queries("item")?.filter(Boolean);
+
+    const result = await queryStorageAudit(c.env.ordum_storage_audit, claimId, {
+      playerEntityIds:
+        playerEntityIds && playerEntityIds.length > 0
+          ? playerEntityIds
+          : undefined,
+      itemKeys: itemKeys && itemKeys.length > 0 ? itemKeys : undefined,
+      page,
+      pageSize,
+    });
+    return c.json(result);
+  } catch (e) {
+    console.error("Failed to fetch storage audit data:", e);
+    return c.json({ error: String(e) }, 500);
+  }
+});
+
+app.post("/api/storage-audit/ingest", async (c) => {
+  try {
+    const jita = c.get("jita");
+    const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
+    const moreRemaining = await ingestLogs(
+      jita,
+      c.env.ordum_storage_audit,
+      claimId,
+    );
+    return c.json({ ingested: true, moreRemaining });
+  } catch (e) {
+    console.error("Failed to ingest storage audit data:", e);
+    return c.json({ error: String(e) }, 500);
+  }
+});
+
 // ─── BitJita Proxy ─────────────────────────────────────────────────────────────
 
 /** Fetch from upstream BitJita and return the BigInt-safe parsed body. */
@@ -329,4 +376,48 @@ app.all("/jita/*", async (c) => {
   }
 });
 
-export default app;
+// ─── Cron: Storage Audit Ingestion ─────────────────────────────────────────────
+
+async function scheduledHandler(
+  _event: ScheduledEvent,
+  env: Bindings,
+  ctx: ExecutionContext,
+) {
+  // Create a fresh jita client for the cron context
+  const jita = createServerJita(env.jita_api_cache);
+
+  // Ingest for all known empire claims
+  const claimIds = [ORDUM_MAIN_CLAIM_ID];
+
+  for (const claimId of claimIds) {
+    let moreRemaining = true;
+    // Run multiple rounds per cron invocation to backfill faster
+    // Cron handlers get 15 min CPU time, so we can afford more work
+    let rounds = 0;
+    const MAX_ROUNDS = 10;
+    while (moreRemaining && rounds < MAX_ROUNDS) {
+      rounds++;
+      try {
+        moreRemaining = await ingestLogs(
+          jita,
+          env.ordum_storage_audit,
+          claimId,
+        );
+      } catch (e) {
+        console.error(
+          `Cron ingestion error (claim=${claimId}, round=${rounds}):`,
+          e,
+        );
+        break;
+      }
+    }
+    console.log(
+      `Cron ingestion: claim=${claimId}, rounds=${rounds}, moreRemaining=${moreRemaining}`,
+    );
+  }
+}
+
+export default {
+  fetch: app.fetch,
+  scheduled: scheduledHandler,
+};

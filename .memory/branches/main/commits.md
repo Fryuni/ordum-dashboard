@@ -238,3 +238,111 @@ The project established a high-performance architecture for the Ordum Empire das
 - Developed a specialized HTML/text scraper for the BitJita API docs that extracts 77 endpoints, including parameters and JSON response schemas for buildings, market history, and empire stats.
 - Updated the dependency graph across `api-server.ts`, `ordum-data.ts`, and the client-side `api.ts` to reflect the new client naming and multi-API architecture.
 - Verified that the expanded multi-client system integrates seamlessly with the Bun-native build pipeline and server-side caching layer.
+
+---
+
+## Commit 93c38cc5 | 2026-03-20T14:05:09.959Z
+
+### Branch Purpose
+
+The `main` branch is the primary development track for the Ordum Dashboard, a tool for aggregating and visualizing Bitcraft game data (claims, inventories, members, and resources) via generated TypeScript API clients and a Cloudflare Workers backend.
+
+### Previous Progress Summary
+
+The project established a high-performance architecture for the Ordum Empire dashboard, utilizing a Cloudflare Workers backend (Hono) and a Preact SPA with `@nanostores/router`. It features robust TypeScript API clients automatically generated from both Bitcraft Hub's Rust source and BitJita's web documentation, ensuring type safety and 64-bit ID integrity. The system provides unified visibility into empire resources, building storage, and player inventories, supporting a recursive craft planner with cycle detection (Tarjan’s SCC), a 10-tier settlement upgrade tracker, and automated gamedata synchronization. The codebase is organized into domain-specific layers with standardized GPL-3.0 licensing.
+
+### This Commit's Contribution
+
+- Implemented a Storage Audit system using Cloudflare D1 for persistent caching of BitJita storage logs, enabling historical analysis beyond the API's immediate window.
+- Developed a server-side ingestion engine with per-building cursor tracking that incrementally fetches new deposit/withdrawal logs to minimize API load and prevent data gaps.
+- Created a paginated `/api/storage-audit` endpoint supporting complex filters for players and specific items, including daily aggregate calculations for activity visualization.
+- Built a dedicated Storage Audit page in the Preact SPA featuring a Canvas-based activity chart and a searchable, paginated table of transaction logs.
+- Resolved item name resolution challenges by implementing a multi-source fallback strategy combining BitJita metadata and static game data for both items and cargo.
+- Integrated D1 database bindings into the Wrangler configuration and Hono worker to support the new persistent logging layer.
+- Optimized ingestion performance using D1 batch statements and a background-refresh pattern that triggers ingestion during API requests without blocking response delivery.
+
+---
+
+## Commit 0c82cfa8 | 2026-03-20T15:40:10.530Z
+
+### Branch Purpose
+
+Main development track for the Ordum Dashboard, a tool for aggregating and visualizing Bitcraft game data (claims, inventories, members, resources, and storage logs) via generated TypeScript API clients and a Cloudflare Workers backend.
+
+### Previous Progress Summary
+
+The project established a high-performance architecture for the Ordum Empire dashboard using a Cloudflare Workers backend (Hono) and a Preact SPA with Nanostores. It features robust TypeScript API clients automatically generated from Bitcraft Hub and BitJita, ensuring type safety and 64-bit ID integrity. The system provides unified visibility into empire resources, building storage, and player inventories, supporting a recursive craft planner with cycle detection, a 10-tier settlement upgrade tracker, and automated gamedata synchronization. This foundation was extended with a persistent Storage Audit system using Cloudflare D1 for log caching, providing an incremental ingestion engine and a dedicated UI for tracking historical deposit/withdrawal transactions across the empire.
+
+### This Commit's Contribution
+
+- Optimized Storage Audit responsiveness by decoupling interactive database queries from background ingestion, ensuring fast UI updates while logs sync from BitJita asynchronously.
+- Replaced the daily cumulative line chart with a granular hourly candlestick chart, enabling precise tracking of storage "open/close" balances and net fluctuations per hour.
+- Integrated a volume sub-chart below the candlestick view to provide context on the raw magnitude of deposits and withdrawals driving net changes.
+- Formally adopted a "Nanostores-first" state management pattern, centralizing filter persistence and asynchronous data fetching into a dedicated store using `persistentAtom` and `computedAsync`.
+- Implemented intelligent client-side polling that automatically refreshes the UI every 5 seconds only when the server indicates that background ingestion is still in progress.
+- Validated the reliability of server-side D1 pagination and complex multi-filter (claim, player, item) interactions through Playwright browser testing.
+- Decided to use SQLite's `STRFTIME` for server-side hourly aggregation to provide high-resolution data without the overhead of client-side processing of raw log entries.
+
+---
+
+## Commit 881dbeff | 2026-03-20T15:56:08.891Z
+
+### Branch Purpose
+
+Main development track for the Ordum Dashboard, providing tools for aggregating and visualizing Bitcraft game data including resources, settlement research, crafting logistics, and storage audits.
+
+### Previous Progress Summary
+
+The project established a high-performance architecture for the Ordum Empire dashboard using a Cloudflare Workers backend (Hono) and a Preact SPA with Nanostores. It features robust TypeScript API clients automatically generated from Bitcraft Hub and BitJita, ensuring type safety and 64-bit ID integrity. The system provides unified visibility into empire resources, building storage, and player inventories, supporting a recursive craft planner with cycle detection, a 10-tier settlement upgrade tracker, and a persistent Storage Audit system using Cloudflare D1 for log caching. Recent optimizations decoupled interactive database queries from background ingestion and introduced a "Nanostores-first" state management pattern for reactive, persistent UI updates and automated polling.
+
+### This Commit's Contribution
+
+- Identified and resolved a DOM duplication bug in Preact where multiple `useStore` calls within a single component triggered independent `setTimeout`-batched re-renders, causing the framework to append new DOM trees instead of updating the existing one.
+- Consolidated four related stores (`$auditData`, `$auditPage`, `$auditTotalPages`, `$auditIngesting`) into a single `$auditView` computed store to ensure atomic updates and a single render cycle.
+- Determined that while wrapping components in a stable `<div>` (instead of a fragment) is good practice, it was insufficient to prevent reconciliation failure when multiple independent store-driven re-renders raced.
+- Verified the fix via Playwright testing, confirming that the page wrapper maintains a single child node across pagination and background ingestion updates.
+- Established a general architectural pattern for `@nanostores/preact`: use a single derived "view" store for components that subscribe to multiple interdependent atoms to prevent VDOM reconciliation issues.
+
+---
+
+## Commit 14dcf54d | 2026-03-20T16:32:42.102Z
+
+### Branch Purpose
+
+Main development track for the Ordum Dashboard, providing tools for aggregating and visualizing Bitcraft game data including resources, settlement research, crafting logistics, and storage audits.
+
+### Previous Progress Summary
+
+The project established a high-performance architecture for the Ordum Empire dashboard using a Cloudflare Workers backend (Hono) and a Preact SPA with Nanostores. It features robust TypeScript API clients automatically generated from Bitcraft Hub and BitJita, ensuring type safety and 64-bit ID integrity. The system provides unified visibility into empire resources, building storage, and player inventories, supporting a recursive craft planner with cycle detection, a 10-tier settlement upgrade tracker, and a persistent Storage Audit system using Cloudflare D1 for log caching. Recent optimizations decoupled interactive database queries from background ingestion, resolved a DOM duplication bug in Preact by consolidating stores into an atomic `$auditView` to ensure stable VDOM reconciliation, and formally adopted a "Nanostores-first" state management pattern for reactive, persistent UI updates.
+
+### This Commit's Contribution
+
+- Decided to move storage audit ingestion from the request path (GET `/api/storage-audit`) to a Cloudflare Cron Trigger (every 5 minutes) to ensure consistent background updates without impacting query latency.
+- Implemented a `POST /api/storage-audit/ingest` endpoint to enable manual, on-demand synchronization from the UI via a new "Sync Now" button.
+- Simplified the storage audit data fetching logic to be a pure D1 read, significantly improving API responsiveness by removing side-effects from the query path.
+- Configured the cron handler to execute up to 10 ingestion rounds per invocation, leveraging the extended CPU time (15 mins) granted to cron triggers for faster data backfilling.
+- Replaced the automatic background polling mechanism with an explicit user-triggered sync state in the `$auditView` store to simplify client-side state management.
+- Verified through Playwright testing that the new sync architecture remains compatible with the previous DOM duplication fix, maintaining single-node reconciliation across manual updates.
+- Refined UI empty states and error handling to guide users toward manual synchronization when filtered data is not yet available in the local database.
+
+---
+
+## Commit 30ab6509 | 2026-03-20T20:53:53.519Z
+
+### Branch Purpose
+
+Main development track for the Ordum Dashboard, providing tools for aggregating and visualizing Bitcraft game data including resources, settlement research, crafting logistics, and storage audits.
+
+### Previous Progress Summary
+
+The project established a high-performance architecture for the Ordum Empire dashboard using a Cloudflare Workers backend (Hono) and a Preact SPA with Nanostores. It features robust TypeScript API clients automatically generated from Bitcraft Hub and BitJita, ensuring type safety and 64-bit ID integrity. The system provides unified visibility into empire resources, building storage, and player inventories, supporting a recursive craft planner with cycle detection, a 10-tier settlement upgrade tracker, and a persistent Storage Audit system using Cloudflare D1 for log caching. Recent optimizations moved storage audit ingestion to a Cloudflare Cron Trigger and on-demand sync endpoint, decoupled database queries from ingestion logic for improved latency, and resolved Preact DOM duplication issues by consolidating UI state into atomic Nanostores.
+
+### This Commit's Contribution
+
+- Replaced the custom Canvas-based chart with the TradingView `lightweight-charts` library to provide professional-grade candlestick and volume visualization with built-in crosshair tooltips, zoom/pan, and auto-sizing.
+- Identified and resolved a critical data aggregation bug where BitJita's `+00` timezone offset caused SQLite's `STRFTIME` to return NULL, collapsing all historical data into a single chart bucket; fixed by stripping offsets on ingestion.
+- Implemented client-side hourly-to-daily aggregation logic that automatically simplifies the chart when data density exceeds a readable threshold (approx. 6px per candle) to prevent visual noise.
+- Decided to remove redundant "wick" lines from candlesticks since the current audit data only provides open/close balances (net hourly/daily change) rather than true high/low price action.
+- Refined the volume sub-chart to display side-by-side deposit and withdrawal bars, providing a clear visual contrast between the gross activity and the resulting net balance change shown in the candles.
+- Adopted a lazy-initialization pattern for the chart component to ensure the library only attempts to create the chart instance once data has successfully loaded asynchronously.
+- Cleaned up the remote D1 database by executing a bulk `REPLACE` migration to fix existing malformed timestamps, restoring the full 20-day historical trend for the Ordum Empire.
