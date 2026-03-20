@@ -337,7 +337,10 @@ export async function fetchEmpireData(
         (e: any) => e.name?.toLowerCase() === "ordum",
       );
       if (empire) {
-        hexite_reserve = Number(empire.shardTreasury) || 0;
+        hexite_reserve =
+          Number(empire.empireCurrencyTreasury) ||
+          Number(empire.shardTreasury) ||
+          0;
         const claimsData = await api.getEmpireClaims(empire.entityId);
         resolvedClaimIds = (claimsData.claims as any[]).map((cl: any) => ({
           id: cl.entityId,
