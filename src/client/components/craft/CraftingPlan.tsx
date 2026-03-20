@@ -26,7 +26,7 @@ export default function CraftingPlan() {
 
   const hasTargets = targets.length > 0;
   const isLoading = craftPlan.state === "loading";
-  const hasPlan = craftPlan.state === "loaded" && craftPlan.value;
+  const hasPlan = craftPlan.state === "ready" && craftPlan.value;
 
   return (
     <>

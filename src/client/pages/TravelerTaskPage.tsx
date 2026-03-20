@@ -112,7 +112,7 @@ function ResetCountdown() {
   const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
 
   const expirationSecs =
-    expiration.state === "loaded" ? expiration.value : null;
+    expiration.state === "ready" ? expiration.value : null;
 
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -197,14 +197,14 @@ export default function TravelerTaskPage() {
   const selectedTravelers = useStore($selectedTravelers);
 
   const tasks =
-    travelerTasks.state === "loaded" ? (travelerTasks.value ?? []) : [];
+    travelerTasks.state === "ready" ? (travelerTasks.value ?? []) : [];
   const targets =
-    travelerTargets.state === "loaded" ? (travelerTargets.value ?? []) : [];
+    travelerTargets.state === "ready" ? (travelerTargets.value ?? []) : [];
   const hasTargets = targets.length > 0;
   const isLoadingTasks =
     travelerTasks.state === "loading" || travelerTargets.state === "loading";
   const isLoadingPlan = craftPlan.state === "loading";
-  const hasPlan = craftPlan.state === "loaded" && craftPlan.value;
+  const hasPlan = craftPlan.state === "ready" && craftPlan.value;
 
   return (
     <>

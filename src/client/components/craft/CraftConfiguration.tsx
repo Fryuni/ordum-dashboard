@@ -26,7 +26,7 @@ import ItemList from "./ItemList";
 export default function CraftConfiguration() {
   const targets = useStore($targets);
   const shareableUrl = useStore($shareableUrl);
-  const shareReady = shareableUrl.state === "loaded";
+  const shareReady = shareableUrl.state === "ready";
   const [copied, setCopied] = useState(false);
 
   const handleShare = useCallback(async () => {

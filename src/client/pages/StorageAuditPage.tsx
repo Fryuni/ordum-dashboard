@@ -283,7 +283,7 @@ export default function StorageAuditPage() {
 
   const loading = dataAsync.state === "loading";
   const error = dataAsync.state === "failed" ? String(dataAsync.error) : null;
-  const data = dataAsync.state === "loaded" ? dataAsync.value : null;
+  const data = dataAsync.state === "ready" ? dataAsync.value : null;
 
   return (
     <div>

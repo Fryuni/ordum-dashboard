@@ -107,9 +107,9 @@ export default function ContributionPage() {
   const dataAsync = useStore($contributionData);
 
   const members =
-    membersAsync.state === "loaded" ? (membersAsync.value ?? []) : [];
+    membersAsync.state === "ready" ? (membersAsync.value ?? []) : [];
   const data: ContributionData | null =
-    dataAsync.state === "loaded" ? (dataAsync.value ?? null) : null;
+    dataAsync.state === "ready" ? (dataAsync.value ?? null) : null;
   const loading =
     dataAsync.state === "loading" || membersAsync.state === "loading";
   const error =
@@ -126,7 +126,7 @@ export default function ContributionPage() {
   // Reset player selection when claim changes
   useEffect(() => {
     if (
-      membersAsync.state === "loaded" &&
+      membersAsync.state === "ready" &&
       selectedPlayer &&
       !members.find((m) => m.playerEntityId === selectedPlayer)
     ) {

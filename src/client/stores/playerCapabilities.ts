@@ -24,7 +24,7 @@
  * the BitJita player data and inventory, for use by the craft planner.
  */
 
-import { computedAsync } from "nanostores";
+import { computedAsync } from "@nanostores/async";
 import { $playerData } from "./player";
 import { $inventory } from "./craftSource";
 import { jita } from "../../common/api";

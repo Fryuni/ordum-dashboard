@@ -16,14 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import {
-  atom,
-  computed,
-  computedAsync,
-  effect,
-  onMount,
-  type AsyncValue,
-} from "nanostores";
+import { atom, computed, effect, onMount } from "nanostores";
+import { computedAsync, type AsyncValue } from "@nanostores/async";
 import { persistentAtom } from "@nanostores/persistent";
 import { itemIndex, type IndexItem } from "../../common/itemIndex";
 import { buildCraftPlan } from "../../common/craft-planner";
@@ -257,7 +251,7 @@ const $importedTargets = computedAsync(
 
 onMount($targets, () =>
   effect([$importedTargets, $loadedTargets], (newTargets, loadedTargets) => {
-    if (newTargets.state !== "loaded" || newTargets.changing) return;
+    if (newTargets.state !== "ready" || newTargets.changing) return;
     if (newTargets.value) {
       if (!loadedTargets) {
         $loadedTargets.set(true);
