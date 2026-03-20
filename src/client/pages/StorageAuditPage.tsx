@@ -28,9 +28,7 @@ import {
   $auditPlayer,
   $auditItem,
   $auditPage,
-  $auditData,
-  $auditTotalPages,
-  $auditIngesting,
+  $auditView,
 } from "../stores/storageAudit";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import type { StorageAuditChartPoint } from "../../server/storage-audit";
@@ -247,10 +245,7 @@ export default function StorageAuditPage() {
   const selectedClaim = useStore($auditClaim);
   const selectedPlayer = useStore($auditPlayer);
   const selectedItem = useStore($auditItem);
-  const page = useStore($auditPage);
-  const dataAsync = useStore($auditData);
-  const totalPages = useStore($auditTotalPages);
-  const ingesting = useStore($auditIngesting);
+  const { dataAsync, page, totalPages, ingesting } = useStore($auditView);
 
   useEffect(() => {
     fetchEmpireClaims();

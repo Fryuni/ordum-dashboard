@@ -163,3 +163,14 @@ export const $auditTotalPages = computed($auditData, (state) => {
   if (state.state !== "loaded" || !state.value) return 0;
   return Math.ceil(state.value.totalCount / PAGE_SIZE);
 });
+
+/** Combined view state to minimize useStore calls in the component. */
+export const $auditView = computed(
+  [$auditData, $auditPage, $auditTotalPages, $ingesting],
+  (dataAsync, page, totalPages, ingesting) => ({
+    dataAsync,
+    page,
+    totalPages,
+    ingesting,
+  }),
+);

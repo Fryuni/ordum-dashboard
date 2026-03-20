@@ -282,3 +282,23 @@ The project established a high-performance architecture for the Ordum Empire das
 - Implemented intelligent client-side polling that automatically refreshes the UI every 5 seconds only when the server indicates that background ingestion is still in progress.
 - Validated the reliability of server-side D1 pagination and complex multi-filter (claim, player, item) interactions through Playwright browser testing.
 - Decided to use SQLite's `STRFTIME` for server-side hourly aggregation to provide high-resolution data without the overhead of client-side processing of raw log entries.
+
+---
+
+## Commit 881dbeff | 2026-03-20T15:56:08.891Z
+
+### Branch Purpose
+
+Main development track for the Ordum Dashboard, providing tools for aggregating and visualizing Bitcraft game data including resources, settlement research, crafting logistics, and storage audits.
+
+### Previous Progress Summary
+
+The project established a high-performance architecture for the Ordum Empire dashboard using a Cloudflare Workers backend (Hono) and a Preact SPA with Nanostores. It features robust TypeScript API clients automatically generated from Bitcraft Hub and BitJita, ensuring type safety and 64-bit ID integrity. The system provides unified visibility into empire resources, building storage, and player inventories, supporting a recursive craft planner with cycle detection, a 10-tier settlement upgrade tracker, and a persistent Storage Audit system using Cloudflare D1 for log caching. Recent optimizations decoupled interactive database queries from background ingestion and introduced a "Nanostores-first" state management pattern for reactive, persistent UI updates and automated polling.
+
+### This Commit's Contribution
+
+- Identified and resolved a DOM duplication bug in Preact where multiple `useStore` calls within a single component triggered independent `setTimeout`-batched re-renders, causing the framework to append new DOM trees instead of updating the existing one.
+- Consolidated four related stores (`$auditData`, `$auditPage`, `$auditTotalPages`, `$auditIngesting`) into a single `$auditView` computed store to ensure atomic updates and a single render cycle.
+- Determined that while wrapping components in a stable `<div>` (instead of a fragment) is good practice, it was insufficient to prevent reconciliation failure when multiple independent store-driven re-renders raced.
+- Verified the fix via Playwright testing, confirming that the page wrapper maintains a single child node across pagination and background ingestion updates.
+- Established a general architectural pattern for `@nanostores/preact`: use a single derived "view" store for components that subscribe to multiple interdependent atoms to prevent VDOM reconciliation issues.
