@@ -16,7 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { atom, computed, computedAsync, effect, onMount } from "nanostores";
+import { atom, computed, effect, onMount } from "nanostores";
+import { computedAsync } from "@nanostores/async";
 import { jita } from "../../common/api";
 import { getItemName, getSkillName } from "../../common/gamedata";
 import { buildCraftPlan } from "../../common/craft-planner";
@@ -117,7 +118,7 @@ export const $selectedTravelers = atom<Set<number>>(new Set());
 onMount($selectedTravelers, () => {
   let lastAvailable = new Set<number>();
   return $travelerTasks.subscribe((tasks) => {
-    if (tasks.state !== "loaded" || !tasks.value) return;
+    if (tasks.state !== "ready" || !tasks.value) return;
     const ids = new Set(tasks.value.map((t) => t.travelerId));
     // Only auto-set if the available traveler set changed (new load / player switch)
     if (

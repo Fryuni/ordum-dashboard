@@ -37,7 +37,7 @@ export default function PlanCard({
   const inventory = useStore($inventory);
   const capabilitiesAsync = useStore($playerCapabilities);
   const capabilities =
-    capabilitiesAsync.state === "loaded" ? capabilitiesAsync.value : undefined;
+    capabilitiesAsync.state === "ready" ? capabilitiesAsync.value : undefined;
   const [nameFilter, setNameFilter] = useState("");
   const [tierFilter, setTierFilter] = useState("");
 

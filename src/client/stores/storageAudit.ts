@@ -17,7 +17,8 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { persistentAtom } from "@nanostores/persistent";
-import { atom, computed, computedAsync, onMount } from "nanostores";
+import { atom, computed, onMount } from "nanostores";
+import { computedAsync } from "@nanostores/async";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import type { StorageAuditResponse } from "../../server/storage-audit";
 
@@ -131,7 +132,7 @@ export async function triggerSync() {
 // ─── Derived ────────────────────────────────────────────────────────────────────
 
 export const $auditTotalPages = computed($auditData, (state) => {
-  if (state.state !== "loaded" || !state.value) return 0;
+  if (state.state !== "ready" || !state.value) return 0;
   return Math.ceil(state.value.totalCount / PAGE_SIZE);
 });
 

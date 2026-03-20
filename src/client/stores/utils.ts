@@ -16,13 +16,8 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import {
-  atom,
-  computed,
-  onMount,
-  type AsyncValue,
-  type ReadableAtom,
-} from "nanostores";
+import { atom, computed, onMount, type ReadableAtom } from "nanostores";
+import type { AsyncValue } from "@nanostores/async";
 
 const NOOP = () => {};
 
@@ -70,6 +65,6 @@ export function asyncDefaultValue<T>(
   $defaultValue: ReadableAtom<T>,
 ): ReadableAtom<T> {
   return computed([$store, $defaultValue], (v, dv) =>
-    v.state === "loaded" ? v.value : dv,
+    v.state === "ready" ? v.value : dv,
   );
 }

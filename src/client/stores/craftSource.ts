@@ -17,7 +17,8 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { persistentAtom } from "@nanostores/persistent";
-import { atom, computed, computedAsync } from "nanostores";
+import { atom, computed } from "nanostores";
+import { computedAsync } from "@nanostores/async";
 import { $updateTimer } from "../util-store";
 import { jita } from "../../common/api";
 import {

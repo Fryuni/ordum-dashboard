@@ -17,7 +17,7 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { persistentAtom } from "@nanostores/persistent";
-import { computedAsync } from "nanostores";
+import { computedAsync } from "@nanostores/async";
 import { jita } from "../../common/api";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import type { ContributionResponse } from "../../server/contribution";
