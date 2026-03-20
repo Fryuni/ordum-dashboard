@@ -29,6 +29,7 @@ import {
   $auditItem,
   $auditPage,
   $auditView,
+  triggerSync,
 } from "../stores/storageAudit";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import type { StorageAuditChartPoint } from "../../server/storage-audit";
@@ -245,7 +246,7 @@ export default function StorageAuditPage() {
   const selectedClaim = useStore($auditClaim);
   const selectedPlayer = useStore($auditPlayer);
   const selectedItem = useStore($auditItem);
-  const { dataAsync, page, totalPages, ingesting } = useStore($auditView);
+  const { dataAsync, page, totalPages, syncing } = useStore($auditView);
 
   useEffect(() => {
     fetchEmpireClaims();
@@ -261,11 +262,6 @@ export default function StorageAuditPage() {
         <h1>Storage Audit</h1>
         <p class="subtitle">
           Track every deposit and withdrawal from claim inventories
-          {ingesting && (
-            <span class="ingesting-badge">
-              <span class="spinner-small" /> Syncing logs...
-            </span>
-          )}
         </p>
       </div>
 
@@ -335,6 +331,20 @@ export default function StorageAuditPage() {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div class="input-group source-select-container" style="flex: 0 0 auto; align-self: flex-end">
+            <button
+              class="sync-btn"
+              disabled={syncing}
+              onClick={() => triggerSync()}
+            >
+              {syncing ? (
+                <><span class="spinner-small" /> Syncing...</>
+              ) : (
+                <>🔄 Sync Now</>
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -424,9 +434,7 @@ export default function StorageAuditPage() {
                       colSpan={6}
                       style="text-align: center; color: var(--text-muted); padding: 24px"
                     >
-                      {ingesting
-                        ? "Logs are still syncing from BitJita — check back shortly"
-                        : "No storage events found for this filter combination"}
+                      No storage events found — try clicking "Sync Now" to fetch logs from BitJita
                     </td>
                   </tr>
                 )}

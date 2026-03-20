@@ -24,6 +24,9 @@ invocation_logs = true
 [observability.traces]
 enabled = true
 
+[triggers]
+crons = ["*/5 * * * *"]
+
 [[kv_namespaces]]
 binding = "jita_api_cache"
 id = "4841edcb05cd4978bec7f705a82d12de"

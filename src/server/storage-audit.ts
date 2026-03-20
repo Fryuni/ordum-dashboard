@@ -96,7 +96,11 @@ export interface StorageAuditResponse {
   chartData: StorageAuditChartPoint[];
   players: Array<{ entityId: string; name: string }>;
   items: Array<{ id: number; type: string; name: string }>;
-  ingesting: boolean;
+}
+
+export interface StorageAuditIngestResponse {
+  ingested: boolean;
+  moreRemaining: boolean;
 }
 
 // ─── Constants ──────────────────────────────────────────────────────────────────
@@ -146,7 +150,7 @@ async function getStorageBuildings(
  * Picks buildings that haven't been checked recently and fetches new logs.
  * Returns true if there are still buildings that need checking.
  */
-async function ingestLogs(
+export async function ingestLogs(
   jita: BitJitaClient,
   db: D1Database,
   claimId: string,
@@ -313,7 +317,6 @@ async function ingestLogs(
 // ─── Query ──────────────────────────────────────────────────────────────────────
 
 export async function queryStorageAudit(
-  jita: BitJitaClient,
   db: D1Database,
   claimId: string,
   filters: {
@@ -322,19 +325,8 @@ export async function queryStorageAudit(
     itemType?: string;
     page: number;
     pageSize: number;
-    /** When true, skip ingestion — only query the DB. */
-    interactive?: boolean;
   },
 ): Promise<StorageAuditResponse> {
-  // Only run ingestion on background (non-interactive) requests
-  let ingesting = false;
-  if (!filters.interactive) {
-    try {
-      ingesting = await ingestLogs(jita, db, claimId);
-    } catch (e) {
-      console.error("Storage audit ingestion error:", e);
-    }
-  }
 
   // Build WHERE clause
   const conditions: string[] = ["claim_id = ?"];
@@ -434,6 +426,5 @@ export async function queryStorageAudit(
     chartData,
     players: playersResult.results ?? [],
     items: itemsResult.results ?? [],
-    ingesting,
   };
 }

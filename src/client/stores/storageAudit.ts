@@ -17,7 +17,7 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { persistentAtom } from "@nanostores/persistent";
-import { atom, computed, computedAsync, effect, onMount } from "nanostores";
+import { atom, computed, computedAsync, onMount } from "nanostores";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import type { StorageAuditResponse } from "../../server/storage-audit";
 
@@ -51,14 +51,12 @@ function buildAuditUrl(
   player: string,
   item: string,
   page: number,
-  interactive: boolean,
 ): string {
   const params = new URLSearchParams({
     claim: claimId,
     page: String(page),
     pageSize: String(PAGE_SIZE),
   });
-  if (interactive) params.set("interactive", "true");
   if (player) params.set("player", player);
   if (item) {
     const [type, id] = item.split(":");
@@ -70,19 +68,10 @@ function buildAuditUrl(
   return `/api/storage-audit?${params}`;
 }
 
-async function fetchAuditData(
-  url: string,
-): Promise<StorageAuditResponse> {
-  const resp = await fetch(url);
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  return resp.json() as Promise<StorageAuditResponse>;
-}
-
-// ─── Data Store (interactive — DB only, fast) ───────────────────────────────────
+// ─── Data Store ─────────────────────────────────────────────────────────────────
 
 /**
- * Bumped after a background ingestion completes to make the interactive
- * query re-read fresh data from D1.
+ * Bumped after an on-demand sync completes to refresh the query data.
  */
 const $refreshTick = atom(0);
 
@@ -95,67 +84,38 @@ export const $auditData = computedAsync(
     page,
   ): Promise<StorageAuditResponse | null> => {
     if (!claimId) return null;
-    const url = buildAuditUrl(claimId, player, item, page, true);
-    return fetchAuditData(url);
+    const url = buildAuditUrl(claimId, player, item, page);
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.json() as Promise<StorageAuditResponse>;
   },
 );
 
-// ─── Background Ingestion ───────────────────────────────────────────────────────
+// ─── On-demand Sync ─────────────────────────────────────────────────────────────
+
+export const $syncing = atom(false);
 
 /**
- * Runs a non-interactive request in the background to trigger BitJita
- * ingestion. When it completes, bumps $refreshTick so the interactive
- * query re-reads the now-updated D1 data.
- *
- * Polls every 5 s while the server reports ingesting: true.
+ * Trigger an on-demand ingestion. Calls the ingest endpoint, then
+ * bumps $refreshTick so the query store re-fetches with fresh data.
  */
-const $ingesting = atom(false);
-export { $ingesting as $auditIngesting };
-
-let ingestAbort: AbortController | null = null;
-
-async function triggerIngestion(claimId: string) {
-  // Abort any in-flight ingestion request
-  ingestAbort?.abort();
-  ingestAbort = new AbortController();
-
+export async function triggerSync() {
+  if ($syncing.get()) return;
+  $syncing.set(true);
   try {
-    // Minimal request — page 1, pageSize 1, just to trigger ingestion
-    const url = buildAuditUrl(claimId, "", "", 1, false);
-    const resp = await fetch(url, { signal: ingestAbort.signal });
-    if (!resp.ok) return;
-    const data: StorageAuditResponse = await resp.json();
-    $ingesting.set(data.ingesting);
-    // Bump tick so the interactive store re-fetches with fresh D1 data
+    const claimId = $auditClaim.get();
+    const resp = await fetch(
+      `/api/storage-audit/ingest?claim=${encodeURIComponent(claimId)}`,
+      { method: "POST" },
+    );
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     $refreshTick.set($refreshTick.get() + 1);
   } catch (e) {
-    if (e instanceof DOMException && e.name === "AbortError") return;
-    console.error("Ingestion trigger error:", e);
+    console.error("Sync error:", e);
+  } finally {
+    $syncing.set(false);
   }
 }
-
-onMount($ingesting, () => {
-  // Kick off initial ingestion when the claim is set
-  const unsubClaim = $auditClaim.subscribe((claimId) => {
-    if (claimId) triggerIngestion(claimId);
-  });
-
-  // Poll while ingesting
-  const unsubPoll = effect($ingesting, (ingesting) => {
-    if (!ingesting) return;
-    const timer = setTimeout(() => {
-      const claimId = $auditClaim.get();
-      if (claimId) triggerIngestion(claimId);
-    }, 5000);
-    return () => clearTimeout(timer);
-  });
-
-  return () => {
-    unsubClaim();
-    unsubPoll();
-    ingestAbort?.abort();
-  };
-});
 
 // ─── Derived ────────────────────────────────────────────────────────────────────
 
@@ -166,11 +126,11 @@ export const $auditTotalPages = computed($auditData, (state) => {
 
 /** Combined view state to minimize useStore calls in the component. */
 export const $auditView = computed(
-  [$auditData, $auditPage, $auditTotalPages, $ingesting],
-  (dataAsync, page, totalPages, ingesting) => ({
+  [$auditData, $auditPage, $auditTotalPages, $syncing],
+  (dataAsync, page, totalPages, syncing) => ({
     dataAsync,
     page,
     totalPages,
-    ingesting,
+    syncing,
   }),
 );
