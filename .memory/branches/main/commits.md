@@ -260,3 +260,25 @@ The project established a high-performance architecture for the Ordum Empire das
 - Resolved item name resolution challenges by implementing a multi-source fallback strategy combining BitJita metadata and static game data for both items and cargo.
 - Integrated D1 database bindings into the Wrangler configuration and Hono worker to support the new persistent logging layer.
 - Optimized ingestion performance using D1 batch statements and a background-refresh pattern that triggers ingestion during API requests without blocking response delivery.
+
+---
+
+## Commit 0c82cfa8 | 2026-03-20T15:40:10.530Z
+
+### Branch Purpose
+
+Main development track for the Ordum Dashboard, a tool for aggregating and visualizing Bitcraft game data (claims, inventories, members, resources, and storage logs) via generated TypeScript API clients and a Cloudflare Workers backend.
+
+### Previous Progress Summary
+
+The project established a high-performance architecture for the Ordum Empire dashboard using a Cloudflare Workers backend (Hono) and a Preact SPA with Nanostores. It features robust TypeScript API clients automatically generated from Bitcraft Hub and BitJita, ensuring type safety and 64-bit ID integrity. The system provides unified visibility into empire resources, building storage, and player inventories, supporting a recursive craft planner with cycle detection, a 10-tier settlement upgrade tracker, and automated gamedata synchronization. This foundation was extended with a persistent Storage Audit system using Cloudflare D1 for log caching, providing an incremental ingestion engine and a dedicated UI for tracking historical deposit/withdrawal transactions across the empire.
+
+### This Commit's Contribution
+
+- Optimized Storage Audit responsiveness by decoupling interactive database queries from background ingestion, ensuring fast UI updates while logs sync from BitJita asynchronously.
+- Replaced the daily cumulative line chart with a granular hourly candlestick chart, enabling precise tracking of storage "open/close" balances and net fluctuations per hour.
+- Integrated a volume sub-chart below the candlestick view to provide context on the raw magnitude of deposits and withdrawals driving net changes.
+- Formally adopted a "Nanostores-first" state management pattern, centralizing filter persistence and asynchronous data fetching into a dedicated store using `persistentAtom` and `computedAsync`.
+- Implemented intelligent client-side polling that automatically refreshes the UI every 5 seconds only when the server indicates that background ingestion is still in progress.
+- Validated the reliability of server-side D1 pagination and complex multi-filter (claim, player, item) interactions through Playwright browser testing.
+- Decided to use SQLite's `STRFTIME` for server-side hourly aggregation to provide high-resolution data without the overhead of client-side processing of raw log entries.

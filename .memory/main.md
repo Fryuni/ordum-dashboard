@@ -22,13 +22,13 @@ Dashboard for the Ordum empire in Bitcraft. A Preact SPA on Cloudflare Workers, 
 src/worker.ts              — Cloudflare Worker entry (Hono app)
 src/client/                — Preact SPA
   pages/                   — Page components (Dashboard, Settlement, Craft, TravelerTask, Construction, Contribution, StorageAudit)
-  stores/                  — Nanostores (router, craft, craftSource, player, travelerTask, contribution)
+  stores/                  — Nanostores (router, craft, craftSource, player, travelerTask, contribution, storageAudit)
   components/              — UI components
 src/server/                — Server-only code
   api-server.ts            — Cached BitJitaClient (@croct/cache + ohash)
   ordum-data.ts            — Empire data fetcher
   contribution.ts          — Per-player contribution tracker (KV-backed)
-  storage-audit.ts         — Storage audit: D1 ingestion + query
+  storage-audit.ts         — Storage audit: D1 ingestion + query (supports `interactive` flag)
 src/common/                — Shared code
 schema.sql                 — D1 schema for storage audit
 wrangler.toml              — CF Workers config (KV + D1 bindings)
@@ -41,15 +41,17 @@ wrangler.toml              — CF Workers config (KV + D1 bindings)
 4. **Craft Planner** (`/craft`) — recursive crafting calculator
 5. **Traveler Tasks** (`/traveler-task`) — task viewing
 6. **Contribution** (`/contribution`) — per-player deposit/withdrawal totals
-7. **Storage Audit** (`/storage-audit`) — full item movement log with chart, filters, pagination
+7. **Storage Audit** (`/storage-audit`) — full item movement log with candlestick chart, filters, pagination
 
 ## Key Decisions
 
 - **Cloudflare Workers**: Hono for routing, CF asset binding for SPA serving.
 - **Preact SPA with @nanostores/router**: Client-side routing.
+- **Always use nanostores for client state**: `persistentAtom` for user selections, `computedAsync` for API-driven data, `computed` for derived state. Avoid `useState`/`useEffect` for data fetching — use stores so state is shared across pages. Local `useState` is fine only for small UI details (e.g. dropdown open state). Components should read stores via `useStore()` and set values directly on the store atoms.
 - **BitJita-only API**: Single upstream: `https://bitjita.com`.
-- **D1 for Storage Audit**: Persistent log cache. Incremental ingestion per-building (storage buildings only, 64 of 510 total). Each API request ingests up to 5 pages from BitJita for stale buildings, then queries D1 for paginated/filtered results.
-- **Storage Audit ingestion strategy**: Round-robin over claim's storage buildings. Track `newest_log_id` per building in `storage_fetch_state` table. 60s cooldown per building. Fetches newest-first, stops at cursor. Client auto-refreshes while `ingesting: true`.
+- **D1 for Storage Audit**: Persistent log cache. Incremental ingestion per-building (storage buildings only, ~64 of 510 total).
+- **Storage Audit interactive/background split**: Interactive requests (`interactive=true`) skip BitJita ingestion and only query D1 (~0.07s). Background requests run ingestion (~5s). Client uses interactive for all user-driven actions (pagination, filters). A separate background fetch cycle triggers ingestion and bumps `$refreshTick` to update the interactive store.
+- **Storage Audit ingestion strategy**: Round-robin over claim's storage buildings. Track `newest_log_id` per building in `storage_fetch_state` table. 60s cooldown per building. Fetches newest-first, stops at cursor.
 - Entity IDs use **string form** in API URLs (exceed `Number.MAX_SAFE_INTEGER`).
 - Ordum City claim ID: `"1224979098661645606"`.
 
@@ -63,6 +65,6 @@ wrangler.toml              — CF Workers config (KV + D1 bindings)
 - [x] CI/CD via GitHub Actions → Cloudflare Workers
 - [x] Construction page
 - [x] Contribution tracker (per-player)
-- [x] **Storage Audit page** — D1-backed log cache, per-building ingestion, chart + paginated table with claim/player/item filters
+- [x] **Storage Audit page** — D1-backed log cache, per-building ingestion, hourly candlestick chart + paginated table with claim/player/item filters, interactive/background split for fast pagination
 - [ ] Add other empire claims (need claim IDs from user)
 - [ ] Live updates via WebSocket

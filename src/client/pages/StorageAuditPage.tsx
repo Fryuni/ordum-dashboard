@@ -261,7 +261,7 @@ export default function StorageAuditPage() {
   const data = dataAsync.state === "loaded" ? dataAsync.value : null;
 
   return (
-    <>
+    <div>
       <div class="page-header">
         <h1>Storage Audit</h1>
         <p class="subtitle">
@@ -499,6 +499,6 @@ export default function StorageAuditPage() {
           )}
         </>
       ) : null}
-    </>
+    </div>
   );
 }
