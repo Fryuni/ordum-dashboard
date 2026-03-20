@@ -74,9 +74,8 @@ export function addToInventory(
 }
 
 /**
- * Add crafting-in-progress items to an inventory map.
- * For each craft, consumed items (remaining) and crafted items (completed)
- * are added with descriptive labels.
+ * Add crafting outputs to an inventory map.
+ * All outputs are added at the full craft count regardless of progress.
  */
 export function addCraftsToInventory(
   inventory: Map<string, ItemPlace[]>,
@@ -86,34 +85,21 @@ export function addCraftsToInventory(
     const recipe = recipesCodex.get(craft.recipeId);
     if (!recipe) continue;
 
-    const completed = Math.floor(craft.progress / craft.actionsRequiredPerItem);
-    const remaining = craft.craftCount - completed;
+    const isComplete = craft.progress >= craft.totalActionsRequired;
+    const place = isComplete ? "Crafted" : "Being crafted";
 
-    const items = [
-      ...recipe.inputs.map(({ quantity, ...item }) => ({
-        item,
-        quantity: quantity * remaining,
-        verb: "consumed",
-      })),
-      ...recipe.outputs.map(({ quantity, ...item }) => ({
-        item,
-        quantity: quantity * completed,
-        verb: "crafted",
-      })),
-    ];
-
-    for (const { item, quantity, verb } of items) {
-      addToInventory(inventory, referenceKey(item), {
-        name: `Being ${verb} by "${craft.ownerUsername}"`,
-        quantity: quantity,
+    for (const output of recipe.outputs) {
+      addToInventory(inventory, referenceKey(output), {
+        name: place,
+        quantity: output.quantity * craft.craftCount,
       });
     }
   }
 }
 
 /**
- * Add completed passive craft outputs (looms, smelters, farms) to an inventory map.
- * Each passive craft has a `craftedItem` array with the finished items.
+ * Add passive craft outputs (looms, smelters, farms) to an inventory map.
+ * Passive crafts are treated as already completed — outputs are always added.
  */
 export function addPassiveCraftsToInventory(
   inventory: Map<string, ItemPlace[]>,
@@ -123,19 +109,11 @@ export function addPassiveCraftsToInventory(
     const recipe = recipesCodex.get(craft.recipeId);
     if (!recipe) continue;
 
-    if (craft.status !== "complete") {
-      for (const input of recipe.inputs) {
-        addToInventory(inventory, referenceKey(input), {
-          name: `Being consumed in "${craft.buildingName}"`,
-          quantity: input.quantity,
-        });
-      }
-      continue;
-    }
+    const place = craft.status === "complete" ? "Crafted" : "Being crafted";
 
     for (const output of recipe.outputs) {
       addToInventory(inventory, referenceKey(output), {
-        name: `Completed in "${craft.buildingName}"`,
+        name: place,
         quantity: output.quantity,
       });
     }
