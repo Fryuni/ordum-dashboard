@@ -238,3 +238,25 @@ The project established a high-performance architecture for the Ordum Empire das
 - Developed a specialized HTML/text scraper for the BitJita API docs that extracts 77 endpoints, including parameters and JSON response schemas for buildings, market history, and empire stats.
 - Updated the dependency graph across `api-server.ts`, `ordum-data.ts`, and the client-side `api.ts` to reflect the new client naming and multi-API architecture.
 - Verified that the expanded multi-client system integrates seamlessly with the Bun-native build pipeline and server-side caching layer.
+
+---
+
+## Commit 93c38cc5 | 2026-03-20T14:05:09.959Z
+
+### Branch Purpose
+
+The `main` branch is the primary development track for the Ordum Dashboard, a tool for aggregating and visualizing Bitcraft game data (claims, inventories, members, and resources) via generated TypeScript API clients and a Cloudflare Workers backend.
+
+### Previous Progress Summary
+
+The project established a high-performance architecture for the Ordum Empire dashboard, utilizing a Cloudflare Workers backend (Hono) and a Preact SPA with `@nanostores/router`. It features robust TypeScript API clients automatically generated from both Bitcraft Hub's Rust source and BitJita's web documentation, ensuring type safety and 64-bit ID integrity. The system provides unified visibility into empire resources, building storage, and player inventories, supporting a recursive craft planner with cycle detection (Tarjan’s SCC), a 10-tier settlement upgrade tracker, and automated gamedata synchronization. The codebase is organized into domain-specific layers with standardized GPL-3.0 licensing.
+
+### This Commit's Contribution
+
+- Implemented a Storage Audit system using Cloudflare D1 for persistent caching of BitJita storage logs, enabling historical analysis beyond the API's immediate window.
+- Developed a server-side ingestion engine with per-building cursor tracking that incrementally fetches new deposit/withdrawal logs to minimize API load and prevent data gaps.
+- Created a paginated `/api/storage-audit` endpoint supporting complex filters for players and specific items, including daily aggregate calculations for activity visualization.
+- Built a dedicated Storage Audit page in the Preact SPA featuring a Canvas-based activity chart and a searchable, paginated table of transaction logs.
+- Resolved item name resolution challenges by implementing a multi-source fallback strategy combining BitJita metadata and static game data for both items and cargo.
+- Integrated D1 database bindings into the Wrangler configuration and Hono worker to support the new persistent logging layer.
+- Optimized ingestion performance using D1 batch statements and a background-refresh pattern that triggers ingestion during API requests without blocking response delivery.

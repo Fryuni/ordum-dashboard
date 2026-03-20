@@ -32,11 +32,13 @@ import { buildClaimInventory } from "./common/claim-inventory";
 import { buildSettlementPlan } from "./common/settlement-planner";
 import { gd } from "./common/gamedata";
 import { fetchContribution } from "./server/contribution";
+import { queryStorageAudit } from "./server/storage-audit";
 import type BitJitaClient from "./common/bitjita-client";
 
 type Bindings = {
   ASSETS: Fetcher;
   jita_api_cache: KVNamespace;
+  ordum_storage_audit: D1Database;
 };
 
 type Variables = {
@@ -280,6 +282,35 @@ app.get("/api/contribution", async (c) => {
     return c.json(result);
   } catch (e) {
     console.error("Failed to fetch contribution data:", e);
+    return c.json({ error: String(e) }, 500);
+  }
+});
+
+app.get("/api/storage-audit", async (c) => {
+  try {
+    const jita = c.get("jita");
+    const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
+    const playerEntityId = c.req.query("player") || undefined;
+    const itemIdRaw = c.req.query("itemId");
+    const itemType = c.req.query("itemType") || undefined;
+    const page = Math.max(1, Number(c.req.query("page")) || 1);
+    const pageSize = Math.min(100, Math.max(1, Number(c.req.query("pageSize")) || 50));
+
+    const result = await queryStorageAudit(
+      jita,
+      c.env.ordum_storage_audit,
+      claimId,
+      {
+        playerEntityId,
+        itemId: itemIdRaw ? Number(itemIdRaw) : undefined,
+        itemType,
+        page,
+        pageSize,
+      },
+    );
+    return c.json(result);
+  } catch (e) {
+    console.error("Failed to fetch storage audit data:", e);
     return c.json({ error: String(e) }, 500);
   }
 });
