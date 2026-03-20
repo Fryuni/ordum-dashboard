@@ -119,6 +119,8 @@ function StorageChart({ data: data }: { data: StorageAuditChartPoint[] }) {
           borderColor: "rgba(255,255,255,0.08)",
           timeVisible: true,
           secondsVisible: false,
+          fixLeftEdge: true,
+          fixRightEdge: true,
         },
       });
 
@@ -390,21 +392,6 @@ export default function StorageAuditPage() {
         </div>
       ) : data ? (
         <>
-          <div class="kpi-row" style="margin-bottom: 12px">
-            <div class="kpi-card">
-              <div class="kpi-label">Total Events</div>
-              <div class="kpi-value text-accent">
-                {data.totalCount.toLocaleString()}
-              </div>
-            </div>
-            <div class="kpi-card">
-              <div class="kpi-label">Showing</div>
-              <div class="kpi-value text-accent">
-                Page {data.page} of {totalPages || 1}
-              </div>
-            </div>
-          </div>
-
           <div class="table-wrapper">
             <table class="modern-table">
               <thead>
