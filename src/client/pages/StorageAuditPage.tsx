@@ -42,12 +42,48 @@ import type { StorageAuditChartPoint } from "../../server/storage-audit";
  * red candle = net negative.  Below the candles a volume sub-chart shows
  * deposit (green) and withdrawal (red) bars side-by-side.
  */
-function StorageChart({ data }: { data: StorageAuditChartPoint[] }) {
+/**
+ * Aggregate hourly candles into daily candles when there are too many
+ * data points to render clearly.
+ */
+function aggregateCandles(
+  data: StorageAuditChartPoint[],
+  maxCandles: number,
+): { points: StorageAuditChartPoint[]; daily: boolean } {
+  if (data.length <= maxCandles) return { points: data, daily: false };
+
+  // Group by day
+  const groups = new Map<string, StorageAuditChartPoint[]>();
+  for (const d of data) {
+    const day = d.bucket?.slice(0, 10) ?? "unknown";
+    const arr = groups.get(day);
+    if (arr) arr.push(d);
+    else groups.set(day, [d]);
+  }
+
+  const aggregated: StorageAuditChartPoint[] = [];
+  for (const [day, points] of groups) {
+    const first = points[0]!;
+    const last = points[points.length - 1]!;
+    aggregated.push({
+      bucket: day,
+      deposits: points.reduce((s, p) => s + p.deposits, 0),
+      withdrawals: points.reduce((s, p) => s + p.withdrawals, 0),
+      net: points.reduce((s, p) => s + p.net, 0),
+      cumOpen: first.cumOpen,
+      cumClose: last.cumClose,
+    });
+  }
+
+  return { points: aggregated, daily: true };
+}
+
+function StorageChart({ data: rawData }: { data: StorageAuditChartPoint[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || data.length === 0) return;
+    if (!canvas || rawData.length === 0) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -61,7 +97,13 @@ function StorageChart({ data }: { data: StorageAuditChartPoint[] }) {
     const w = rect.width;
     const h = rect.height;
     const pad = { top: 20, right: 16, bottom: 36, left: 60 };
+    const plotW = w - pad.left - pad.right;
     const totalPlotH = h - pad.top - pad.bottom;
+
+    // Aggregate to daily if there are too many hourly candles
+    // Aim for candles at least 6px wide
+    const maxCandles = Math.floor(plotW / 6);
+    const { points: data, daily } = aggregateCandles(rawData, maxCandles);
     // 70% for candles, 30% for volume, with a small gap
     const candleH = totalPlotH * 0.65;
     const volGap = totalPlotH * 0.05;
@@ -70,7 +112,6 @@ function StorageChart({ data }: { data: StorageAuditChartPoint[] }) {
 
     ctx.clearRect(0, 0, w, h);
 
-    const plotW = w - pad.left - pad.right;
     const n = data.length;
     const gap = plotW / n;
     const candleW = Math.max(1, gap * 0.6);
@@ -176,15 +217,21 @@ function StorageChart({ data }: { data: StorageAuditChartPoint[] }) {
     ctx.fillStyle = "#7c8495";
     ctx.font = "10px Inter, sans-serif";
     ctx.textAlign = "center";
-    const maxLabels = Math.floor(plotW / 80);
+    const labelWidth = daily ? 50 : 80;
+    const maxLabels = Math.floor(plotW / labelWidth);
     const labelStep = Math.max(1, Math.ceil(n / maxLabels));
     for (let i = 0; i < n; i += labelStep) {
       const d = data[i]!;
       const x = pad.left + gap * i + gap / 2;
-      const parts = d.bucket.split("T");
-      const datePart = (parts[0] ?? "").slice(5); // MM-DD
-      const hourPart = (parts[1] ?? "00") + "h";
-      ctx.fillText(`${datePart} ${hourPart}`, x, h - pad.bottom + 14);
+      const bucket = d.bucket ?? "";
+      let label: string;
+      if (daily) {
+        label = bucket.slice(5); // MM-DD
+      } else {
+        const parts = bucket.split("T");
+        label = `${(parts[0] ?? "").slice(5)} ${(parts[1] ?? "00")}h`;
+      }
+      ctx.fillText(label, x, h - pad.bottom + 14);
     }
 
     // ── Zero line ────────────────────────────────────────────────────────
@@ -199,9 +246,9 @@ function StorageChart({ data }: { data: StorageAuditChartPoint[] }) {
       ctx.stroke();
       ctx.setLineDash([]);
     }
-  }, [data]);
+  }, [rawData]);
 
-  if (data.length === 0) {
+  if (rawData.length === 0) {
     return (
       <div class="chart-empty">
         <span class="text-muted">No data to chart yet</span>
