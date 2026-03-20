@@ -281,7 +281,8 @@ export async function ingestLogs(
               itemName,
               log.data.quantity,
               action,
-              log.timestamp,
+              // Strip timezone offset (+00) so SQLite STRFTIME works
+              log.timestamp.replace(/\+\d{2}$/, ""),
             );
         });
         await db.batch(insertStmts);

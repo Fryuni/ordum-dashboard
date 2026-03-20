@@ -302,3 +302,25 @@ The project established a high-performance architecture for the Ordum Empire das
 - Determined that while wrapping components in a stable `<div>` (instead of a fragment) is good practice, it was insufficient to prevent reconciliation failure when multiple independent store-driven re-renders raced.
 - Verified the fix via Playwright testing, confirming that the page wrapper maintains a single child node across pagination and background ingestion updates.
 - Established a general architectural pattern for `@nanostores/preact`: use a single derived "view" store for components that subscribe to multiple interdependent atoms to prevent VDOM reconciliation issues.
+
+---
+
+## Commit 14dcf54d | 2026-03-20T16:32:42.102Z
+
+### Branch Purpose
+
+Main development track for the Ordum Dashboard, providing tools for aggregating and visualizing Bitcraft game data including resources, settlement research, crafting logistics, and storage audits.
+
+### Previous Progress Summary
+
+The project established a high-performance architecture for the Ordum Empire dashboard using a Cloudflare Workers backend (Hono) and a Preact SPA with Nanostores. It features robust TypeScript API clients automatically generated from Bitcraft Hub and BitJita, ensuring type safety and 64-bit ID integrity. The system provides unified visibility into empire resources, building storage, and player inventories, supporting a recursive craft planner with cycle detection, a 10-tier settlement upgrade tracker, and a persistent Storage Audit system using Cloudflare D1 for log caching. Recent optimizations decoupled interactive database queries from background ingestion, resolved a DOM duplication bug in Preact by consolidating stores into an atomic `$auditView` to ensure stable VDOM reconciliation, and formally adopted a "Nanostores-first" state management pattern for reactive, persistent UI updates.
+
+### This Commit's Contribution
+
+- Decided to move storage audit ingestion from the request path (GET `/api/storage-audit`) to a Cloudflare Cron Trigger (every 5 minutes) to ensure consistent background updates without impacting query latency.
+- Implemented a `POST /api/storage-audit/ingest` endpoint to enable manual, on-demand synchronization from the UI via a new "Sync Now" button.
+- Simplified the storage audit data fetching logic to be a pure D1 read, significantly improving API responsiveness by removing side-effects from the query path.
+- Configured the cron handler to execute up to 10 ingestion rounds per invocation, leveraging the extended CPU time (15 mins) granted to cron triggers for faster data backfilling.
+- Replaced the automatic background polling mechanism with an explicit user-triggered sync state in the `$auditView` store to simplify client-side state management.
+- Verified through Playwright testing that the new sync architecture remains compatible with the previous DOM duplication fix, maintaining single-node reconciliation across manual updates.
+- Refined UI empty states and error handling to guide users toward manual synchronization when filtered data is not yet available in the local database.
