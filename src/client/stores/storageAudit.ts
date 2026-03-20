@@ -44,10 +44,7 @@ export const $auditClaim = persistentAtom<string>(
 );
 
 /** Selected player entity IDs (empty array = all players) */
-export const $auditPlayers = persistentJsonAtom<string[]>(
-  "auditPlayers",
-  [],
-);
+export const $auditPlayers = persistentJsonAtom<string[]>("auditPlayers", []);
 
 /** Selected item keys as "Type:id" (empty array = all items) */
 export const $auditItems = persistentJsonAtom<string[]>("auditItems", []);

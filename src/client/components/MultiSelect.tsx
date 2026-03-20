@@ -128,9 +128,7 @@ export function MultiSelect({
               class="multiselect-search"
               placeholder="Search..."
               value={search}
-              onInput={(e) =>
-                setSearch((e.target as HTMLInputElement).value)
-              }
+              onInput={(e) => setSearch((e.target as HTMLInputElement).value)}
             />
             <div class="multiselect-options">
               {filtered.length === 0 && (

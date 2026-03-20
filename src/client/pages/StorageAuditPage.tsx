@@ -343,24 +343,24 @@ export default function StorageAuditPage() {
             onChange={(v) => $auditItems.set(v)}
           />
 
-          <div
-            class="input-group source-select-container"
-            style="flex: 0 0 auto; align-self: flex-end"
-          >
-            <button
-              class="sync-btn"
-              disabled={syncing}
-              onClick={() => triggerSync()}
-            >
-              {syncing ? (
-                <>
-                  <span class="spinner-small" /> Syncing...
-                </>
-              ) : (
-                <>🔄 Sync Now</>
-              )}
-            </button>
-          </div>
+          {/* <div */}
+          {/*   class="input-group source-select-container" */}
+          {/*   style="flex: 0 0 auto; align-self: flex-end" */}
+          {/* > */}
+          {/*   <button */}
+          {/*     class="sync-btn" */}
+          {/*     disabled={syncing} */}
+          {/*     onClick={() => triggerSync()} */}
+          {/*   > */}
+          {/*     {syncing ? ( */}
+          {/*       <> */}
+          {/*         <span class="spinner-small" /> Syncing... */}
+          {/*       </> */}
+          {/*     ) : ( */}
+          {/*       <>🔄 Sync Now</> */}
+          {/*     )} */}
+          {/*   </button> */}
+          {/* </div> */}
         </div>
       </div>
 
@@ -405,8 +405,7 @@ export default function StorageAuditPage() {
                       colSpan={6}
                       style="text-align: center; color: var(--text-muted); padding: 24px"
                     >
-                      No storage events found — try clicking "Sync Now" to fetch
-                      logs from BitJita
+                      No storage events found.
                     </td>
                   </tr>
                 )}
