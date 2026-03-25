@@ -231,9 +231,13 @@ export default function InventorySearchPage() {
                                     : "\uD83C\uDFE0"}
                                 </span>
                                 <span class="loc-name">{loc.name}</span>
-                                <span class="loc-region">
-                                  {data.regionName}
-                                </span>
+                                {loc.name !== "Crafted" &&
+                                  loc.name !== "Being crafted" && (
+                                    <span class="loc-region">
+                                      {data.regionName} ({data.claimLocationX},{" "}
+                                      {data.claimLocationZ})
+                                    </span>
+                                  )}
                                 <span class="loc-qty font-mono">
                                   x{loc.quantity.toLocaleString()}
                                 </span>
