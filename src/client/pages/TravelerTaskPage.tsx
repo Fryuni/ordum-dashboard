@@ -111,8 +111,7 @@ function ResetCountdown() {
   const [remaining, setRemaining] = useState("");
   const intervalRef = useRef<ReturnType<typeof setInterval>>(null);
 
-  const expirationSecs =
-    expiration.state === "ready" ? expiration.value : null;
+  const expirationSecs = expiration.state === "ready" ? expiration.value : null;
 
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);

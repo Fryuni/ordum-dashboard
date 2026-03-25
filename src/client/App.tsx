@@ -25,6 +25,7 @@ import TravelerTaskPage from "./pages/TravelerTaskPage";
 import ConstructionPage from "./pages/ConstructionPage";
 import ContributionPage from "./pages/ContributionPage";
 import StorageAuditPage from "./pages/StorageAuditPage";
+import InventorySearchPage from "./pages/InventorySearchPage";
 
 type RouteName =
   | "dashboard"
@@ -33,7 +34,8 @@ type RouteName =
   | "craft"
   | "travelerTask"
   | "contribution"
-  | "storageAudit";
+  | "storageAudit"
+  | "inventorySearch";
 
 function PageContent({ route }: { route: RouteName | null }) {
   switch (route) {
@@ -51,6 +53,8 @@ function PageContent({ route }: { route: RouteName | null }) {
       return <ContributionPage />;
     case "storageAudit":
       return <StorageAuditPage />;
+    case "inventorySearch":
+      return <InventorySearchPage />;
     default:
       return (
         <div class="page-header">
@@ -100,6 +104,12 @@ const NAV_ITEMS = [
     href: "/storage-audit",
     icon: "🔍",
     label: "Storage Audit",
+  },
+  {
+    route: "inventorySearch" as const,
+    href: "/inventory-search",
+    icon: "📋",
+    label: "Inventory Search",
   },
 ];
 
