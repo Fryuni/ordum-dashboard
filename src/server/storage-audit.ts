@@ -112,6 +112,8 @@ const MAX_BUILDINGS_PER_REQUEST = 5;
 const MAX_PAGES_PER_REQUEST = 5;
 /** Don't re-check a building if it was checked less than 60s ago */
 const BUILDING_COOLDOWN_MS = 60_000;
+/** Max distinct items to fetch prices for per backfill pass */
+const MAX_PRICE_ITEMS_PER_PASS = 20;
 
 // ─── Ingestion ──────────────────────────────────────────────────────────────────
 
@@ -147,6 +149,209 @@ async function getStorageBuildings(
     ),
   );
 }
+
+// ─── Schema Migration ────────────────────────────────────────────────────────────
+
+/**
+ * Ensure the database has the latest schema additions.
+ * Safe to call repeatedly — all statements use IF NOT EXISTS / ignore-on-error.
+ */
+export async function ensureSchema(db: D1Database): Promise<void> {
+  // Add unit_value column if missing (ALTER TABLE IF NOT EXISTS not supported in SQLite)
+  try {
+    await db.prepare(`ALTER TABLE storage_logs ADD COLUMN unit_value REAL DEFAULT NULL`).run();
+  } catch {
+    // Column already exists — ignore
+  }
+
+  // Create price cache table
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS item_price_cache (
+         item_type TEXT NOT NULL,
+         item_id INTEGER NOT NULL,
+         bucket_day TEXT NOT NULL,
+         vwap REAL NOT NULL,
+         PRIMARY KEY (item_type, item_id, bucket_day)
+       )`,
+    )
+    .run();
+}
+
+// ─── Price Helpers ───────────────────────────────────────────────────────────────
+
+/**
+ * Fetch price history for an item from BitJita and cache daily VWAP values in D1.
+ * Returns a Map of bucket_day → vwap.
+ */
+async function fetchAndCachePriceHistory(
+  jita: BitJitaClient,
+  db: D1Database,
+  itemType: string,
+  itemId: number,
+): Promise<Map<string, number>> {
+  const apiType = itemType === "Cargo" ? "cargo" : "item";
+  const prices = new Map<string, number>();
+
+  try {
+    const resp = await jita.getMarketPriceHistory(apiType, itemId, {
+      bucket: "day",
+      limit: 365,
+    });
+
+    const priceData = resp.priceData as Array<{
+      bucket?: string;
+      date?: string;
+      vwap?: number;
+      avgPrice?: number;
+      price?: number;
+    }>;
+
+    if (!priceData || priceData.length === 0) return prices;
+
+    const stmts: D1PreparedStatement[] = [];
+    for (const point of priceData) {
+      const day = (point.bucket ?? point.date ?? "").slice(0, 10);
+      const vwap = point.vwap ?? point.avgPrice ?? point.price ?? 0;
+      if (!day || vwap <= 0) continue;
+
+      prices.set(day, vwap);
+      stmts.push(
+        db
+          .prepare(
+            `INSERT OR REPLACE INTO item_price_cache (item_type, item_id, bucket_day, vwap)
+             VALUES (?, ?, ?, ?)`,
+          )
+          .bind(itemType, itemId, day, vwap),
+      );
+    }
+
+    // Batch insert into cache
+    for (let i = 0; i < stmts.length; i += 50) {
+      await db.batch(stmts.slice(i, i + 50));
+    }
+  } catch (e) {
+    console.error(`Failed to fetch price history for ${itemType}:${itemId}:`, e);
+  }
+
+  return prices;
+}
+
+/**
+ * Look up the unit value for an item at a given timestamp.
+ * Uses the price cache, falling back to the oldest available price.
+ * Returns null if no price data exists at all.
+ */
+async function lookupUnitValue(
+  db: D1Database,
+  itemType: string,
+  itemId: number,
+  timestamp: string,
+): Promise<number | null> {
+  const day = timestamp.slice(0, 10);
+
+  // Try exact day match first
+  const exact = await db
+    .prepare(
+      `SELECT vwap FROM item_price_cache
+       WHERE item_type = ? AND item_id = ? AND bucket_day = ?`,
+    )
+    .bind(itemType, itemId, day)
+    .first<{ vwap: number }>();
+
+  if (exact) return exact.vwap;
+
+  // Try nearest day before
+  const before = await db
+    .prepare(
+      `SELECT vwap FROM item_price_cache
+       WHERE item_type = ? AND item_id = ? AND bucket_day <= ?
+       ORDER BY bucket_day DESC LIMIT 1`,
+    )
+    .bind(itemType, itemId, day)
+    .first<{ vwap: number }>();
+
+  if (before) return before.vwap;
+
+  // Fall back to oldest available price (for old logs before any price data)
+  const oldest = await db
+    .prepare(
+      `SELECT vwap FROM item_price_cache
+       WHERE item_type = ? AND item_id = ?
+       ORDER BY bucket_day ASC LIMIT 1`,
+    )
+    .bind(itemType, itemId)
+    .first<{ vwap: number }>();
+
+  return oldest?.vwap ?? null;
+}
+
+/**
+ * Backfill unit_value for storage logs that don't have one yet.
+ * Fetches price history for distinct items with NULL unit_value,
+ * then updates matching logs. Returns true if more logs need backfilling.
+ */
+export async function backfillPrices(
+  jita: BitJitaClient,
+  db: D1Database,
+): Promise<boolean> {
+  // Find distinct items that have logs with NULL unit_value
+  const items = await db
+    .prepare(
+      `SELECT DISTINCT item_type, item_id
+       FROM storage_logs
+       WHERE unit_value IS NULL
+       LIMIT ?`,
+    )
+    .bind(MAX_PRICE_ITEMS_PER_PASS)
+    .all<{ item_type: string; item_id: number }>();
+
+  if (!items.results || items.results.length === 0) return false;
+
+  for (const { item_type, item_id } of items.results) {
+    // Fetch and cache price history from BitJita
+    await fetchAndCachePriceHistory(jita, db, item_type, item_id);
+
+    // Get all logs for this item that need pricing
+    const logs = await db
+      .prepare(
+        `SELECT id, timestamp FROM storage_logs
+         WHERE item_type = ? AND item_id = ? AND unit_value IS NULL`,
+      )
+      .bind(item_type, item_id)
+      .all<{ id: string; timestamp: string }>();
+
+    if (!logs.results || logs.results.length === 0) continue;
+
+    // Update each log with its unit_value
+    const updateStmts: D1PreparedStatement[] = [];
+    for (const log of logs.results) {
+      const value = await lookupUnitValue(db, item_type, item_id, log.timestamp);
+      // If no price data exists, set to 1 so quantity acts as value
+      updateStmts.push(
+        db
+          .prepare(`UPDATE storage_logs SET unit_value = ? WHERE id = ?`)
+          .bind(value ?? 1, log.id),
+      );
+    }
+
+    for (let i = 0; i < updateStmts.length; i += 50) {
+      await db.batch(updateStmts.slice(i, i + 50));
+    }
+  }
+
+  // Check if more items still need backfilling
+  const remaining = await db
+    .prepare(
+      `SELECT COUNT(DISTINCT item_type || ':' || item_id) as cnt
+       FROM storage_logs WHERE unit_value IS NULL`,
+    )
+    .first<{ cnt: number }>();
+
+  return (remaining?.cnt ?? 0) > 0;
+}
+
+// ─── Ingestion ──────────────────────────────────────────────────────────────────
 
 /**
  * Ingest new storage logs from BitJita into D1.
@@ -381,13 +586,14 @@ export async function queryStorageAudit(
     .bind(...params, filters.pageSize, offset)
     .all<StorageAuditLogRow>();
 
-  // Chart data: hourly aggregates
+  // Chart data: hourly aggregates using market value (quantity * unit_value)
+  // unit_value defaults to 1 when unknown so quantity acts as value
   const chartResult = await db
     .prepare(
       `SELECT
          STRFTIME('%Y-%m-%dT%H', timestamp) as bucket,
-         SUM(CASE WHEN action = 'deposit' THEN quantity ELSE 0 END) as deposits,
-         SUM(CASE WHEN action = 'withdraw' THEN quantity ELSE 0 END) as withdrawals
+         SUM(CASE WHEN action = 'deposit' THEN quantity * COALESCE(unit_value, 1) ELSE 0 END) as deposits,
+         SUM(CASE WHEN action = 'withdraw' THEN quantity * COALESCE(unit_value, 1) ELSE 0 END) as withdrawals
        FROM storage_logs
        WHERE ${whereClause}
        GROUP BY STRFTIME('%Y-%m-%dT%H', timestamp)

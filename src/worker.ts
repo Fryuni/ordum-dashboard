@@ -32,7 +32,7 @@ import { buildClaimInventory } from "./common/claim-inventory";
 import { buildSettlementPlan } from "./common/settlement-planner";
 import { gd } from "./common/gamedata";
 import { fetchContribution } from "./server/contribution";
-import { queryStorageAudit, ingestLogs } from "./server/storage-audit";
+import { queryStorageAudit, ingestLogs, backfillPrices, ensureSchema } from "./server/storage-audit";
 import type BitJitaClient from "./common/bitjita-client";
 
 type Bindings = {
@@ -288,6 +288,7 @@ app.get("/api/contribution", async (c) => {
 
 app.get("/api/storage-audit", async (c) => {
   try {
+    await ensureSchema(c.env.ordum_storage_audit);
     const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
     const page = Math.max(1, Number(c.req.query("page")) || 1);
     const pageSize = Math.min(
@@ -386,6 +387,9 @@ async function scheduledHandler(
   // Create a fresh jita client for the cron context
   const jita = createServerJita(env.jita_api_cache);
 
+  // Ensure schema is up to date (adds unit_value column, price cache table)
+  await ensureSchema(env.ordum_storage_audit);
+
   // Ingest for all known empire claims
   const claimIds = [ORDUM_MAIN_CLAIM_ID];
 
@@ -414,6 +418,22 @@ async function scheduledHandler(
     console.log(
       `Cron ingestion: claim=${claimId}, rounds=${rounds}, moreRemaining=${moreRemaining}`,
     );
+  }
+
+  // Backfill market prices for logs that don't have unit_value yet
+  try {
+    let priceRounds = 0;
+    const MAX_PRICE_ROUNDS = 5;
+    let morePrices = true;
+    while (morePrices && priceRounds < MAX_PRICE_ROUNDS) {
+      priceRounds++;
+      morePrices = await backfillPrices(jita, env.ordum_storage_audit);
+    }
+    console.log(
+      `Cron price backfill: rounds=${priceRounds}, moreRemaining=${morePrices}`,
+    );
+  } catch (e) {
+    console.error("Cron price backfill error:", e);
   }
 }
 

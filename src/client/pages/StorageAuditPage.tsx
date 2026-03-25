@@ -191,10 +191,10 @@ function StorageChart({ data: data }: { data: StorageAuditChartPoint[] }) {
 
         tooltip.innerHTML = `
           <div style="font-weight:600;margin-bottom:4px">${formatTime(candleData.time)}</div>
-          <div>Open: <b>${Math.round(candleData.open).toLocaleString()}</b></div>
-          <div>Close: <b>${Math.round(candleData.close).toLocaleString()}</b></div>
-          <div>Net: <b style="color:${netColor}">${netSign}${Math.round(net).toLocaleString()}</b></div>
-          <div>Volume: <b>${Math.round(vol).toLocaleString()}</b></div>
+          <div>Open Value: <b>${Math.round(candleData.open).toLocaleString()}</b></div>
+          <div>Close Value: <b>${Math.round(candleData.close).toLocaleString()}</b></div>
+          <div>Net Value: <b style="color:${netColor}">${netSign}${Math.round(net).toLocaleString()}</b></div>
+          <div>Activity: <b>${Math.round(vol).toLocaleString()}</b></div>
         `;
         tooltip.style.display = "block";
 
@@ -291,7 +291,8 @@ export default function StorageAuditPage() {
       <div class="page-header">
         <h1>Storage Audit</h1>
         <p class="subtitle">
-          Track every deposit and withdrawal from claim inventories
+          Track every deposit and withdrawal from claim inventories — chart
+          shows cumulative market value
         </p>
       </div>
 

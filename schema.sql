@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS storage_logs (
   item_name TEXT NOT NULL,
   quantity INTEGER NOT NULL,
   action TEXT NOT NULL,              -- "deposit" or "withdraw"
-  timestamp TEXT NOT NULL            -- ISO timestamp from BitJita
+  timestamp TEXT NOT NULL,           -- ISO timestamp from BitJita
+  unit_value REAL DEFAULT NULL       -- market price per unit at time of transaction (NULL = unknown)
 );
 
 CREATE INDEX IF NOT EXISTS idx_logs_claim_ts
@@ -27,6 +28,15 @@ CREATE INDEX IF NOT EXISTS idx_logs_claim_item
 
 CREATE INDEX IF NOT EXISTS idx_logs_claim_player_item
   ON storage_logs(claim_id, player_entity_id, item_id, item_type, timestamp DESC);
+
+-- Cache of item market prices by day, used to value storage logs
+CREATE TABLE IF NOT EXISTS item_price_cache (
+  item_type TEXT NOT NULL,           -- "Item" or "Cargo"
+  item_id INTEGER NOT NULL,
+  bucket_day TEXT NOT NULL,          -- "YYYY-MM-DD"
+  vwap REAL NOT NULL,               -- volume-weighted average price for that day
+  PRIMARY KEY (item_type, item_id, bucket_day)
+);
 
 -- Tracks fetch progress per building so we only request new pages
 CREATE TABLE IF NOT EXISTS storage_fetch_state (
