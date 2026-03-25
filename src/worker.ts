@@ -30,7 +30,7 @@ import { ORDUM_EMPIRE_NAME } from "./common/ordum-types";
 import type { CacheProvider } from "@croct/cache";
 import { buildClaimInventory } from "./common/claim-inventory";
 import { buildSettlementPlan } from "./common/settlement-planner";
-import { gd } from "./common/gamedata";
+import { gd, getItemInfo } from "./common/gamedata";
 import { fetchContribution } from "./server/contribution";
 import { queryStorageAudit, ingestLogs } from "./server/storage-audit";
 import type BitJitaClient from "./common/bitjita-client";
@@ -261,6 +261,58 @@ app.get("/api/construction", async (c) => {
     return c.json({ projects });
   } catch (e) {
     console.error("Failed to fetch construction data:", e);
+    return c.json({ error: String(e) }, 500);
+  }
+});
+
+app.get("/api/inventory-search", async (c) => {
+  try {
+    const jitaClient = c.get("jita");
+    const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
+    const rawInventory = await buildClaimInventory(claimId);
+    const { claim } = await jitaClient.getClaim(claimId);
+
+    // Convert Map<string, ItemPlace[]> to a serializable array with item metadata
+    const items: Array<{
+      key: string;
+      name: string;
+      tier: number;
+      tag: string;
+      rarity: string;
+      totalQuantity: number;
+      locations: Array<{ name: string; quantity: number }>;
+    }> = [];
+
+    for (const [key, places] of rawInventory) {
+      const [type, idStr] = key.split(":");
+      const id = Number(idStr);
+      const info = getItemInfo(type as "Item" | "Cargo", id);
+      const totalQuantity = places.reduce((sum, p) => sum + p.quantity, 0);
+      if (totalQuantity <= 0) continue;
+
+      items.push({
+        key,
+        name: info.name,
+        tier: info.tier,
+        tag: info.tag,
+        rarity: info.rarity,
+        totalQuantity,
+        locations: places.map((p) => ({ name: p.name, quantity: p.quantity })),
+      });
+    }
+
+    // Sort by name by default
+    items.sort((a, b) => a.name.localeCompare(b.name));
+
+    return c.json({
+      items,
+      claimName: claim.name ?? "Unknown Claim",
+      regionName: claim.regionName ?? "Unknown Region",
+      claimLocationX: claim.locationX ?? 0,
+      claimLocationZ: claim.locationZ ?? 0,
+    });
+  } catch (e) {
+    console.error("Failed to fetch inventory search data:", e);
     return c.json({ error: String(e) }, 500);
   }
 });

@@ -644,6 +644,11 @@ body {
   color: var(--accent-4);
   font-weight: 600;
 }
+.loc-region {
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-style: italic;
+}
 
 /* ─── Members Table ───────────────────────────────────────────────────── */
 .toggle-label {
