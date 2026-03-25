@@ -27,6 +27,7 @@ export const $router = createRouter({
   travelerTask: "/traveler-task",
   contribution: "/contribution",
   storageAudit: "/storage-audit",
+  war: "/war",
 });
 
 export const $routeName = computed($router, (r) => r?.route ?? "unknown");

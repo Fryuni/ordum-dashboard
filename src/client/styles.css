@@ -2372,3 +2372,291 @@ body {
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   War Tracker Page
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Summary comparison row */
+.war-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.war-summary-col {
+  flex: 1;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  border-top: 3px solid var(--summary-accent, var(--accent));
+}
+
+.war-summary-label {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--summary-accent, var(--accent));
+  margin-bottom: 12px;
+}
+
+.war-summary-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.war-summary-stat {
+  display: flex;
+  flex-direction: column;
+  min-width: 70px;
+}
+
+.war-stat-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.war-stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.war-vs {
+  font-size: 1.5rem;
+  font-weight: 900;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  flex-shrink: 0;
+}
+
+/* Comparison bars */
+.war-comparison-bars {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.war-bar-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.war-bar-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.war-bar-values {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.war-bar-empire-val,
+.war-bar-rival-val {
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-width: 60px;
+}
+
+.war-bar-empire-val {
+  color: var(--accent-3);
+  text-align: right;
+}
+
+.war-bar-rival-val {
+  color: var(--red);
+}
+
+.war-bar-track {
+  flex: 1;
+  display: flex;
+  height: 20px;
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg-surface-2);
+}
+
+.war-bar-empire {
+  background: var(--accent-3);
+  opacity: 0.8;
+  transition: width 0.4s ease;
+}
+
+.war-bar-rival {
+  background: var(--red);
+  opacity: 0.8;
+  transition: width 0.4s ease;
+}
+
+/* Search section */
+.war-search-section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.war-search-section h3 {
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text);
+}
+
+.war-search-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.war-search-spinner {
+  width: 18px;
+  height: 18px;
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.war-search-results {
+  margin-top: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.war-search-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.war-search-result:last-child {
+  border-bottom: none;
+}
+
+.war-search-result-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.war-search-result-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.war-search-result-meta {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.war-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.war-badge-empire {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--accent-3);
+}
+
+.war-badge-tracked {
+  background: rgba(108, 140, 255, 0.15);
+  color: var(--accent);
+}
+
+/* Claims tables */
+.war-tables {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.war-table-section {
+  min-width: 0;
+}
+
+.war-table-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--border);
+}
+
+.war-empire-title {
+  border-bottom-color: var(--accent-3);
+  color: var(--accent-3);
+}
+
+.war-rival-title {
+  border-bottom-color: var(--red);
+  color: var(--red);
+}
+
+.war-claim-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.war-empire-tag {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background: var(--bg-surface-3);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+.war-btn-remove {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  border-radius: 4px;
+}
+
+.war-btn-remove:hover {
+  border-color: var(--red);
+  color: var(--red);
+  background: rgba(248, 113, 113, 0.1);
+}
+
+@media (max-width: 900px) {
+  .war-summary {
+    flex-direction: column;
+  }
+  .war-vs {
+    font-size: 1rem;
+  }
+  .war-tables {
+    grid-template-columns: 1fr;
+  }
+}

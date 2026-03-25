@@ -331,6 +331,109 @@ app.post("/api/storage-audit/ingest", async (c) => {
   }
 });
 
+// ─── War / Contest Tracking ─────────────────────────────────────────────────────
+
+app.get("/api/war", async (c) => {
+  try {
+    const jita = c.get("jita");
+    const trackedIds = c.req.queries("track")?.filter(Boolean) ?? [];
+
+    // Fetch empire claims
+    const empires = await jita.listEmpires({ q: ORDUM_EMPIRE_NAME });
+    const empire = (empires.empires as any[]).find(
+      (e: any) => e.name?.toLowerCase() === ORDUM_EMPIRE_NAME.toLowerCase(),
+    );
+    if (!empire) {
+      return c.json({ error: "Empire not found" }, 404);
+    }
+
+    const empireClaimsData = await jita.getEmpireClaims(empire.entityId);
+    const empireClaims = await Promise.all(
+      (empireClaimsData.claims as any[]).map(async (cl: any) => {
+        let memberCount = 0;
+        try {
+          const members = await jita.getClaimMembers(cl.entityId);
+          memberCount = members.members?.length ?? 0;
+        } catch {}
+        return {
+          entityId: cl.entityId,
+          name: cl.name,
+          regionName: cl.regionName ?? "Unknown",
+          tier: cl.tier ?? null,
+          supplies: Number(cl.supplies) || 0,
+          treasury: Number(cl.treasury) || 0,
+          numTiles: cl.numTiles ?? 0,
+          memberCount,
+          empireName: ORDUM_EMPIRE_NAME,
+          isEmpire: true,
+        };
+      }),
+    );
+
+    // Fetch tracked enemy claims
+    const trackedClaims = await Promise.all(
+      trackedIds.map(async (id) => {
+        try {
+          const { claim } = await jita.getClaim(id);
+          let memberCount = 0;
+          try {
+            const members = await jita.getClaimMembers(id);
+            memberCount = members.members?.length ?? 0;
+          } catch {}
+          return {
+            entityId: claim.entityId,
+            name: claim.name,
+            regionName: claim.regionName ?? "Unknown",
+            tier: claim.tier ?? null,
+            supplies: Number(claim.supplies) || 0,
+            treasury: Number(claim.treasury) || 0,
+            numTiles: claim.numTiles ?? 0,
+            memberCount,
+            empireName: claim.empireName || null,
+            isEmpire: false,
+          };
+        } catch (e) {
+          console.error(`Failed to fetch tracked claim ${id}:`, e);
+          return null;
+        }
+      }),
+    );
+
+    return c.json({
+      empireClaims,
+      trackedClaims: trackedClaims.filter(Boolean),
+      fetchedAt: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("Failed to fetch war data:", e);
+    return c.json({ error: String(e) }, 500);
+  }
+});
+
+app.get("/api/war/search", async (c) => {
+  try {
+    const jita = c.get("jita");
+    const q = c.req.query("q") || "";
+    if (q.length < 2) {
+      return c.json({ claims: [] });
+    }
+
+    const data = await jita.listClaims({ q, limit: 20 });
+    const claims = (data.claims as any[]).map((cl: any) => ({
+      entityId: cl.entityId,
+      name: cl.name,
+      regionName: cl.regionName ?? "Unknown",
+      tier: cl.tier ?? null,
+      empireName: cl.empireName || null,
+    }));
+
+    return c.json({ claims });
+  } catch (e) {
+    console.error("Failed to search claims:", e);
+    return c.json({ error: String(e) }, 500);
+  }
+});
+
 // ─── BitJita Proxy ─────────────────────────────────────────────────────────────
 
 /** Fetch from upstream BitJita and return the BigInt-safe parsed body. */
