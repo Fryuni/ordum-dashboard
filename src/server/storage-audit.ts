@@ -17,8 +17,11 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 
+import { sql, type ExpressionBuilder } from "kysely";
+import type { Kysely } from "kysely";
 import type BitJitaClient from "../common/bitjita-client";
 import { gd } from "../common/gamedata";
+import type { Database } from "./db/schema";
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -30,10 +33,10 @@ interface StorageLogEntry {
   subjectName: string;
   subjectType: string;
   data: {
-    type: string; // "deposit_item" | "withdraw_item" | "deposit_cargo" | "withdraw_cargo"
+    type: string;
     item_id: number;
     quantity: number;
-    item_type: string; // "item" | "cargo"
+    item_type: string;
   };
   timestamp: string;
   daysSinceEpoch: number;
@@ -79,12 +82,10 @@ export interface StorageAuditLogRow {
 }
 
 export interface StorageAuditChartPoint {
-  /** ISO hour bucket, e.g. "2026-03-20T05" */
   bucket: string;
   deposits: number;
   withdrawals: number;
   net: number;
-  /** Cumulative net at the END of this bucket (open + net) */
   cumOpen: number;
   cumClose: number;
 }
@@ -107,129 +108,21 @@ export interface StorageAuditIngestResponse {
 // ─── Constants ──────────────────────────────────────────────────────────────────
 
 const LOG_PAGE_SIZE = 1000;
-/** Max buildings to fetch per request to limit latency */
 const MAX_BUILDINGS_PER_REQUEST = 5;
-/** Max total pages fetched across all buildings per request */
 const MAX_PAGES_PER_REQUEST = 5;
-/** Don't re-check a building if it was checked less than 60s ago */
 const BUILDING_COOLDOWN_MS = 60_000;
-/** Max items per bulk price request */
 const PRICE_BATCH_SIZE = 100;
+/** D1 limits: 100 bound params per query. 13 columns → max 7 rows per INSERT. */
+const INSERT_BATCH_SIZE = 7;
 
-/** Items with a known fixed value (e.g. Hex Coin = 1) */
 const FIXED_VALUE = new Map<string, number>([
   ["Item:1", 1], // Hex Coin
 ]);
 
-/** Items excluded from valuation */
 const EXCLUDED_ITEMS = new Set<string>(["Cargo:2000000"]);
 
-// ─── Runtime Migrations ─────────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────────
 
-/** A named migration with one or more SQL statements to execute in order. */
-interface Migration {
-  name: string;
-  sql: string[];
-}
-
-/**
- * Ordered list of all migrations. Append new migrations at the end.
- * Each migration runs once and is recorded in the `_migrations` table.
- */
-const MIGRATIONS: Migration[] = [
-  {
-    name: "0001_initial_schema",
-    sql: [
-      `CREATE TABLE IF NOT EXISTS storage_logs (
-        id TEXT PRIMARY KEY,
-        claim_id TEXT NOT NULL,
-        player_entity_id TEXT NOT NULL,
-        player_name TEXT NOT NULL,
-        building_entity_id TEXT NOT NULL,
-        building_name TEXT NOT NULL,
-        item_type TEXT NOT NULL,
-        item_id INTEGER NOT NULL,
-        item_name TEXT NOT NULL,
-        quantity INTEGER NOT NULL,
-        action TEXT NOT NULL,
-        timestamp TEXT NOT NULL
-      )`,
-      `CREATE TABLE IF NOT EXISTS storage_fetch_state (
-        claim_id TEXT NOT NULL,
-        building_entity_id TEXT NOT NULL,
-        newest_log_id TEXT,
-        updated_at TEXT DEFAULT (datetime('now')),
-        PRIMARY KEY (claim_id, building_entity_id)
-      )`,
-      `CREATE INDEX IF NOT EXISTS idx_logs_claim_ts
-       ON storage_logs(claim_id, timestamp DESC)`,
-      `CREATE INDEX IF NOT EXISTS idx_logs_claim_player
-       ON storage_logs(claim_id, player_entity_id, timestamp DESC)`,
-      `CREATE INDEX IF NOT EXISTS idx_logs_claim_item
-       ON storage_logs(claim_id, item_id, item_type, timestamp DESC)`,
-      `CREATE INDEX IF NOT EXISTS idx_logs_claim_player_item
-       ON storage_logs(claim_id, player_entity_id, item_id, item_type, timestamp DESC)`,
-    ],
-  },
-  {
-    name: "0002_add_unit_value",
-    sql: [
-      `ALTER TABLE storage_logs ADD COLUMN unit_value REAL DEFAULT 0`,
-      `UPDATE storage_logs SET unit_value = 0 WHERE unit_value IS NULL`,
-    ],
-  },
-];
-
-/** The latest migration name — used for the fast-path check. */
-const LATEST_MIGRATION = MIGRATIONS[MIGRATIONS.length - 1]!.name;
-
-/**
- * Ensure the D1 schema is up-to-date before ingestion.
- * Maintains a `_migrations` table to track which migrations have been applied.
- * Returns immediately when the schema is already current.
- */
-export async function ensureSchema(db: D1Database): Promise<void> {
-  // Ensure the migrations tracking table exists
-  await db
-    .prepare(
-      `CREATE TABLE IF NOT EXISTS _migrations (
-        name TEXT PRIMARY KEY,
-        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
-      )`,
-    )
-    .run();
-
-  // Fast path: if the latest migration is already applied, we're done
-  const latest = await db
-    .prepare(`SELECT name FROM _migrations WHERE name = ?`)
-    .bind(LATEST_MIGRATION)
-    .first<{ name: string }>();
-  if (latest) return;
-
-  // Get all applied migration names
-  const applied = await db
-    .prepare(`SELECT name FROM _migrations`)
-    .all<{ name: string }>();
-  const appliedSet = new Set((applied.results ?? []).map((r) => r.name));
-
-  // Run pending migrations in order
-  for (const migration of MIGRATIONS) {
-    if (appliedSet.has(migration.name)) continue;
-
-    console.log(`[storage-audit] Applying migration: ${migration.name}`);
-    for (const stmt of migration.sql) {
-      await db.prepare(stmt).run();
-    }
-    await db
-      .prepare(`INSERT INTO _migrations (name) VALUES (?)`)
-      .bind(migration.name)
-      .run();
-  }
-}
-
-// ─── Ingestion ──────────────────────────────────────────────────────────────────
-
-/** Resolve an item name from BitJita metadata or gamedata fallback */
 function resolveItemName(
   itemType: string,
   itemId: number,
@@ -243,10 +136,6 @@ function resolveItemName(
   return gd.cargo.get(itemId)?.name ?? `Cargo #${itemId}`;
 }
 
-/**
- * Get buildings with storage for a claim.
- * Filters to buildings that have storage_slots > 0 or cargo_slots > 0.
- */
 async function getStorageBuildings(
   jita: BitJitaClient,
   claimId: string,
@@ -262,54 +151,122 @@ async function getStorageBuildings(
   );
 }
 
-/**
- * Ingest new storage logs from BitJita into D1.
- * Picks buildings that haven't been checked recently and fetches new logs.
- * Returns true if there are still buildings that need checking.
- */
+/** Fetch market prices for a set of items/cargo from BitJita. */
+async function fetchItemPrices(
+  jita: BitJitaClient,
+  logs: StorageLogEntry[],
+): Promise<Map<string, number>> {
+  const prices = new Map<string, number>();
+  const itemIds = new Set<number>();
+  const cargoIds = new Set<number>();
+
+  for (const log of logs) {
+    const itemType = log.data.item_type === "cargo" ? "Cargo" : "Item";
+    const key = `${itemType}:${log.data.item_id}`;
+    if (FIXED_VALUE.has(key)) {
+      prices.set(key, FIXED_VALUE.get(key)!);
+    } else if (!EXCLUDED_ITEMS.has(key)) {
+      if (itemType === "Cargo") cargoIds.add(log.data.item_id);
+      else itemIds.add(log.data.item_id);
+    }
+  }
+
+  const allItemIds = Array.from(itemIds);
+  const allCargoIds = Array.from(cargoIds);
+  let iIdx = 0;
+  let cIdx = 0;
+
+  while (iIdx < allItemIds.length || cIdx < allCargoIds.length) {
+    const batchItems: number[] = [];
+    const batchCargo: number[] = [];
+    let remaining = PRICE_BATCH_SIZE;
+
+    const itemsToTake = Math.min(allItemIds.length - iIdx, remaining);
+    batchItems.push(...allItemIds.slice(iIdx, iIdx + itemsToTake));
+    iIdx += itemsToTake;
+    remaining -= itemsToTake;
+
+    if (remaining > 0) {
+      const cargoToTake = Math.min(allCargoIds.length - cIdx, remaining);
+      batchCargo.push(...allCargoIds.slice(cIdx, cIdx + cargoToTake));
+      cIdx += cargoToTake;
+    }
+
+    try {
+      const priceData = await jita.postMarketPricesBulk({
+        itemIds: batchItems.length > 0 ? batchItems : undefined,
+        cargoIds: batchCargo.length > 0 ? batchCargo : undefined,
+      });
+      for (const [id, info] of Object.entries(priceData.data.items)) {
+        const p = info as {
+          highestBuyPrice?: number;
+          lowestSellPrice?: number;
+        };
+        const buy = p.highestBuyPrice ?? 0;
+        const sell = p.lowestSellPrice ?? 0;
+        if (buy > 0 || sell > 0) prices.set(`Item:${id}`, (buy + sell) / 2);
+      }
+      for (const [id, info] of Object.entries(priceData.data.cargo)) {
+        const p = info as {
+          highestBuyPrice?: number;
+          lowestSellPrice?: number;
+        };
+        const buy = p.highestBuyPrice ?? 0;
+        const sell = p.lowestSellPrice ?? 0;
+        if (buy > 0 || sell > 0) prices.set(`Cargo:${id}`, (buy + sell) / 2);
+      }
+    } catch (e) {
+      console.error("Failed to fetch market prices for ingestion:", e);
+    }
+  }
+
+  return prices;
+}
+
+// ─── Ingestion ──────────────────────────────────────────────────────────────────
+
 export async function ingestLogs(
   jita: BitJitaClient,
-  db: D1Database,
+  db: Kysely<Database>,
   claimId: string,
 ): Promise<boolean> {
-  // 0. Ensure schema is up-to-date
-  await ensureSchema(db);
-
   // 1. Get storage buildings for this claim
   const buildings = await getStorageBuildings(jita, claimId);
   if (buildings.length === 0) return false;
 
-  // 2. Ensure all buildings have fetch state entries (batch insert)
-  const stateStmts = buildings.map((b) =>
-    db
-      .prepare(
-        `INSERT OR IGNORE INTO storage_fetch_state (claim_id, building_entity_id, newest_log_id, updated_at)
-         VALUES (?, ?, NULL, NULL)`,
+  // 2. Ensure all buildings have fetch state entries
+  for (const b of buildings) {
+    await db
+      .insertInto("storage_fetch_state")
+      .values({
+        claim_id: claimId,
+        building_entity_id: b.entityId,
+        newest_log_id: null,
+        updated_at: null,
+      })
+      .onConflict((oc) =>
+        oc.columns(["claim_id", "building_entity_id"]).doNothing(),
       )
-      .bind(claimId, b.entityId),
-  );
-
-  // D1 batch limit is 100, so chunk if needed
-  for (let i = 0; i < stateStmts.length; i += 100) {
-    await db.batch(stateStmts.slice(i, i + 100));
+      .execute();
   }
 
-  // 3. Find buildings that need checking (oldest updated_at, or never checked)
+  // 3. Find buildings that need checking
   const cutoff = new Date(Date.now() - BUILDING_COOLDOWN_MS).toISOString();
   const staleBuildings = await db
-    .prepare(
-      `SELECT building_entity_id, newest_log_id
-       FROM storage_fetch_state
-       WHERE claim_id = ? AND (updated_at IS NULL OR updated_at < ?)
-       ORDER BY updated_at ASC NULLS FIRST
-       LIMIT ?`,
+    .selectFrom("storage_fetch_state")
+    .select(["building_entity_id", "newest_log_id"])
+    .where("claim_id", "=", claimId)
+    .where((eb: ExpressionBuilder<Database, "storage_fetch_state">) =>
+      eb.or([
+        eb("updated_at", "is", null),
+        eb("updated_at", "<", cutoff),
+      ]),
     )
-    .bind(claimId, cutoff, MAX_BUILDINGS_PER_REQUEST)
-    .all<{ building_entity_id: string; newest_log_id: string | null }>();
+    .orderBy(sql`updated_at ASC NULLS FIRST`)
+    .limit(MAX_BUILDINGS_PER_REQUEST)
+    .execute();
 
-  if (!staleBuildings.results || staleBuildings.results.length === 0) {
-    return false;
-  }
+  if (staleBuildings.length === 0) return false;
 
   // 4. Fetch logs for each stale building
   let totalPagesFetched = 0;
@@ -317,7 +274,7 @@ export async function ingestLogs(
     buildings.map((b) => [b.entityId, b.buildingName ?? "Unknown"]),
   );
 
-  for (const state of staleBuildings.results) {
+  for (const state of staleBuildings) {
     if (totalPagesFetched >= MAX_PAGES_PER_REQUEST) break;
 
     const buildingId = state.building_entity_id;
@@ -327,7 +284,6 @@ export async function ingestLogs(
     let pageAfterId: string | undefined;
     let reachedCursor = false;
 
-    // Paginate newest-to-oldest, stop when we hit the cursor
     while (!reachedCursor && totalPagesFetched < MAX_PAGES_PER_REQUEST) {
       totalPagesFetched++;
 
@@ -341,7 +297,6 @@ export async function ingestLogs(
       const resp = await jita.getLogsStorage(params);
       const logs = resp.logs as StorageLogEntry[];
 
-      // Collect item metadata
       for (const item of (resp.items ?? []) as ItemMeta[]) {
         itemMetaMap.set(String(item.id), item);
       }
@@ -363,267 +318,216 @@ export async function ingestLogs(
       if (logs.length < LOG_PAGE_SIZE) break;
     }
 
-    // 5. Fetch market prices for the items in this batch
-    const itemPrices = new Map<string, number>();
-    if (allNewLogs.length > 0) {
-      // Collect distinct item keys
-      const itemIds = new Set<number>();
-      const cargoIds = new Set<number>();
-      for (const log of allNewLogs) {
+    // 5. Fetch market prices
+    const itemPrices =
+      allNewLogs.length > 0
+        ? await fetchItemPrices(jita, allNewLogs)
+        : new Map<string, number>();
+
+    // 6. Insert new logs
+    for (let i = 0; i < allNewLogs.length; i += INSERT_BATCH_SIZE) {
+      const chunk = allNewLogs.slice(i, i + INSERT_BATCH_SIZE);
+      const rows = chunk.map((log) => {
         const itemType = log.data.item_type === "cargo" ? "Cargo" : "Item";
-        const key = `${itemType}:${log.data.item_id}`;
-        if (FIXED_VALUE.has(key)) {
-          itemPrices.set(key, FIXED_VALUE.get(key)!);
-        } else if (!EXCLUDED_ITEMS.has(key)) {
-          if (itemType === "Cargo") cargoIds.add(log.data.item_id);
-          else itemIds.add(log.data.item_id);
-        }
-      }
-
-      // Fetch prices in batches
-      const allItemIds = Array.from(itemIds);
-      const allCargoIds = Array.from(cargoIds);
-      let iIdx = 0;
-      let cIdx = 0;
-      while (iIdx < allItemIds.length || cIdx < allCargoIds.length) {
-        const batchItems: number[] = [];
-        const batchCargo: number[] = [];
-        let remaining = PRICE_BATCH_SIZE;
-
-        const itemsToTake = Math.min(allItemIds.length - iIdx, remaining);
-        batchItems.push(...allItemIds.slice(iIdx, iIdx + itemsToTake));
-        iIdx += itemsToTake;
-        remaining -= itemsToTake;
-
-        if (remaining > 0) {
-          const cargoToTake = Math.min(allCargoIds.length - cIdx, remaining);
-          batchCargo.push(...allCargoIds.slice(cIdx, cIdx + cargoToTake));
-          cIdx += cargoToTake;
-        }
-
-        try {
-          const priceData = await jita.postMarketPricesBulk({
-            itemIds: batchItems.length > 0 ? batchItems : undefined,
-            cargoIds: batchCargo.length > 0 ? batchCargo : undefined,
-          });
-          for (const [id, info] of Object.entries(priceData.data.items)) {
-            const p = info as { highestBuyPrice?: number; lowestSellPrice?: number };
-            const buy = p.highestBuyPrice ?? 0;
-            const sell = p.lowestSellPrice ?? 0;
-            if (buy > 0 || sell > 0) itemPrices.set(`Item:${id}`, (buy + sell) / 2);
-          }
-          for (const [id, info] of Object.entries(priceData.data.cargo)) {
-            const p = info as { highestBuyPrice?: number; lowestSellPrice?: number };
-            const buy = p.highestBuyPrice ?? 0;
-            const sell = p.lowestSellPrice ?? 0;
-            if (buy > 0 || sell > 0) itemPrices.set(`Cargo:${id}`, (buy + sell) / 2);
-          }
-        } catch (e) {
-          console.error("Failed to fetch market prices for ingestion:", e);
-        }
-      }
-    }
-
-    // 6. Insert new logs into D1
-    if (allNewLogs.length > 0) {
-      // D1 batch limit is 100 statements, so chunk
-      const BATCH_SIZE = 50;
-      for (let i = 0; i < allNewLogs.length; i += BATCH_SIZE) {
-        const chunk = allNewLogs.slice(i, i + BATCH_SIZE);
-        const insertStmts = chunk.map((log) => {
-          const itemType = log.data.item_type === "cargo" ? "Cargo" : "Item";
-          const action = log.data.type.startsWith("deposit")
-            ? "deposit"
-            : "withdraw";
-          const itemName = resolveItemName(
+        return {
+          id: log.id,
+          claim_id: claimId,
+          player_entity_id: log.subjectEntityId,
+          player_name: log.subjectName,
+          building_entity_id: buildingId,
+          building_name:
+            log.building?.buildingName ??
+            buildingNameMap.get(buildingId) ??
+            "Unknown",
+          item_type: itemType,
+          item_id: log.data.item_id,
+          item_name: resolveItemName(
             log.data.item_type,
             log.data.item_id,
             itemMetaMap,
-          );
-          const buildingName =
-            log.building?.buildingName ??
-            buildingNameMap.get(buildingId) ??
-            "Unknown";
-          const unitValue = Number(itemPrices.get(`${itemType}:${log.data.item_id}`)) || 0;
+          ),
+          quantity: log.data.quantity,
+          unit_value:
+            Number(itemPrices.get(`${itemType}:${log.data.item_id}`)) || 0,
+          action: log.data.type.startsWith("deposit") ? "deposit" : "withdraw",
+          timestamp: log.timestamp.replace(/\+\d{2}$/, ""),
+        };
+      });
 
-          return db
-            .prepare(
-              `INSERT OR IGNORE INTO storage_logs
-               (id, claim_id, player_entity_id, player_name, building_entity_id, building_name,
-                item_type, item_id, item_name, quantity, unit_value, action, timestamp)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            )
-            .bind(
-              log.id,
-              claimId,
-              log.subjectEntityId,
-              log.subjectName,
-              buildingId,
-              buildingName,
-              itemType,
-              log.data.item_id,
-              itemName,
-              log.data.quantity,
-              unitValue,
-              action,
-              // Strip timezone offset (+00) so SQLite STRFTIME works
-              log.timestamp.replace(/\+\d{2}$/, ""),
-            );
-        });
-        await db.batch(insertStmts);
-      }
+      await db
+        .insertInto("storage_logs")
+        .values(rows)
+        .onConflict((oc) => oc.column("id").doNothing())
+        .execute();
     }
 
     // 7. Update fetch state
-    const newNewestId = allNewLogs.length > 0 ? allNewLogs[0]!.id : newestLogId;
+    const newNewestId =
+      allNewLogs.length > 0 ? allNewLogs[0]!.id : newestLogId;
     await db
-      .prepare(
-        `UPDATE storage_fetch_state
-         SET newest_log_id = COALESCE(?, newest_log_id),
-             updated_at = datetime('now')
-         WHERE claim_id = ? AND building_entity_id = ?`,
-      )
-      .bind(newNewestId, claimId, buildingId)
-      .run();
+      .updateTable("storage_fetch_state")
+      .set({
+        newest_log_id: sql`COALESCE(${newNewestId}, newest_log_id)`,
+        updated_at: sql`datetime('now')`,
+      })
+      .where("claim_id", "=", claimId)
+      .where("building_entity_id", "=", buildingId)
+      .execute();
   }
 
   // Check if there are still stale buildings
   const remaining = await db
-    .prepare(
-      `SELECT COUNT(*) as cnt FROM storage_fetch_state
-       WHERE claim_id = ? AND (updated_at IS NULL OR updated_at < ?)`,
+    .selectFrom("storage_fetch_state")
+    .select(sql<number>`COUNT(*)`.as("cnt"))
+    .where("claim_id", "=", claimId)
+    .where((eb: ExpressionBuilder<Database, "storage_fetch_state">) =>
+      eb.or([
+        eb("updated_at", "is", null),
+        eb("updated_at", "<", new Date().toISOString()),
+      ]),
     )
-    .bind(claimId, new Date().toISOString())
-    .first<{ cnt: number }>();
+    .executeTakeFirstOrThrow();
 
-  return (remaining?.cnt ?? 0) > 0;
+  return remaining.cnt > 0;
 }
 
 // ─── Query ──────────────────────────────────────────────────────────────────────
 
 export async function queryStorageAudit(
-  db: D1Database,
+  db: Kysely<Database>,
   claimId: string,
   filters: {
-    /** Multiple player entity IDs (OR'd together) */
     playerEntityIds?: string[];
-    /** Multiple item keys as "Type:id" (OR'd together) */
     itemKeys?: string[];
     page: number;
     pageSize: number;
   },
 ): Promise<StorageAuditResponse> {
-  // Build WHERE clause
-  const conditions: string[] = ["claim_id = ?"];
-  const params: (string | number)[] = [claimId];
+  // Build WHERE conditions as an expression
+  function applyFilters<T extends ExpressionBuilder<Database, "storage_logs">>(eb: T): ReturnType<T["and"]> {
+    const conditions: any[] = [eb("claim_id", "=", claimId)];
 
-  if (filters.playerEntityIds && filters.playerEntityIds.length > 0) {
-    const placeholders = filters.playerEntityIds.map(() => "?").join(", ");
-    conditions.push(`player_entity_id IN (${placeholders})`);
-    params.push(...filters.playerEntityIds);
-  }
+    if (filters.playerEntityIds && filters.playerEntityIds.length > 0) {
+      conditions.push(eb("player_entity_id", "in", filters.playerEntityIds));
+    }
 
-  if (filters.itemKeys && filters.itemKeys.length > 0) {
-    // Each key is "Type:id" — build (item_type = ? AND item_id = ?) OR ...
-    const itemConditions: string[] = [];
-    for (const key of filters.itemKeys) {
-      const [type, id] = key.split(":");
-      if (type && id) {
-        itemConditions.push("(item_type = ? AND item_id = ?)");
-        params.push(type, Number(id));
+    if (filters.itemKeys && filters.itemKeys.length > 0) {
+      const parsed = filters.itemKeys
+        .map((k) => k.split(":"))
+        .filter((parts): parts is [string, string] => parts.length === 2);
+
+      if (parsed.length > 0) {
+        conditions.push(
+          eb.or(
+            parsed.map(([type, id]) =>
+              eb.and([
+                eb("item_type", "=", type),
+                eb("item_id", "=", Number(id)),
+              ]),
+            ),
+          ),
+        );
       }
     }
-    if (itemConditions.length > 0) {
-      conditions.push(`(${itemConditions.join(" OR ")})`);
-    }
-  }
 
-  const whereClause = conditions.join(" AND ");
+    return eb.and(conditions) as any;
+  }
 
   // Count total
   const countResult = await db
-    .prepare(`SELECT COUNT(*) as cnt FROM storage_logs WHERE ${whereClause}`)
-    .bind(...params)
-    .first<{ cnt: number }>();
-  const totalCount = countResult?.cnt ?? 0;
+    .selectFrom("storage_logs")
+    .select(sql<number>`COUNT(*)`.as("cnt"))
+    .where(applyFilters)
+    .executeTakeFirstOrThrow();
+  const totalCount = countResult.cnt;
 
   // Paginated logs
   const offset = (filters.page - 1) * filters.pageSize;
-  const logsResult = await db
-    .prepare(
-      `SELECT id, player_entity_id, player_name, building_name, item_type, item_id,
-              item_name, quantity, unit_value, action, timestamp
-       FROM storage_logs
-       WHERE ${whereClause}
-       ORDER BY timestamp DESC
-       LIMIT ? OFFSET ?`,
-    )
-    .bind(...params, filters.pageSize, offset)
-    .all<StorageAuditLogRow>();
+  const logs = await db
+    .selectFrom("storage_logs")
+    .select([
+      "id",
+      "player_entity_id",
+      "player_name",
+      "building_name",
+      "item_type",
+      "item_id",
+      "item_name",
+      "quantity",
+      "unit_value",
+      "action",
+      "timestamp",
+    ])
+    .where(applyFilters)
+    .orderBy("timestamp", "desc")
+    .limit(filters.pageSize)
+    .offset(offset)
+    .execute();
 
   // Chart data: hourly aggregates (value = quantity × unit_value)
-  const chartResult = await db
-    .prepare(
-      `SELECT
-         STRFTIME('%Y-%m-%dT%H:%M', timestamp) as bucket,
-         SUM(CASE WHEN action = 'deposit' THEN quantity * unit_value ELSE 0 END) as deposits,
-         SUM(CASE WHEN action = 'withdraw' THEN quantity * unit_value ELSE 0 END) as withdrawals
-       FROM storage_logs
-       WHERE ${whereClause}
-       GROUP BY bucket
-       ORDER BY bucket ASC`,
-    )
-    .bind(...params)
-    .all<{ bucket: string; deposits: number; withdrawals: number }>();
-
-  console.log(chartResult);
+  const chartRows = await db
+    .selectFrom("storage_logs")
+    .select([
+      sql<string>`STRFTIME('%Y-%m-%dT%H', timestamp)`.as("bucket"),
+      sql<number>`SUM(CASE WHEN action = 'deposit' THEN quantity * unit_value ELSE 0 END)`.as(
+        "deposits",
+      ),
+      sql<number>`SUM(CASE WHEN action = 'withdraw' THEN quantity * unit_value ELSE 0 END)`.as(
+        "withdrawals",
+      ),
+    ])
+    .where(applyFilters)
+    .groupBy(sql`STRFTIME('%Y-%m-%dT%H', timestamp)`)
+    .orderBy("bucket", "asc")
+    .execute();
 
   let cumulative = 0;
-  const chartData: StorageAuditChartPoint[] = (chartResult.results ?? []).map(
-    (row) => {
-      const net = row.deposits - row.withdrawals;
-      const cumOpen = cumulative;
-      cumulative += net;
-      return {
-        bucket: row.bucket,
-        deposits: row.deposits,
-        withdrawals: row.withdrawals,
-        net,
-        cumOpen,
-        cumClose: cumulative,
-      };
-    },
-  );
+  const chartData: StorageAuditChartPoint[] = chartRows.map((row) => {
+    const net = row.deposits - row.withdrawals;
+    const cumOpen = cumulative;
+    cumulative += net;
+    return {
+      bucket: row.bucket,
+      deposits: row.deposits,
+      withdrawals: row.withdrawals,
+      net,
+      cumOpen,
+      cumClose: cumulative,
+    };
+  });
 
   // Distinct players for filter dropdown
-  const playersResult = await db
-    .prepare(
-      `SELECT DISTINCT player_entity_id as entityId, player_name as name
-       FROM storage_logs
-       WHERE claim_id = ?
-       ORDER BY name ASC`,
-    )
-    .bind(claimId)
-    .all<{ entityId: string; name: string }>();
+  const players = await db
+    .selectFrom("storage_logs")
+    .select([
+      "player_entity_id as entityId",
+      "player_name as name",
+    ])
+    .where("claim_id", "=", claimId)
+    .distinct()
+    .orderBy("player_name", "asc")
+    .execute();
 
   // Distinct items for filter dropdown
-  const itemsResult = await db
-    .prepare(
-      `SELECT DISTINCT item_id as id, item_type as type, item_name as name
-       FROM storage_logs
-       WHERE claim_id = ?
-       ORDER BY name ASC`,
-    )
-    .bind(claimId)
-    .all<{ id: number; type: string; name: string }>();
+  const items = await db
+    .selectFrom("storage_logs")
+    .select([
+      "item_id as id",
+      "item_type as type",
+      "item_name as name",
+    ])
+    .where("claim_id", "=", claimId)
+    .distinct()
+    .orderBy("item_name", "asc")
+    .execute();
 
   return {
-    logs: logsResult.results ?? [],
+    logs,
     totalCount,
     page: filters.page,
     pageSize: filters.pageSize,
     chartData,
-    players: playersResult.results ?? [],
-    items: itemsResult.results ?? [],
+    players,
+    items,
   };
 }

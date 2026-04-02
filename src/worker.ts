@@ -33,7 +33,11 @@ import { buildSettlementPlan } from "./common/settlement-planner";
 import { gd, getItemInfo } from "./common/gamedata";
 import { fetchContribution } from "./server/contribution";
 import { queryStorageAudit, ingestLogs } from "./server/storage-audit";
+import { createDb } from "./server/db";
+import { migrateToLatest } from "./server/db/migrations";
 import type BitJitaClient from "./common/bitjita-client";
+import type { Kysely } from "kysely";
+import type { Database } from "./server/db/schema";
 
 type Bindings = {
   ASSETS: Fetcher;
@@ -43,6 +47,7 @@ type Bindings = {
 
 type Variables = {
   jita: BitJitaClient;
+  db: Kysely<Database>;
 };
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
@@ -51,13 +56,23 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 let cachedJita: BitJitaClient | null = null;
 let proxyCache: CacheProvider<any, any> | null = null;
+let cachedDb: Kysely<Database> | null = null;
+let migrated = false;
 
 app.use("*", async (c, next) => {
   if (cachedJita === null) {
     cachedJita = createServerJita(c.env.jita_api_cache);
     proxyCache = buildCache(c.env.jita_api_cache, 5);
   }
+  if (cachedDb === null) {
+    cachedDb = createDb(c.env.ordum_storage_audit);
+  }
+  if (!migrated) {
+    await migrateToLatest(cachedDb);
+    migrated = true;
+  }
   c.set("jita", cachedJita);
+  c.set("db", cachedDb);
   return next();
 });
 
@@ -351,7 +366,7 @@ app.get("/api/storage-audit", async (c) => {
     const playerEntityIds = c.req.queries("player")?.filter(Boolean);
     const itemKeys = c.req.queries("item")?.filter(Boolean);
 
-    const result = await queryStorageAudit(c.env.ordum_storage_audit, claimId, {
+    const result = await queryStorageAudit(c.get("db"), claimId, {
       playerEntityIds:
         playerEntityIds && playerEntityIds.length > 0
           ? playerEntityIds
@@ -373,7 +388,7 @@ app.post("/api/storage-audit/ingest", async (c) => {
     const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
     const moreRemaining = await ingestLogs(
       jita,
-      c.env.ordum_storage_audit,
+      c.get("db"),
       claimId,
     );
     return c.json({ ingested: true, moreRemaining });
@@ -435,8 +450,10 @@ async function scheduledHandler(
   env: Bindings,
   _ctx: ExecutionContext,
 ) {
-  // Create a fresh jita client for the cron context
+  // Create a fresh jita client and DB for the cron context
   const jita = createServerJita(env.jita_api_cache);
+  const db = createDb(env.ordum_storage_audit);
+  await migrateToLatest(db);
 
   // Ingest for all known empire claims
   const claimIds = [ORDUM_MAIN_CLAIM_ID];
@@ -452,7 +469,7 @@ async function scheduledHandler(
       try {
         moreRemaining = await ingestLogs(
           jita,
-          env.ordum_storage_audit,
+          db,
           claimId,
         );
       } catch (e) {
