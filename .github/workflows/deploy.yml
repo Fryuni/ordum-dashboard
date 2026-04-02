@@ -41,6 +41,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --env=""
 
       - name: Deploy preview worker
         if: github.event_name == 'pull_request'
