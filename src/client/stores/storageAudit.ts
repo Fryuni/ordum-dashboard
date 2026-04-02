@@ -117,7 +117,6 @@ export async function triggerSync() {
       { method: "POST" },
     );
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    $refreshTick.set($refreshTick.get() + 1);
   } catch (e) {
     console.error("Sync error:", e);
   } finally {
