@@ -126,76 +126,103 @@ const EXCLUDED_ITEMS = new Set<string>(["Cargo:2000000"]);
 
 // ─── Runtime Migrations ─────────────────────────────────────────────────────────
 
-/**
- * Ensure the D1 schema is up-to-date before ingestion.
- * Uses PRAGMA table_info to detect missing columns and applies
- * migrations incrementally. Safe to call on every ingestion — returns
- * immediately when the schema is already current.
- */
-export async function ensureSchema(db: D1Database): Promise<void> {
-  // 1. Create tables if they don't exist
-  await db.batch([
-    db.prepare(`CREATE TABLE IF NOT EXISTS storage_logs (
-      id TEXT PRIMARY KEY,
-      claim_id TEXT NOT NULL,
-      player_entity_id TEXT NOT NULL,
-      player_name TEXT NOT NULL,
-      building_entity_id TEXT NOT NULL,
-      building_name TEXT NOT NULL,
-      item_type TEXT NOT NULL,
-      item_id INTEGER NOT NULL,
-      item_name TEXT NOT NULL,
-      quantity INTEGER NOT NULL,
-      unit_value REAL NOT NULL DEFAULT 0,
-      action TEXT NOT NULL,
-      timestamp TEXT NOT NULL
-    )`),
-    db.prepare(`CREATE TABLE IF NOT EXISTS storage_fetch_state (
-      claim_id TEXT NOT NULL,
-      building_entity_id TEXT NOT NULL,
-      newest_log_id TEXT,
-      updated_at TEXT DEFAULT (datetime('now')),
-      PRIMARY KEY (claim_id, building_entity_id)
-    )`),
-  ]);
+/** A named migration with one or more SQL statements to execute in order. */
+interface Migration {
+  name: string;
+  sql: string[];
+}
 
-  // 2. Ensure indexes exist
-  await db.batch([
-    db.prepare(
+/**
+ * Ordered list of all migrations. Append new migrations at the end.
+ * Each migration runs once and is recorded in the `_migrations` table.
+ */
+const MIGRATIONS: Migration[] = [
+  {
+    name: "0001_initial_schema",
+    sql: [
+      `CREATE TABLE IF NOT EXISTS storage_logs (
+        id TEXT PRIMARY KEY,
+        claim_id TEXT NOT NULL,
+        player_entity_id TEXT NOT NULL,
+        player_name TEXT NOT NULL,
+        building_entity_id TEXT NOT NULL,
+        building_name TEXT NOT NULL,
+        item_type TEXT NOT NULL,
+        item_id INTEGER NOT NULL,
+        item_name TEXT NOT NULL,
+        quantity INTEGER NOT NULL,
+        action TEXT NOT NULL,
+        timestamp TEXT NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS storage_fetch_state (
+        claim_id TEXT NOT NULL,
+        building_entity_id TEXT NOT NULL,
+        newest_log_id TEXT,
+        updated_at TEXT DEFAULT (datetime('now')),
+        PRIMARY KEY (claim_id, building_entity_id)
+      )`,
       `CREATE INDEX IF NOT EXISTS idx_logs_claim_ts
        ON storage_logs(claim_id, timestamp DESC)`,
-    ),
-    db.prepare(
       `CREATE INDEX IF NOT EXISTS idx_logs_claim_player
        ON storage_logs(claim_id, player_entity_id, timestamp DESC)`,
-    ),
-    db.prepare(
       `CREATE INDEX IF NOT EXISTS idx_logs_claim_item
        ON storage_logs(claim_id, item_id, item_type, timestamp DESC)`,
-    ),
-    db.prepare(
       `CREATE INDEX IF NOT EXISTS idx_logs_claim_player_item
        ON storage_logs(claim_id, player_entity_id, item_id, item_type, timestamp DESC)`,
-    ),
-  ]);
+    ],
+  },
+  {
+    name: "0002_add_unit_value",
+    sql: [
+      `ALTER TABLE storage_logs ADD COLUMN unit_value REAL DEFAULT 0`,
+      `UPDATE storage_logs SET unit_value = 0 WHERE unit_value IS NULL`,
+    ],
+  },
+];
 
-  // 3. Check if unit_value column exists, add it if missing
-  const columns = await db
-    .prepare(`PRAGMA table_info(storage_logs)`)
+/** The latest migration name — used for the fast-path check. */
+const LATEST_MIGRATION = MIGRATIONS[MIGRATIONS.length - 1]!.name;
+
+/**
+ * Ensure the D1 schema is up-to-date before ingestion.
+ * Maintains a `_migrations` table to track which migrations have been applied.
+ * Returns immediately when the schema is already current.
+ */
+export async function ensureSchema(db: D1Database): Promise<void> {
+  // Ensure the migrations tracking table exists
+  await db
+    .prepare(
+      `CREATE TABLE IF NOT EXISTS _migrations (
+        name TEXT PRIMARY KEY,
+        applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`,
+    )
+    .run();
+
+  // Fast path: if the latest migration is already applied, we're done
+  const latest = await db
+    .prepare(`SELECT name FROM _migrations WHERE name = ?`)
+    .bind(LATEST_MIGRATION)
+    .first<{ name: string }>();
+  if (latest) return;
+
+  // Get all applied migration names
+  const applied = await db
+    .prepare(`SELECT name FROM _migrations`)
     .all<{ name: string }>();
-  const colNames = new Set((columns.results ?? []).map((c) => c.name));
+  const appliedSet = new Set((applied.results ?? []).map((r) => r.name));
 
-  if (!colNames.has("unit_value")) {
+  // Run pending migrations in order
+  for (const migration of MIGRATIONS) {
+    if (appliedSet.has(migration.name)) continue;
+
+    console.log(`[storage-audit] Applying migration: ${migration.name}`);
+    for (const stmt of migration.sql) {
+      await db.prepare(stmt).run();
+    }
     await db
-      .prepare(
-        `ALTER TABLE storage_logs ADD COLUMN unit_value REAL DEFAULT 0`,
-      )
-      .run();
-    // Fix any NULL unit_value rows from before the migration
-    await db
-      .prepare(
-        `UPDATE storage_logs SET unit_value = 0 WHERE unit_value IS NULL`,
-      )
+      .prepare(`INSERT INTO _migrations (name) VALUES (?)`)
+      .bind(migration.name)
       .run();
   }
 }
