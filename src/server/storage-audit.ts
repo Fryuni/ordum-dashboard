@@ -223,9 +223,6 @@ async function fetchItemPrices(
     }
   }
 
-  console.log(
-    `[storage-audit] Price lookup: ${prices.size} prices for ${allItemIds.length} items + ${allCargoIds.length} cargo`,
-  );
   return prices;
 }
 
@@ -329,16 +326,6 @@ export async function ingestLogs(
       allNewLogs.length > 0
         ? await fetchItemPrices(jita, allNewLogs)
         : new Map<string, number>();
-
-    if (allNewLogs.length > 0) {
-      const withPrice = allNewLogs.filter((log) => {
-        const t = log.data.item_type === "cargo" ? "Cargo" : "Item";
-        return (Number(itemPrices.get(`${t}:${log.data.item_id}`)) || 0) > 0;
-      }).length;
-      console.log(
-        `[storage-audit] Building ${buildingId}: ${allNewLogs.length} logs, ${itemPrices.size} prices, ${withPrice} logs with value`,
-      );
-    }
 
     // 6. Insert new logs
     for (let i = 0; i < allNewLogs.length; i += INSERT_BATCH_SIZE) {

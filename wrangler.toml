@@ -43,6 +43,11 @@ database_id = "b0aed2a4-0c01-4ea4-ac26-c87d6aa4cfa8"
 [env.preview]
 workers_dev = true
 
+# No cron triggers on preview — previews share the production D1 database,
+# so stale preview code would corrupt production data.
+[env.preview.triggers]
+crons = []
+
 [[env.preview.kv_namespaces]]
 binding = "jita_api_cache"
 id = "4841edcb05cd4978bec7f705a82d12de"
