@@ -21,6 +21,7 @@ import { atom, computed, onMount } from "nanostores";
 import { computedAsync } from "@nanostores/async";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import type { StorageAuditResponse } from "../../server/storage-audit";
+import { $updateTimer } from "../util-store";
 
 // ─── JSON persistent atom helper ────────────────────────────────────────────────
 
@@ -82,13 +83,8 @@ function buildAuditUrl(
 
 // ─── Data Store ─────────────────────────────────────────────────────────────────
 
-/**
- * Bumped after an on-demand sync completes to refresh the query data.
- */
-const $refreshTick = atom(0);
-
 export const $auditData = computedAsync(
-  [$auditClaim, $auditPlayers, $auditItems, $auditPage, $refreshTick],
+  [$auditClaim, $auditPlayers, $auditItems, $auditPage, $updateTimer],
   async (
     claimId,
     players,
@@ -138,11 +134,10 @@ export const $auditTotalPages = computed($auditData, (state) => {
 
 /** Combined view state to minimize useStore calls in the component. */
 export const $auditView = computed(
-  [$auditData, $auditPage, $auditTotalPages, $syncing],
-  (dataAsync, page, totalPages, syncing) => ({
+  [$auditData, $auditPage, $auditTotalPages],
+  (dataAsync, page, totalPages) => ({
     dataAsync,
     page,
     totalPages,
-    syncing,
   }),
 );

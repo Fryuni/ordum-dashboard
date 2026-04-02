@@ -39,48 +39,23 @@ import {
   $auditItems,
   $auditPage,
   $auditView,
-  triggerSync,
 } from "../stores/storageAudit";
 import { MultiSelect } from "../components/MultiSelect";
 import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import type { StorageAuditChartPoint } from "../../server/storage-audit";
 
-// ─── Chart Component (TradingView Lightweight Charts) ───────────────────────────
-
-/** Aggregate hourly candles into daily when there are many data points. */
-function aggregateToDaily(
-  data: StorageAuditChartPoint[],
-): StorageAuditChartPoint[] {
-  const groups = new Map<string, StorageAuditChartPoint[]>();
-  for (const d of data) {
-    const day = d.bucket?.slice(0, 10) ?? "unknown";
-    const arr = groups.get(day);
-    if (arr) arr.push(d);
-    else groups.set(day, [d]);
-  }
-
-  const aggregated: StorageAuditChartPoint[] = [];
-  for (const [day, points] of groups) {
-    const first = points[0]!;
-    const last = points[points.length - 1]!;
-    aggregated.push({
-      bucket: day,
-      deposits: points.reduce((s, p) => s + p.deposits, 0),
-      withdrawals: points.reduce((s, p) => s + p.withdrawals, 0),
-      net: points.reduce((s, p) => s + p.net, 0),
-      cumOpen: first.cumOpen,
-      cumClose: last.cumClose,
-    });
-  }
-  return aggregated;
-}
-
 /** Convert a bucket string like "2026-03-15" or "2026-03-15T14" to a unix timestamp. */
 function bucketToTime(bucket: string): Time {
-  // Daily: "2026-03-15" → use as string date
-  if (bucket.length === 10) return bucket as unknown as Time;
-  // Hourly: "2026-03-15T14" → unix timestamp
-  return (Date.parse(bucket + ":00:00Z") / 1000) as unknown as Time;
+  switch (bucket.length) {
+    // Daily: "2026-03-15" → use as string date
+    case "2026-03-15".length:
+      return bucket as unknown as Time;
+    // Hourly: "2026-03-15T14" → unix timestamp
+    case "2026-03-15T14".length:
+      return (Date.parse(bucket + ":00:00Z") / 1000) as unknown as Time;
+    default:
+      return Math.trunc(Date.parse(bucket) / 1000) as unknown as Time;
+  }
 }
 
 function formatTime(time: Time): string {
@@ -191,10 +166,10 @@ function StorageChart({ data: data }: { data: StorageAuditChartPoint[] }) {
 
         tooltip.innerHTML = `
           <div style="font-weight:600;margin-bottom:4px">${formatTime(candleData.time)}</div>
-          <div>Open: <b>${Math.round(candleData.open).toLocaleString()}</b></div>
-          <div>Close: <b>${Math.round(candleData.close).toLocaleString()}</b></div>
-          <div>Net: <b style="color:${netColor}">${netSign}${Math.round(net).toLocaleString()}</b></div>
-          <div>Volume: <b>${Math.round(vol).toLocaleString()}</b></div>
+          <div>Open: <b>${Math.round(candleData.open).toLocaleString()} ¢</b></div>
+          <div>Close: <b>${Math.round(candleData.close).toLocaleString()} ¢</b></div>
+          <div>Net: <b style="color:${netColor}">${netSign}${Math.round(net).toLocaleString()} ¢</b></div>
+          <div>Volume: <b>${Math.round(vol).toLocaleString()} ¢</b></div>
         `;
         tooltip.style.display = "block";
 
@@ -276,7 +251,7 @@ export default function StorageAuditPage() {
   const selectedClaim = useStore($auditClaim);
   const selectedPlayers = useStore($auditPlayers);
   const selectedItems = useStore($auditItems);
-  const { dataAsync, page, totalPages, syncing } = useStore($auditView);
+  const { dataAsync, page, totalPages } = useStore($auditView);
 
   useEffect(() => {
     fetchEmpireClaims();
@@ -343,25 +318,6 @@ export default function StorageAuditPage() {
             selected={selectedItems}
             onChange={(v) => $auditItems.set(v)}
           />
-
-          {/* <div */}
-          {/*   class="input-group source-select-container" */}
-          {/*   style="flex: 0 0 auto; align-self: flex-end" */}
-          {/* > */}
-          {/*   <button */}
-          {/*     class="sync-btn" */}
-          {/*     disabled={syncing} */}
-          {/*     onClick={() => triggerSync()} */}
-          {/*   > */}
-          {/*     {syncing ? ( */}
-          {/*       <> */}
-          {/*         <span class="spinner-small" /> Syncing... */}
-          {/*       </> */}
-          {/*     ) : ( */}
-          {/*       <>🔄 Sync Now</> */}
-          {/*     )} */}
-          {/*   </button> */}
-          {/* </div> */}
         </div>
       </div>
 
@@ -395,6 +351,7 @@ export default function StorageAuditPage() {
                   <th>Inventory</th>
                   <th>Item</th>
                   <th style="text-align: right">Qty</th>
+                  <th style="text-align: right">Value</th>
                   <th style="text-align: center">Action</th>
                   <th style="text-align: right">Time</th>
                 </tr>
@@ -403,7 +360,7 @@ export default function StorageAuditPage() {
                 {data.logs.length === 0 && (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       style="text-align: center; color: var(--text-muted); padding: 24px"
                     >
                       No storage events found.
@@ -419,6 +376,11 @@ export default function StorageAuditPage() {
                     <td>{log.item_name}</td>
                     <td style="text-align: right">
                       {log.quantity.toLocaleString()}
+                    </td>
+                    <td style="text-align: right; color: var(--text-muted)">
+                      {log.unit_value > 0
+                        ? `${Math.round(log.quantity * log.unit_value).toLocaleString()} ¢`
+                        : "—"}
                     </td>
                     <td style="text-align: center">
                       <span class={`action-badge action-${log.action}`}>

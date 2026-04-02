@@ -433,7 +433,7 @@ app.all("/jita/*", async (c) => {
 async function scheduledHandler(
   _event: ScheduledEvent,
   env: Bindings,
-  ctx: ExecutionContext,
+  _ctx: ExecutionContext,
 ) {
   // Create a fresh jita client for the cron context
   const jita = createServerJita(env.jita_api_cache);

@@ -35,6 +35,7 @@ id = "4841edcb05cd4978bec7f705a82d12de"
 binding = "ordum_storage_audit"
 database_name = "ordum-storage-audit"
 database_id = "b0aed2a4-0c01-4ea4-ac26-c87d6aa4cfa8"
+migrations_dir = "migrations"
 
 # ─── PR preview environment ─────────────────────────────────────────────────────
 # `wrangler deploy --env preview` creates a separate worker so that

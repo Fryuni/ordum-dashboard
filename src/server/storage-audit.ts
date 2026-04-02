@@ -73,6 +73,7 @@ export interface StorageAuditLogRow {
   item_id: number;
   item_name: string;
   quantity: number;
+  unit_value: number;
   action: string;
   timestamp: string;
 }
@@ -112,6 +113,16 @@ const MAX_BUILDINGS_PER_REQUEST = 5;
 const MAX_PAGES_PER_REQUEST = 5;
 /** Don't re-check a building if it was checked less than 60s ago */
 const BUILDING_COOLDOWN_MS = 60_000;
+/** Max items per bulk price request */
+const PRICE_BATCH_SIZE = 100;
+
+/** Items with a known fixed value (e.g. Hex Coin = 1) */
+const FIXED_VALUE = new Map<string, number>([
+  ["Item:1", 1], // Hex Coin
+]);
+
+/** Items excluded from valuation */
+const EXCLUDED_ITEMS = new Set<string>(["Cargo:2000000"]);
 
 // ─── Ingestion ──────────────────────────────────────────────────────────────────
 
@@ -246,7 +257,68 @@ export async function ingestLogs(
       if (logs.length < LOG_PAGE_SIZE) break;
     }
 
-    // 5. Insert new logs into D1
+    // 5. Fetch market prices for the items in this batch
+    const itemPrices = new Map<string, number>();
+    if (allNewLogs.length > 0) {
+      // Collect distinct item keys
+      const itemIds = new Set<number>();
+      const cargoIds = new Set<number>();
+      for (const log of allNewLogs) {
+        const itemType = log.data.item_type === "cargo" ? "Cargo" : "Item";
+        const key = `${itemType}:${log.data.item_id}`;
+        if (FIXED_VALUE.has(key)) {
+          itemPrices.set(key, FIXED_VALUE.get(key)!);
+        } else if (!EXCLUDED_ITEMS.has(key)) {
+          if (itemType === "Cargo") cargoIds.add(log.data.item_id);
+          else itemIds.add(log.data.item_id);
+        }
+      }
+
+      // Fetch prices in batches
+      const allItemIds = Array.from(itemIds);
+      const allCargoIds = Array.from(cargoIds);
+      let iIdx = 0;
+      let cIdx = 0;
+      while (iIdx < allItemIds.length || cIdx < allCargoIds.length) {
+        const batchItems: number[] = [];
+        const batchCargo: number[] = [];
+        let remaining = PRICE_BATCH_SIZE;
+
+        const itemsToTake = Math.min(allItemIds.length - iIdx, remaining);
+        batchItems.push(...allItemIds.slice(iIdx, iIdx + itemsToTake));
+        iIdx += itemsToTake;
+        remaining -= itemsToTake;
+
+        if (remaining > 0) {
+          const cargoToTake = Math.min(allCargoIds.length - cIdx, remaining);
+          batchCargo.push(...allCargoIds.slice(cIdx, cIdx + cargoToTake));
+          cIdx += cargoToTake;
+        }
+
+        try {
+          const priceData = await jita.postMarketPricesBulk({
+            itemIds: batchItems.length > 0 ? batchItems : undefined,
+            cargoIds: batchCargo.length > 0 ? batchCargo : undefined,
+          });
+          for (const [id, info] of Object.entries(priceData.data.items)) {
+            const p = info as { highestBuyPrice?: number; lowestSellPrice?: number };
+            const buy = p.highestBuyPrice ?? 0;
+            const sell = p.lowestSellPrice ?? 0;
+            if (buy > 0 || sell > 0) itemPrices.set(`Item:${id}`, (buy + sell) / 2);
+          }
+          for (const [id, info] of Object.entries(priceData.data.cargo)) {
+            const p = info as { highestBuyPrice?: number; lowestSellPrice?: number };
+            const buy = p.highestBuyPrice ?? 0;
+            const sell = p.lowestSellPrice ?? 0;
+            if (buy > 0 || sell > 0) itemPrices.set(`Cargo:${id}`, (buy + sell) / 2);
+          }
+        } catch (e) {
+          console.error("Failed to fetch market prices for ingestion:", e);
+        }
+      }
+    }
+
+    // 6. Insert new logs into D1
     if (allNewLogs.length > 0) {
       // D1 batch limit is 100 statements, so chunk
       const BATCH_SIZE = 50;
@@ -266,13 +338,14 @@ export async function ingestLogs(
             log.building?.buildingName ??
             buildingNameMap.get(buildingId) ??
             "Unknown";
+          const unitValue = itemPrices.get(`${itemType}:${log.data.item_id}`) ?? 0;
 
           return db
             .prepare(
               `INSERT OR IGNORE INTO storage_logs
                (id, claim_id, player_entity_id, player_name, building_entity_id, building_name,
-                item_type, item_id, item_name, quantity, action, timestamp)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                item_type, item_id, item_name, quantity, unit_value, action, timestamp)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             )
             .bind(
               log.id,
@@ -285,6 +358,7 @@ export async function ingestLogs(
               log.data.item_id,
               itemName,
               log.data.quantity,
+              unitValue,
               action,
               // Strip timezone offset (+00) so SQLite STRFTIME works
               log.timestamp.replace(/\+\d{2}$/, ""),
@@ -294,7 +368,7 @@ export async function ingestLogs(
       }
     }
 
-    // 6. Update fetch state
+    // 7. Update fetch state
     const newNewestId = allNewLogs.length > 0 ? allNewLogs[0]!.id : newestLogId;
     await db
       .prepare(
@@ -372,7 +446,7 @@ export async function queryStorageAudit(
   const logsResult = await db
     .prepare(
       `SELECT id, player_entity_id, player_name, building_name, item_type, item_id,
-              item_name, quantity, action, timestamp
+              item_name, quantity, unit_value, action, timestamp
        FROM storage_logs
        WHERE ${whereClause}
        ORDER BY timestamp DESC
@@ -381,20 +455,22 @@ export async function queryStorageAudit(
     .bind(...params, filters.pageSize, offset)
     .all<StorageAuditLogRow>();
 
-  // Chart data: hourly aggregates
+  // Chart data: hourly aggregates (value = quantity × unit_value)
   const chartResult = await db
     .prepare(
       `SELECT
-         STRFTIME('%Y-%m-%dT%H', timestamp) as bucket,
-         SUM(CASE WHEN action = 'deposit' THEN quantity ELSE 0 END) as deposits,
-         SUM(CASE WHEN action = 'withdraw' THEN quantity ELSE 0 END) as withdrawals
+         STRFTIME('%Y-%m-%dT%H:%M', timestamp) as bucket,
+         SUM(CASE WHEN action = 'deposit' THEN quantity * unit_value ELSE 0 END) as deposits,
+         SUM(CASE WHEN action = 'withdraw' THEN quantity * unit_value ELSE 0 END) as withdrawals
        FROM storage_logs
        WHERE ${whereClause}
-       GROUP BY STRFTIME('%Y-%m-%dT%H', timestamp)
+       GROUP BY bucket
        ORDER BY bucket ASC`,
     )
     .bind(...params)
     .all<{ bucket: string; deposits: number; withdrawals: number }>();
+
+  console.log(chartResult);
 
   let cumulative = 0;
   const chartData: StorageAuditChartPoint[] = (chartResult.results ?? []).map(
