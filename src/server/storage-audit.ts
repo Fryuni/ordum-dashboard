@@ -338,7 +338,7 @@ export async function ingestLogs(
             log.building?.buildingName ??
             buildingNameMap.get(buildingId) ??
             "Unknown";
-          const unitValue = itemPrices.get(`${itemType}:${log.data.item_id}`) ?? 0;
+          const unitValue = Number(itemPrices.get(`${itemType}:${log.data.item_id}`)) || 0;
 
           return db
             .prepare(
