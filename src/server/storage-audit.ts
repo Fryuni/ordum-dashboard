@@ -330,6 +330,16 @@ export async function ingestLogs(
         ? await fetchItemPrices(jita, allNewLogs)
         : new Map<string, number>();
 
+    if (allNewLogs.length > 0) {
+      const withPrice = allNewLogs.filter((log) => {
+        const t = log.data.item_type === "cargo" ? "Cargo" : "Item";
+        return (Number(itemPrices.get(`${t}:${log.data.item_id}`)) || 0) > 0;
+      }).length;
+      console.log(
+        `[storage-audit] Building ${buildingId}: ${allNewLogs.length} logs, ${itemPrices.size} prices, ${withPrice} logs with value`,
+      );
+    }
+
     // 6. Insert new logs
     for (let i = 0; i < allNewLogs.length; i += INSERT_BATCH_SIZE) {
       const chunk = allNewLogs.slice(i, i + INSERT_BATCH_SIZE);
@@ -363,11 +373,7 @@ export async function ingestLogs(
       await db
         .insertInto("storage_logs")
         .values(rows)
-        .onConflict((oc) =>
-          oc.column("id").doUpdateSet({
-            unit_value: sql`CASE WHEN excluded.unit_value > 0 THEN excluded.unit_value ELSE storage_logs.unit_value END`,
-          }),
-        )
+        .onConflict((oc) => oc.column("id").doNothing())
         .execute();
     }
 
