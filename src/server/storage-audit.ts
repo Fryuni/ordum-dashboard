@@ -124,6 +124,82 @@ const FIXED_VALUE = new Map<string, number>([
 /** Items excluded from valuation */
 const EXCLUDED_ITEMS = new Set<string>(["Cargo:2000000"]);
 
+// ─── Runtime Migrations ─────────────────────────────────────────────────────────
+
+/**
+ * Ensure the D1 schema is up-to-date before ingestion.
+ * Uses PRAGMA table_info to detect missing columns and applies
+ * migrations incrementally. Safe to call on every ingestion — returns
+ * immediately when the schema is already current.
+ */
+export async function ensureSchema(db: D1Database): Promise<void> {
+  // 1. Create tables if they don't exist
+  await db.batch([
+    db.prepare(`CREATE TABLE IF NOT EXISTS storage_logs (
+      id TEXT PRIMARY KEY,
+      claim_id TEXT NOT NULL,
+      player_entity_id TEXT NOT NULL,
+      player_name TEXT NOT NULL,
+      building_entity_id TEXT NOT NULL,
+      building_name TEXT NOT NULL,
+      item_type TEXT NOT NULL,
+      item_id INTEGER NOT NULL,
+      item_name TEXT NOT NULL,
+      quantity INTEGER NOT NULL,
+      unit_value REAL NOT NULL DEFAULT 0,
+      action TEXT NOT NULL,
+      timestamp TEXT NOT NULL
+    )`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS storage_fetch_state (
+      claim_id TEXT NOT NULL,
+      building_entity_id TEXT NOT NULL,
+      newest_log_id TEXT,
+      updated_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (claim_id, building_entity_id)
+    )`),
+  ]);
+
+  // 2. Ensure indexes exist
+  await db.batch([
+    db.prepare(
+      `CREATE INDEX IF NOT EXISTS idx_logs_claim_ts
+       ON storage_logs(claim_id, timestamp DESC)`,
+    ),
+    db.prepare(
+      `CREATE INDEX IF NOT EXISTS idx_logs_claim_player
+       ON storage_logs(claim_id, player_entity_id, timestamp DESC)`,
+    ),
+    db.prepare(
+      `CREATE INDEX IF NOT EXISTS idx_logs_claim_item
+       ON storage_logs(claim_id, item_id, item_type, timestamp DESC)`,
+    ),
+    db.prepare(
+      `CREATE INDEX IF NOT EXISTS idx_logs_claim_player_item
+       ON storage_logs(claim_id, player_entity_id, item_id, item_type, timestamp DESC)`,
+    ),
+  ]);
+
+  // 3. Check if unit_value column exists, add it if missing
+  const columns = await db
+    .prepare(`PRAGMA table_info(storage_logs)`)
+    .all<{ name: string }>();
+  const colNames = new Set((columns.results ?? []).map((c) => c.name));
+
+  if (!colNames.has("unit_value")) {
+    await db
+      .prepare(
+        `ALTER TABLE storage_logs ADD COLUMN unit_value REAL DEFAULT 0`,
+      )
+      .run();
+    // Fix any NULL unit_value rows from before the migration
+    await db
+      .prepare(
+        `UPDATE storage_logs SET unit_value = 0 WHERE unit_value IS NULL`,
+      )
+      .run();
+  }
+}
+
 // ─── Ingestion ──────────────────────────────────────────────────────────────────
 
 /** Resolve an item name from BitJita metadata or gamedata fallback */
@@ -169,6 +245,9 @@ export async function ingestLogs(
   db: D1Database,
   claimId: string,
 ): Promise<boolean> {
+  // 0. Ensure schema is up-to-date
+  await ensureSchema(db);
+
   // 1. Get storage buildings for this claim
   const buildings = await getStorageBuildings(jita, claimId);
   if (buildings.length === 0) return false;
