@@ -216,10 +216,16 @@ async function fetchItemPrices(
         if (buy > 0 || sell > 0) prices.set(`Cargo:${id}`, (buy + sell) / 2);
       }
     } catch (e) {
-      console.error("Failed to fetch market prices for ingestion:", e);
+      console.error(
+        `[storage-audit] Price fetch failed (items=${batchItems.length}, cargo=${batchCargo.length}):`,
+        e,
+      );
     }
   }
 
+  console.log(
+    `[storage-audit] Price lookup: ${prices.size} prices for ${allItemIds.length} items + ${allCargoIds.length} cargo`,
+  );
   return prices;
 }
 
@@ -357,7 +363,11 @@ export async function ingestLogs(
       await db
         .insertInto("storage_logs")
         .values(rows)
-        .onConflict((oc) => oc.column("id").doNothing())
+        .onConflict((oc) =>
+          oc.column("id").doUpdateSet({
+            unit_value: sql`CASE WHEN excluded.unit_value > 0 THEN excluded.unit_value ELSE storage_logs.unit_value END`,
+          }),
+        )
         .execute();
     }
 
