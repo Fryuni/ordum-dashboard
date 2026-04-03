@@ -23,9 +23,9 @@
  */
 import {
   AdaptedCache,
+  HoldWhileRevalidateCache,
   LruCache,
   SharedInFlightCache,
-  StaleWhileRevalidateCache,
   TimestampedCacheEntry,
   type CacheProvider,
 } from "@croct/cache";
@@ -44,8 +44,8 @@ export function buildCache(
 
   return AdaptedCache.transformKeys(
     new SharedInFlightCache(
-      new StaleWhileRevalidateCache({
-        freshPeriod,
+      new HoldWhileRevalidateCache({
+        maxAge: freshPeriod,
         cacheProvider: AdaptedCache.transformValues(
           storage,
           TimestampedCacheEntry.toJSON,

@@ -151,8 +151,9 @@ export async function migrateToLatest(db: Kysely<any>): Promise<void> {
   if (latest.rows.length > 0) return;
 
   // Get all applied migration names
-  const applied =
-    await sql<{ name: string }>`SELECT name FROM _migrations`.execute(db);
+  const applied = await sql<{
+    name: string;
+  }>`SELECT name FROM _migrations`.execute(db);
   const appliedSet = new Set(applied.rows.map((r) => r.name));
 
   // Run pending migrations in order

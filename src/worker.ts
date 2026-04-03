@@ -386,11 +386,7 @@ app.post("/api/storage-audit/ingest", async (c) => {
   try {
     const jita = c.get("jita");
     const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
-    const moreRemaining = await ingestLogs(
-      jita,
-      c.get("db"),
-      claimId,
-    );
+    const moreRemaining = await ingestLogs(jita, c.get("db"), claimId);
     return c.json({ ingested: true, moreRemaining });
   } catch (e) {
     console.error("Failed to ingest storage audit data:", e);
@@ -428,12 +424,12 @@ app.all("/jita/*", async (c) => {
 
   try {
     // Cache GET requests through the SWR proxy cache
-    if (c.req.method === "GET" && proxyCache !== null) {
-      const body = await proxyCache.get(target, () =>
-        fetchUpstream(target, "GET"),
-      );
-      return c.json(body);
-    }
+    // if (c.req.method === "GET" && proxyCache !== null) {
+    //   const body = await proxyCache.get(target, () =>
+    //     fetchUpstream(target, "GET"),
+    //   );
+    //   return c.json(body);
+    // }
 
     const body = await fetchUpstream(target, c.req.method, await c.req.text());
     return c.json(body);
@@ -467,11 +463,7 @@ async function scheduledHandler(
     while (moreRemaining && rounds < MAX_ROUNDS) {
       rounds++;
       try {
-        moreRemaining = await ingestLogs(
-          jita,
-          db,
-          claimId,
-        );
+        moreRemaining = await ingestLogs(jita, db, claimId);
       } catch (e) {
         console.error(
           `Cron ingestion error (claim=${claimId}, round=${rounds}):`,

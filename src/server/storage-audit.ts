@@ -260,10 +260,7 @@ export async function ingestLogs(
     .select(["building_entity_id", "newest_log_id"])
     .where("claim_id", "=", claimId)
     .where((eb: ExpressionBuilder<Database, "storage_fetch_state">) =>
-      eb.or([
-        eb("updated_at", "is", null),
-        eb("updated_at", "<", cutoff),
-      ]),
+      eb.or([eb("updated_at", "is", null), eb("updated_at", "<", cutoff)]),
     )
     .orderBy(sql`updated_at ASC NULLS FIRST`)
     .limit(MAX_BUILDINGS_PER_REQUEST)
@@ -365,8 +362,7 @@ export async function ingestLogs(
     }
 
     // 7. Update fetch state
-    const newNewestId =
-      allNewLogs.length > 0 ? allNewLogs[0]!.id : newestLogId;
+    const newNewestId = allNewLogs.length > 0 ? allNewLogs[0]!.id : newestLogId;
     await db
       .updateTable("storage_fetch_state")
       .set({
@@ -407,7 +403,9 @@ export async function queryStorageAudit(
   },
 ): Promise<StorageAuditResponse> {
   // Build WHERE conditions as an expression
-  function applyFilters<T extends ExpressionBuilder<Database, "storage_logs">>(eb: T): ReturnType<T["and"]> {
+  function applyFilters<T extends ExpressionBuilder<Database, "storage_logs">>(
+    eb: T,
+  ): ReturnType<T["and"]> {
     const conditions: any[] = [eb("claim_id", "=", claimId)];
 
     if (filters.playerEntityIds && filters.playerEntityIds.length > 0) {
@@ -502,10 +500,7 @@ export async function queryStorageAudit(
   // Distinct players for filter dropdown
   const players = await db
     .selectFrom("storage_logs")
-    .select([
-      "player_entity_id as entityId",
-      "player_name as name",
-    ])
+    .select(["player_entity_id as entityId", "player_name as name"])
     .where("claim_id", "=", claimId)
     .distinct()
     .orderBy("player_name", "asc")
@@ -514,11 +509,7 @@ export async function queryStorageAudit(
   // Distinct items for filter dropdown
   const items = await db
     .selectFrom("storage_logs")
-    .select([
-      "item_id as id",
-      "item_type as type",
-      "item_name as name",
-    ])
+    .select(["item_id as id", "item_type as type", "item_name as name"])
     .where("claim_id", "=", claimId)
     .distinct()
     .orderBy("item_name", "asc")
