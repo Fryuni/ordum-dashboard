@@ -37,6 +37,8 @@ import {
   $auditClaim,
   $auditPlayers,
   $auditItems,
+  $auditDateFrom,
+  $auditDateTo,
   $auditPage,
   $auditView,
 } from "../stores/storageAudit";
@@ -251,6 +253,8 @@ export default function StorageAuditPage() {
   const selectedClaim = useStore($auditClaim);
   const selectedPlayers = useStore($auditPlayers);
   const selectedItems = useStore($auditItems);
+  const dateFrom = useStore($auditDateFrom);
+  const dateTo = useStore($auditDateTo);
   const { dataAsync, page, totalPages } = useStore($auditView);
 
   useEffect(() => {
@@ -295,6 +299,32 @@ export default function StorageAuditPage() {
                 <option value={ORDUM_MAIN_CLAIM_ID}>Ordum City</option>
               )}
             </select>
+          </div>
+
+          <div class="input-group">
+            <label for="audit-date-from">From</label>
+            <input
+              id="audit-date-from"
+              type="date"
+              class="source-select"
+              value={dateFrom}
+              onChange={(e) =>
+                $auditDateFrom.set((e.target as HTMLInputElement).value)
+              }
+            />
+          </div>
+
+          <div class="input-group">
+            <label for="audit-date-to">To</label>
+            <input
+              id="audit-date-to"
+              type="date"
+              class="source-select"
+              value={dateTo}
+              onChange={(e) =>
+                $auditDateTo.set((e.target as HTMLInputElement).value)
+              }
+            />
           </div>
 
           <MultiSelect

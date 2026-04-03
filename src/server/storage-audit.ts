@@ -398,6 +398,8 @@ export async function queryStorageAudit(
   filters: {
     playerEntityIds?: string[];
     itemKeys?: string[];
+    from?: string;
+    to?: string;
     page: number;
     pageSize: number;
   },
@@ -407,6 +409,13 @@ export async function queryStorageAudit(
     eb: T,
   ): ReturnType<T["and"]> {
     const conditions: any[] = [eb("claim_id", "=", claimId)];
+
+    if (filters.from) {
+      conditions.push(eb("timestamp", ">=", filters.from + "T00:00:00"));
+    }
+    if (filters.to) {
+      conditions.push(eb("timestamp", "<", filters.to + "T00:00:00"));
+    }
 
     if (filters.playerEntityIds && filters.playerEntityIds.length > 0) {
       conditions.push(eb("player_entity_id", "in", filters.playerEntityIds));

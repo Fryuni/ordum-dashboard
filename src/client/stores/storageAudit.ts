@@ -51,13 +51,17 @@ export const $auditPlayers = persistentJsonAtom<string[]>("auditPlayers", []);
 /** Selected item keys as "Type:id" (empty array = all items) */
 export const $auditItems = persistentJsonAtom<string[]>("auditItems", []);
 
+/** Date range filter — ISO date strings like "2026-03-15" (empty = no bound) */
+export const $auditDateFrom = persistentAtom<string>("auditDateFrom", "");
+export const $auditDateTo = persistentAtom<string>("auditDateTo", "");
+
 export const $auditPage = atom(1);
 
 export const PAGE_SIZE = 50;
 
 // Reset page to 1 when any filter changes
 onMount($auditPage, () => {
-  const unsubs = [$auditClaim, $auditPlayers, $auditItems].map((store) =>
+  const unsubs = [$auditClaim, $auditPlayers, $auditItems, $auditDateFrom, $auditDateTo].map((store) =>
     store.listen(() => $auditPage.set(1)),
   );
   return () => unsubs.forEach((u) => u());
@@ -70,6 +74,8 @@ function buildAuditUrl(
   players: string[],
   items: string[],
   page: number,
+  dateFrom: string,
+  dateTo: string,
 ): string {
   const params = new URLSearchParams({
     claim: claimId,
@@ -78,21 +84,26 @@ function buildAuditUrl(
   });
   for (const p of players) params.append("player", p);
   for (const item of items) params.append("item", item);
+  if (dateFrom) params.set("from", dateFrom);
+  if (dateTo) params.set("to", dateTo);
   return `/api/storage-audit?${params}`;
 }
 
 // ─── Data Store ─────────────────────────────────────────────────────────────────
 
 export const $auditData = computedAsync(
-  [$auditClaim, $auditPlayers, $auditItems, $auditPage, $updateTimer],
+  [$auditClaim, $auditPlayers, $auditItems, $auditPage, $updateTimer, $auditDateFrom, $auditDateTo],
   async (
     claimId,
     players,
     items,
     page,
+    _timer,
+    dateFrom,
+    dateTo,
   ): Promise<StorageAuditResponse | null> => {
     if (!claimId) return null;
-    const url = buildAuditUrl(claimId, players, items, page);
+    const url = buildAuditUrl(claimId, players, items, page, dateFrom, dateTo);
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return resp.json() as Promise<StorageAuditResponse>;

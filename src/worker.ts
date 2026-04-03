@@ -365,6 +365,8 @@ app.get("/api/storage-audit", async (c) => {
     // Multi-value: ?player=id1&player=id2&item=Type:id1&item=Type:id2
     const playerEntityIds = c.req.queries("player")?.filter(Boolean);
     const itemKeys = c.req.queries("item")?.filter(Boolean);
+    const from = c.req.query("from") || undefined;
+    const to = c.req.query("to") || undefined;
 
     const result = await queryStorageAudit(c.get("db"), claimId, {
       playerEntityIds:
@@ -372,6 +374,8 @@ app.get("/api/storage-audit", async (c) => {
           ? playerEntityIds
           : undefined,
       itemKeys: itemKeys && itemKeys.length > 0 ? itemKeys : undefined,
+      from,
+      to,
       page,
       pageSize,
     });
