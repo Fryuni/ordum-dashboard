@@ -50,13 +50,17 @@ export const $auditPlayers = persistentJsonAtom<string[]>("auditPlayers", []);
 /** Selected item keys as "Type:id" (empty array = all items) */
 export const $auditItems = persistentJsonAtom<string[]>("auditItems", []);
 
+/** Date range filter — ISO date strings like "2026-03-15" (empty = no bound) */
+export const $auditDateFrom = persistentAtom<string>("auditDateFrom", "");
+export const $auditDateTo = persistentAtom<string>("auditDateTo", "");
+
 export const $auditPage = atom(1);
 
 export const PAGE_SIZE = 50;
 
 // Reset page to 1 when any filter changes
 onMount($auditPage, () => {
-  const unsubs = [$auditClaims, $auditPlayers, $auditItems].map((store) =>
+  const unsubs = [$auditClaims, $auditPlayers, $auditItems, $auditDateFrom, $auditDateTo].map((store) =>
     store.listen(() => $auditPage.set(1)),
   );
   return () => unsubs.forEach((u) => u());
@@ -69,6 +73,8 @@ function buildAuditUrl(
   players: string[],
   items: string[],
   page: number,
+  dateFrom: string,
+  dateTo: string,
 ): string {
   const params = new URLSearchParams({
     page: String(page),
@@ -77,21 +83,26 @@ function buildAuditUrl(
   for (const c of claims) params.append("claim", c);
   for (const p of players) params.append("player", p);
   for (const item of items) params.append("item", item);
+  if (dateFrom) params.set("from", dateFrom);
+  if (dateTo) params.set("to", dateTo);
   return `/api/storage-audit?${params}`;
 }
 
 // ─── Data Store ─────────────────────────────────────────────────────────────────
 
 export const $auditData = computedAsync(
-  [$auditClaims, $auditPlayers, $auditItems, $auditPage, $updateTimer],
+  [$auditClaims, $auditPlayers, $auditItems, $auditPage, $updateTimer, $auditDateFrom, $auditDateTo],
   async (
     claims,
     players,
     items,
     page,
+    _timer,
+    dateFrom,
+    dateTo,
   ): Promise<StorageAuditResponse | null> => {
     if (!claims || claims.length === 0) return null;
-    const url = buildAuditUrl(claims, players, items, page);
+    const url = buildAuditUrl(claims, players, items, page, dateFrom, dateTo);
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return resp.json() as Promise<StorageAuditResponse>;
