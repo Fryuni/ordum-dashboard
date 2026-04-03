@@ -40,10 +40,9 @@ function persistentJsonAtom<T>(key: string, defaultValue: T) {
 
 // ─── Filter Atoms ───────────────────────────────────────────────────────────────
 
-export const $auditClaim = persistentAtom<string>(
-  "auditClaim",
+export const $auditClaims = persistentJsonAtom<string[]>("auditClaims", [
   ORDUM_MAIN_CLAIM_ID,
-);
+]);
 
 /** Selected player entity IDs (empty array = all players) */
 export const $auditPlayers = persistentJsonAtom<string[]>("auditPlayers", []);
@@ -57,7 +56,7 @@ export const PAGE_SIZE = 50;
 
 // Reset page to 1 when any filter changes
 onMount($auditPage, () => {
-  const unsubs = [$auditClaim, $auditPlayers, $auditItems].map((store) =>
+  const unsubs = [$auditClaims, $auditPlayers, $auditItems].map((store) =>
     store.listen(() => $auditPage.set(1)),
   );
   return () => unsubs.forEach((u) => u());
@@ -66,16 +65,16 @@ onMount($auditPage, () => {
 // ─── Fetch Helper ───────────────────────────────────────────────────────────────
 
 function buildAuditUrl(
-  claimId: string,
+  claims: string[],
   players: string[],
   items: string[],
   page: number,
 ): string {
   const params = new URLSearchParams({
-    claim: claimId,
     page: String(page),
     pageSize: String(PAGE_SIZE),
   });
+  for (const c of claims) params.append("claim", c);
   for (const p of players) params.append("player", p);
   for (const item of items) params.append("item", item);
   return `/api/storage-audit?${params}`;
@@ -84,15 +83,15 @@ function buildAuditUrl(
 // ─── Data Store ─────────────────────────────────────────────────────────────────
 
 export const $auditData = computedAsync(
-  [$auditClaim, $auditPlayers, $auditItems, $auditPage, $updateTimer],
+  [$auditClaims, $auditPlayers, $auditItems, $auditPage, $updateTimer],
   async (
-    claimId,
+    claims,
     players,
     items,
     page,
   ): Promise<StorageAuditResponse | null> => {
-    if (!claimId) return null;
-    const url = buildAuditUrl(claimId, players, items, page);
+    if (!claims || claims.length === 0) return null;
+    const url = buildAuditUrl(claims, players, items, page);
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return resp.json() as Promise<StorageAuditResponse>;
@@ -111,12 +110,16 @@ export async function triggerSync() {
   if ($syncing.get()) return;
   $syncing.set(true);
   try {
-    const claimId = $auditClaim.get();
-    const resp = await fetch(
-      `/api/storage-audit/ingest?claim=${encodeURIComponent(claimId)}`,
-      { method: "POST" },
+    const claims = $auditClaims.get();
+    await Promise.all(
+      claims.map(async (claimId) => {
+        const resp = await fetch(
+          `/api/storage-audit/ingest?claim=${encodeURIComponent(claimId)}`,
+          { method: "POST" },
+        );
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      }),
     );
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   } catch (e) {
     console.error("Sync error:", e);
   } finally {

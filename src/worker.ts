@@ -355,7 +355,9 @@ app.get("/api/contribution", async (c) => {
 
 app.get("/api/storage-audit", async (c) => {
   try {
-    const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
+    const claimIds = c.req.queries("claim")?.filter(Boolean);
+    const resolvedClaims =
+      claimIds && claimIds.length > 0 ? claimIds : [ORDUM_MAIN_CLAIM_ID];
     const page = Math.max(1, Number(c.req.query("page")) || 1);
     const pageSize = Math.min(
       100,
@@ -366,7 +368,7 @@ app.get("/api/storage-audit", async (c) => {
     const playerEntityIds = c.req.queries("player")?.filter(Boolean);
     const itemKeys = c.req.queries("item")?.filter(Boolean);
 
-    const result = await queryStorageAudit(c.get("db"), claimId, {
+    const result = await queryStorageAudit(c.get("db"), resolvedClaims, {
       playerEntityIds:
         playerEntityIds && playerEntityIds.length > 0
           ? playerEntityIds

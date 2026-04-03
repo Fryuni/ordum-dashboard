@@ -394,7 +394,7 @@ export async function ingestLogs(
 
 export async function queryStorageAudit(
   db: Kysely<Database>,
-  claimId: string,
+  claimIds: string[],
   filters: {
     playerEntityIds?: string[];
     itemKeys?: string[];
@@ -406,7 +406,11 @@ export async function queryStorageAudit(
   function applyFilters<T extends ExpressionBuilder<Database, "storage_logs">>(
     eb: T,
   ): ReturnType<T["and"]> {
-    const conditions: any[] = [eb("claim_id", "=", claimId)];
+    const conditions: any[] = [
+      claimIds.length === 1
+        ? eb("claim_id", "=", claimIds[0])
+        : eb("claim_id", "in", claimIds),
+    ];
 
     if (filters.playerEntityIds && filters.playerEntityIds.length > 0) {
       conditions.push(eb("player_entity_id", "in", filters.playerEntityIds));
@@ -501,7 +505,11 @@ export async function queryStorageAudit(
   const players = await db
     .selectFrom("storage_logs")
     .select(["player_entity_id as entityId", "player_name as name"])
-    .where("claim_id", "=", claimId)
+    .where((eb) =>
+      claimIds.length === 1
+        ? eb("claim_id", "=", claimIds[0])
+        : eb("claim_id", "in", claimIds),
+    )
     .distinct()
     .orderBy("player_name", "asc")
     .execute();
@@ -510,7 +518,11 @@ export async function queryStorageAudit(
   const items = await db
     .selectFrom("storage_logs")
     .select(["item_id as id", "item_type as type", "item_name as name"])
-    .where("claim_id", "=", claimId)
+    .where((eb) =>
+      claimIds.length === 1
+        ? eb("claim_id", "=", claimIds[0])
+        : eb("claim_id", "in", claimIds),
+    )
     .distinct()
     .orderBy("item_name", "asc")
     .execute();

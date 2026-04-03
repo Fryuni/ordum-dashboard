@@ -34,7 +34,7 @@ import {
   fetchEmpireClaims,
 } from "../stores/craftSource";
 import {
-  $auditClaim,
+  $auditClaims,
   $auditPlayers,
   $auditItems,
   $auditPage,
@@ -248,7 +248,7 @@ function formatTimestamp(ts: string): string {
 export default function StorageAuditPage() {
   const claims = useStore($empireClaims);
   const claimsLoading = useStore($empireClaimsLoading);
-  const selectedClaim = useStore($auditClaim);
+  const selectedClaims = useStore($auditClaims);
   const selectedPlayers = useStore($auditPlayers);
   const selectedItems = useStore($auditItems);
   const { dataAsync, page, totalPages } = useStore($auditView);
@@ -273,29 +273,20 @@ export default function StorageAuditPage() {
       {/* Filters */}
       <div class="planner-card">
         <div class="form-row">
-          <div class="input-group source-select-container">
-            <label for="audit-claim">Claim</label>
-            <select
-              id="audit-claim"
-              class="source-select"
-              value={selectedClaim}
-              onChange={(e) =>
-                $auditClaim.set((e.target as HTMLSelectElement).value)
-              }
-            >
-              {claimsLoading && claims.length === 0 && (
-                <option disabled>Loading claims...</option>
-              )}
-              {claims.map((claim) => (
-                <option key={claim.id} value={claim.id}>
-                  {claim.name}
-                </option>
-              ))}
-              {!claimsLoading && claims.length === 0 && (
-                <option value={ORDUM_MAIN_CLAIM_ID}>Ordum City</option>
-              )}
-            </select>
-          </div>
+          <MultiSelect
+            label="Claim"
+            placeholder={claimsLoading && claims.length === 0 ? "Loading claims..." : "All Claims"}
+            options={
+              claims.length > 0
+                ? claims.map((claim) => ({
+                    value: claim.id,
+                    label: claim.name,
+                  }))
+                : [{ value: ORDUM_MAIN_CLAIM_ID, label: "Ordum City" }]
+            }
+            selected={selectedClaims}
+            onChange={(v) => $auditClaims.set(v)}
+          />
 
           <MultiSelect
             label="Player"
