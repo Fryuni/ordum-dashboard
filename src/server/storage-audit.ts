@@ -69,6 +69,7 @@ interface BuildingInfo {
 
 export interface StorageAuditLogRow {
   id: string;
+  claim_id: string;
   player_entity_id: string;
   player_name: string;
   building_name: string;
@@ -448,6 +449,7 @@ export async function queryStorageAudit(
     .selectFrom("storage_logs")
     .select([
       "id",
+      "claim_id",
       "player_entity_id",
       "player_name",
       "building_name",

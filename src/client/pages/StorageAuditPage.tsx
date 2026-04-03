@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useMemo, useRef } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
 import {
   createChart,
@@ -257,6 +257,12 @@ export default function StorageAuditPage() {
     fetchEmpireClaims();
   }, []);
 
+  const claimNameMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of claims) m.set(c.id, c.name);
+    return m;
+  }, [claims]);
+
   const loading = dataAsync.state === "loading";
   const error = dataAsync.state === "failed" ? String(dataAsync.error) : null;
   const data = dataAsync.state === "ready" ? dataAsync.value : null;
@@ -338,6 +344,7 @@ export default function StorageAuditPage() {
             <table class="modern-table">
               <thead>
                 <tr>
+                  <th>Claim</th>
                   <th>Player</th>
                   <th>Inventory</th>
                   <th>Item</th>
@@ -351,7 +358,7 @@ export default function StorageAuditPage() {
                 {data.logs.length === 0 && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       style="text-align: center; color: var(--text-muted); padding: 24px"
                     >
                       No storage events found.
@@ -360,6 +367,9 @@ export default function StorageAuditPage() {
                 )}
                 {data.logs.map((log) => (
                   <tr key={log.id}>
+                    <td style="color: var(--text-muted)">
+                      {claimNameMap.get(log.claim_id) ?? log.claim_id}
+                    </td>
                     <td>{log.player_name}</td>
                     <td style="color: var(--text-muted)">
                       {log.building_name}
