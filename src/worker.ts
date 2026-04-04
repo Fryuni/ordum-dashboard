@@ -24,9 +24,9 @@
  */
 import { Hono } from "hono";
 import { fetchEmpireData } from "./server/ordum-data";
-import { ORDUM_MAIN_CLAIM_ID } from "./server/ordum-data";
+
 import { buildCache, createServerJita } from "./server/api-server";
-import { ORDUM_EMPIRE_NAME } from "./common/ordum-types";
+import { ORDUM_EMPIRE_ID } from "./common/ordum-types";
 import type { CacheProvider } from "@croct/cache";
 import { buildClaimInventory } from "./common/claim-inventory";
 import { buildSettlementPlan } from "./common/settlement-planner";
@@ -91,21 +91,46 @@ app.get("/api/empire", async (c) => {
 app.get("/api/empire-claims", async (c) => {
   try {
     const jita = c.get("jita");
-    const empires = await jita.listEmpires({ q: ORDUM_EMPIRE_NAME });
-    const empire = (empires.empires as any[]).find(
-      (e: any) => e.name?.toLowerCase() === ORDUM_EMPIRE_NAME.toLowerCase(),
-    );
+    const { empire } = (await jita.getEmpire(ORDUM_EMPIRE_ID)) as any;
     if (!empire) {
       return c.json({ error: "Empire not found" }, 404);
     }
 
-    const claimsData = await jita.getEmpireClaims(empire.entityId);
+    const capitalBuildingEntityId: string | null =
+      empire.capitalBuildingEntityId ?? null;
+
+    const claimsData = await jita.getEmpireClaims(ORDUM_EMPIRE_ID);
     const claims = (claimsData.claims as any[]).map((cl: any) => ({
       id: cl.entityId,
       name: cl.name,
     }));
 
-    return c.json({ claims });
+    // Resolve capital claim by matching ownerBuildingEntityId
+    let capitalClaimId: string | null = null;
+    if (capitalBuildingEntityId && claims.length > 0) {
+      const details = await Promise.all(
+        claims.map(async (cl) => {
+          try {
+            const { claim } = await jita.getClaim(cl.id);
+            return {
+              id: cl.id,
+              ownerBuildingEntityId: claim.ownerBuildingEntityId,
+            };
+          } catch {
+            return { id: cl.id, ownerBuildingEntityId: null };
+          }
+        }),
+      );
+      capitalClaimId =
+        details.find((d) => d.ownerBuildingEntityId === capitalBuildingEntityId)
+          ?.id ??
+        claims[0]?.id ??
+        null;
+    } else if (claims.length > 0) {
+      capitalClaimId = claims[0]?.id ?? null;
+    }
+
+    return c.json({ claims, capitalClaimId });
   } catch (e) {
     console.error("Failed to fetch empire claims:", e);
     return c.json({ error: String(e) }, 500);
@@ -115,7 +140,9 @@ app.get("/api/empire-claims", async (c) => {
 app.get("/api/settlement", async (c) => {
   try {
     const jita = c.get("jita");
-    const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
+    const claimId = c.req.query("claim");
+    if (!claimId)
+      return c.json({ error: "claim query parameter is required" }, 400);
     const { claim } = await jita.getClaim(claimId);
     const currentTier = claim.tier ?? 1;
     const supplies = Number(claim.supplies) || 0;
@@ -156,7 +183,9 @@ app.get("/api/settlement", async (c) => {
 app.get("/api/construction", async (c) => {
   try {
     const jita = c.get("jita");
-    const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
+    const claimId = c.req.query("claim");
+    if (!claimId)
+      return c.json({ error: "claim query parameter is required" }, 400);
     const [constructionData, claimInv] = await Promise.all([
       jita.getClaimConstruction(claimId),
       jita.getClaimInventories(claimId),
@@ -283,7 +312,9 @@ app.get("/api/construction", async (c) => {
 app.get("/api/inventory-search", async (c) => {
   try {
     const jitaClient = c.get("jita");
-    const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
+    const claimId = c.req.query("claim");
+    if (!claimId)
+      return c.json({ error: "claim query parameter is required" }, 400);
     const rawInventory = await buildClaimInventory(claimId);
     const { claim } = await jitaClient.getClaim(claimId);
 
@@ -335,7 +366,9 @@ app.get("/api/inventory-search", async (c) => {
 app.get("/api/contribution", async (c) => {
   try {
     const jita = c.get("jita");
-    const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
+    const claimId = c.req.query("claim");
+    if (!claimId)
+      return c.json({ error: "claim query parameter is required" }, 400);
     const playerEntityId = c.req.query("player");
     if (!playerEntityId) {
       return c.json({ error: "player query parameter is required" }, 400);
@@ -355,7 +388,13 @@ app.get("/api/contribution", async (c) => {
 
 app.get("/api/storage-audit", async (c) => {
   try {
-    const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
+    const claimIds = c.req.queries("claim")?.filter(Boolean);
+    if (!claimIds || claimIds.length === 0)
+      return c.json(
+        { error: "at least one claim query parameter is required" },
+        400,
+      );
+    const resolvedClaims = claimIds;
     const page = Math.max(1, Number(c.req.query("page")) || 1);
     const pageSize = Math.min(
       100,
@@ -368,7 +407,7 @@ app.get("/api/storage-audit", async (c) => {
     const from = c.req.query("from") || undefined;
     const to = c.req.query("to") || undefined;
 
-    const result = await queryStorageAudit(c.get("db"), claimId, {
+    const result = await queryStorageAudit(c.get("db"), resolvedClaims, {
       playerEntityIds:
         playerEntityIds && playerEntityIds.length > 0
           ? playerEntityIds
@@ -389,9 +428,12 @@ app.get("/api/storage-audit", async (c) => {
 app.post("/api/storage-audit/ingest", async (c) => {
   try {
     const jita = c.get("jita");
-    const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
-    const moreRemaining = await ingestLogs(jita, c.get("db"), claimId);
-    return c.json({ ingested: true, moreRemaining });
+    const claimIds = await getEmpireClaimIds(jita);
+    const results: Record<string, boolean> = {};
+    for (const claimId of claimIds) {
+      results[claimId] = await ingestLogs(jita, c.get("db"), claimId);
+    }
+    return c.json({ ingested: true, moreRemaining: results });
   } catch (e) {
     console.error("Failed to ingest storage audit data:", e);
     return c.json({ error: String(e) }, 500);
@@ -445,6 +487,20 @@ app.all("/jita/*", async (c) => {
 
 // ─── Cron: Storage Audit Ingestion ─────────────────────────────────────────────
 
+/** Discover all claim IDs in the empire via the API. */
+async function getEmpireClaimIds(jita: BitJitaClient): Promise<string[]> {
+  try {
+    const claimsData = await jita.getEmpireClaims(ORDUM_EMPIRE_ID);
+    const ids = (claimsData.claims as any[]).map(
+      (cl: any) => cl.entityId as string,
+    );
+    if (ids.length > 0) return ids;
+  } catch (err) {
+    console.error("Failed to discover empire claims:", err);
+  }
+  return [];
+}
+
 async function scheduledHandler(
   _event: ScheduledEvent,
   env: Bindings,
@@ -455,8 +511,8 @@ async function scheduledHandler(
   const db = createDb(env.ordum_storage_audit);
   await migrateToLatest(db);
 
-  // Ingest for all known empire claims
-  const claimIds = [ORDUM_MAIN_CLAIM_ID];
+  // Ingest for all empire claims
+  const claimIds = await getEmpireClaimIds(jita);
 
   for (const claimId of claimIds) {
     let moreRemaining = true;

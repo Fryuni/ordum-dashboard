@@ -19,9 +19,9 @@
 import { persistentAtom } from "@nanostores/persistent";
 import { atom, computed, onMount } from "nanostores";
 import { computedAsync } from "@nanostores/async";
-import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import type { StorageAuditResponse } from "../../server/storage-audit";
 import { $updateTimer } from "../util-store";
+import { useCapitalAsDefaultArray } from "./craftSource";
 
 // ─── JSON persistent atom helper ────────────────────────────────────────────────
 
@@ -40,10 +40,8 @@ function persistentJsonAtom<T>(key: string, defaultValue: T) {
 
 // ─── Filter Atoms ───────────────────────────────────────────────────────────────
 
-export const $auditClaim = persistentAtom<string>(
-  "auditClaim",
-  ORDUM_MAIN_CLAIM_ID,
-);
+export const $auditClaims = persistentJsonAtom<string[]>("auditClaims", []);
+useCapitalAsDefaultArray($auditClaims);
 
 /** Selected player entity IDs (empty array = all players) */
 export const $auditPlayers = persistentJsonAtom<string[]>("auditPlayers", []);
@@ -61,16 +59,20 @@ export const PAGE_SIZE = 50;
 
 // Reset page to 1 when any filter changes
 onMount($auditPage, () => {
-  const unsubs = [$auditClaim, $auditPlayers, $auditItems, $auditDateFrom, $auditDateTo].map((store) =>
-    store.listen(() => $auditPage.set(1)),
-  );
+  const unsubs = [
+    $auditClaims,
+    $auditPlayers,
+    $auditItems,
+    $auditDateFrom,
+    $auditDateTo,
+  ].map((store) => store.listen(() => $auditPage.set(1)));
   return () => unsubs.forEach((u) => u());
 });
 
 // ─── Fetch Helper ───────────────────────────────────────────────────────────────
 
 function buildAuditUrl(
-  claimId: string,
+  claims: string[],
   players: string[],
   items: string[],
   page: number,
@@ -78,10 +80,10 @@ function buildAuditUrl(
   dateTo: string,
 ): string {
   const params = new URLSearchParams({
-    claim: claimId,
     page: String(page),
     pageSize: String(PAGE_SIZE),
   });
+  for (const c of claims) params.append("claim", c);
   for (const p of players) params.append("player", p);
   for (const item of items) params.append("item", item);
   if (dateFrom) params.set("from", dateFrom);
@@ -92,9 +94,17 @@ function buildAuditUrl(
 // ─── Data Store ─────────────────────────────────────────────────────────────────
 
 export const $auditData = computedAsync(
-  [$auditClaim, $auditPlayers, $auditItems, $auditPage, $updateTimer, $auditDateFrom, $auditDateTo],
+  [
+    $auditClaims,
+    $auditPlayers,
+    $auditItems,
+    $auditPage,
+    $updateTimer,
+    $auditDateFrom,
+    $auditDateTo,
+  ],
   async (
-    claimId,
+    claims,
     players,
     items,
     page,
@@ -102,8 +112,8 @@ export const $auditData = computedAsync(
     dateFrom,
     dateTo,
   ): Promise<StorageAuditResponse | null> => {
-    if (!claimId) return null;
-    const url = buildAuditUrl(claimId, players, items, page, dateFrom, dateTo);
+    if (!claims || claims.length === 0) return null;
+    const url = buildAuditUrl(claims, players, items, page, dateFrom, dateTo);
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     return resp.json() as Promise<StorageAuditResponse>;
@@ -122,11 +132,7 @@ export async function triggerSync() {
   if ($syncing.get()) return;
   $syncing.set(true);
   try {
-    const claimId = $auditClaim.get();
-    const resp = await fetch(
-      `/api/storage-audit/ingest?claim=${encodeURIComponent(claimId)}`,
-      { method: "POST" },
-    );
+    const resp = await fetch("/api/storage-audit/ingest", { method: "POST" });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   } catch (e) {
     console.error("Sync error:", e);

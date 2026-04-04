@@ -22,9 +22,10 @@ import type { TargetItem } from "../stores/craft";
 import {
   $empireClaims,
   $empireClaimsLoading,
+  $empireCapitalClaimId,
   fetchEmpireClaims,
 } from "../stores/craftSource";
-import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
+
 import { $router } from "../stores/router";
 
 async function openCraftPlanner(targets: TargetItem[]) {
@@ -72,15 +73,22 @@ interface ConstructionData {
 export default function ConstructionPage() {
   const [data, setData] = useState<ConstructionData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedClaim, setSelectedClaim] = useState(ORDUM_MAIN_CLAIM_ID);
+  const [selectedClaim, setSelectedClaim] = useState("");
   const claims = useStore($empireClaims);
   const claimsLoading = useStore($empireClaimsLoading);
+  const capitalClaimId = useStore($empireCapitalClaimId);
 
   useEffect(() => {
     fetchEmpireClaims();
   }, []);
 
+  // Default to capital claim once loaded
   useEffect(() => {
+    if (!selectedClaim && capitalClaimId) setSelectedClaim(capitalClaimId);
+  }, [capitalClaimId]);
+
+  useEffect(() => {
+    if (!selectedClaim) return;
     setData(null);
     setError(null);
     fetch(`/api/construction?claim=${encodeURIComponent(selectedClaim)}`)
@@ -132,8 +140,10 @@ export default function ConstructionPage() {
                   🏰 {claim.name}
                 </option>
               ))}
-              {!claimsLoading && claims.length === 0 && (
-                <option value={ORDUM_MAIN_CLAIM_ID}>🏰 Ordum City</option>
+              {!selectedClaim && (
+                <option value="" disabled>
+                  Loading claims…
+                </option>
               )}
             </select>
           </div>

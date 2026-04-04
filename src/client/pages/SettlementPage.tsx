@@ -23,10 +23,9 @@ import type { TierPlan } from "../../common/settlement-planner";
 import {
   $empireClaims,
   $empireClaimsLoading,
+  $empireCapitalClaimId,
   fetchEmpireClaims,
 } from "../stores/craftSource";
-import type { EmpireClaimInfo } from "../../common/ordum-types";
-import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 
 interface SettlementData {
   currentTier: number;
@@ -40,17 +39,24 @@ interface SettlementData {
 export default function SettlementPage() {
   const [data, setData] = useState<SettlementData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedClaim, setSelectedClaim] = useState(ORDUM_MAIN_CLAIM_ID);
+  const [selectedClaim, setSelectedClaim] = useState("");
   const claims = useStore($empireClaims);
   const claimsLoading = useStore($empireClaimsLoading);
+  const capitalClaimId = useStore($empireCapitalClaimId);
 
   // Fetch empire claims on mount
   useEffect(() => {
     fetchEmpireClaims();
   }, []);
 
+  // Default to capital claim once loaded
+  useEffect(() => {
+    if (!selectedClaim && capitalClaimId) setSelectedClaim(capitalClaimId);
+  }, [capitalClaimId]);
+
   // Fetch settlement data when claim changes
   useEffect(() => {
+    if (!selectedClaim) return;
     setData(null);
     setError(null);
     fetch(`/api/settlement?claim=${encodeURIComponent(selectedClaim)}`)
@@ -103,7 +109,9 @@ export default function SettlementPage() {
                 </option>
               ))}
               {!claimsLoading && claims.length === 0 && (
-                <option value={ORDUM_MAIN_CLAIM_ID}>🏰 Ordum City</option>
+                <option value="" disabled>
+                  Loading claims…
+                </option>
               )}
             </select>
           </div>

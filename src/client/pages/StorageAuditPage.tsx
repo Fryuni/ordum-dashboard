@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useMemo, useRef } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
 import {
   createChart,
@@ -34,7 +34,7 @@ import {
   fetchEmpireClaims,
 } from "../stores/craftSource";
 import {
-  $auditClaim,
+  $auditClaims,
   $auditPlayers,
   $auditItems,
   $auditDateFrom,
@@ -43,7 +43,7 @@ import {
   $auditView,
 } from "../stores/storageAudit";
 import { MultiSelect } from "../components/MultiSelect";
-import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
+
 import type { StorageAuditChartPoint } from "../../server/storage-audit";
 
 /** Convert a bucket string like "2026-03-15" or "2026-03-15T14" to a unix timestamp. */
@@ -250,7 +250,7 @@ function formatTimestamp(ts: string): string {
 export default function StorageAuditPage() {
   const claims = useStore($empireClaims);
   const claimsLoading = useStore($empireClaimsLoading);
-  const selectedClaim = useStore($auditClaim);
+  const selectedClaims = useStore($auditClaims);
   const selectedPlayers = useStore($auditPlayers);
   const selectedItems = useStore($auditItems);
   const dateFrom = useStore($auditDateFrom);
@@ -260,6 +260,12 @@ export default function StorageAuditPage() {
   useEffect(() => {
     fetchEmpireClaims();
   }, []);
+
+  const claimNameMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of claims) m.set(c.id, c.name);
+    return m;
+  }, [claims]);
 
   const loading = dataAsync.state === "loading";
   const error = dataAsync.state === "failed" ? String(dataAsync.error) : null;
@@ -277,29 +283,24 @@ export default function StorageAuditPage() {
       {/* Filters */}
       <div class="planner-card">
         <div class="form-row">
-          <div class="input-group source-select-container">
-            <label for="audit-claim">Claim</label>
-            <select
-              id="audit-claim"
-              class="source-select"
-              value={selectedClaim}
-              onChange={(e) =>
-                $auditClaim.set((e.target as HTMLSelectElement).value)
-              }
-            >
-              {claimsLoading && claims.length === 0 && (
-                <option disabled>Loading claims...</option>
-              )}
-              {claims.map((claim) => (
-                <option key={claim.id} value={claim.id}>
-                  {claim.name}
-                </option>
-              ))}
-              {!claimsLoading && claims.length === 0 && (
-                <option value={ORDUM_MAIN_CLAIM_ID}>Ordum City</option>
-              )}
-            </select>
-          </div>
+          <MultiSelect
+            label="Claim"
+            placeholder={
+              claimsLoading && claims.length === 0
+                ? "Loading claims..."
+                : "All Claims"
+            }
+            options={
+              claims.length > 0
+                ? claims.map((claim) => ({
+                    value: claim.id,
+                    label: claim.name,
+                  }))
+                : []
+            }
+            selected={selectedClaims}
+            onChange={(v) => $auditClaims.set(v)}
+          />
 
           <div class="input-group">
             <label for="audit-date-from">From</label>
@@ -377,6 +378,7 @@ export default function StorageAuditPage() {
             <table class="modern-table">
               <thead>
                 <tr>
+                  <th>Claim</th>
                   <th>Player</th>
                   <th>Inventory</th>
                   <th>Item</th>
@@ -390,7 +392,7 @@ export default function StorageAuditPage() {
                 {data.logs.length === 0 && (
                   <tr>
                     <td
-                      colSpan={7}
+                      colSpan={8}
                       style="text-align: center; color: var(--text-muted); padding: 24px"
                     >
                       No storage events found.
@@ -399,6 +401,9 @@ export default function StorageAuditPage() {
                 )}
                 {data.logs.map((log) => (
                   <tr key={log.id}>
+                    <td style="color: var(--text-muted)">
+                      {claimNameMap.get(log.claim_id) ?? log.claim_id}
+                    </td>
                     <td>{log.player_name}</td>
                     <td style="color: var(--text-muted)">
                       {log.building_name}

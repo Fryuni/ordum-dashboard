@@ -31,7 +31,7 @@ import {
   type ContributionData,
   type ContributionItemMeta,
 } from "../stores/contribution";
-import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
+
 import { gd } from "../../common/gamedata";
 
 function parseItemKey(key: string): {
@@ -258,8 +258,10 @@ export default function ContributionPage() {
                   {claim.name}
                 </option>
               ))}
-              {!claimsLoading && claims.length === 0 && (
-                <option value={ORDUM_MAIN_CLAIM_ID}>Ordum City</option>
+              {!selectedClaim && (
+                <option value="" disabled>
+                  Loading claims…
+                </option>
               )}
             </select>
           </div>

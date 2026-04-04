@@ -31,24 +31,7 @@ import type {
   JitaClaimMember,
 } from "../common/bitjita-client";
 import { BANK_BUILDING_IDS } from "../common/claim-inventory";
-
-// ─── Configuration ─────────────────────────────────────────────────────────────
-
-/** Ordum City — the main claim and empire leader */
-export const ORDUM_MAIN_CLAIM_ID = "1224979098661645606";
-
-/**
- * All claims in the Ordum empire. The user can update this list as the empire
- * grows. The first entry is the leader claim (Ordum City).
- * To discover claim IDs: use the /claims?search=NAME endpoint.
- *
- * NOTE: IDs are strings because they exceed Number.MAX_SAFE_INTEGER.
- */
-export const EMPIRE_CLAIM_IDS: { id: string; name: string }[] = [
-  { id: "1224979098661645606", name: "Ordum City" },
-  // Add other empire claims here as needed, e.g.:
-  // { id: "1234567890123456789", name: "Ordum Outpost" },
-];
+import { ORDUM_EMPIRE_ID } from "../common/ordum-types";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -336,17 +319,14 @@ export async function fetchEmpireData(
 
   if (!resolvedClaimIds) {
     try {
-      const empires = await api.listEmpires({ q: "Ordum" });
-      const empire = (empires.empires as any[]).find(
-        (e: any) => e.name?.toLowerCase() === "ordum",
-      );
+      const { empire } = (await api.getEmpire(ORDUM_EMPIRE_ID)) as any;
       if (empire) {
         hexite_reserve =
           Number(empire.empireCurrencyTreasury) ||
           Number(empire.shardTreasury) ||
           0;
         capitalBuildingEntityId = empire.capitalBuildingEntityId ?? null;
-        const claimsData = await api.getEmpireClaims(empire.entityId);
+        const claimsData = await api.getEmpireClaims(ORDUM_EMPIRE_ID);
         resolvedClaimIds = (claimsData.claims as any[]).map((cl: any) => ({
           id: cl.entityId,
           name: cl.name,
@@ -356,7 +336,7 @@ export async function fetchEmpireData(
       console.error("Failed to discover empire claims dynamically:", err);
     }
     if (!resolvedClaimIds) {
-      resolvedClaimIds = EMPIRE_CLAIM_IDS;
+      resolvedClaimIds = [];
     }
   }
 
@@ -440,10 +420,10 @@ export async function fetchEmpireData(
   };
 }
 
-export async function fetchClaimMembers(api: BitJitaClient) {
+export async function fetchClaimMembers(api: BitJitaClient, claimId: string) {
   let members: { entity_id: string; user_name: string }[] = [];
   try {
-    const claimMembers = await api.getClaimMembers(ORDUM_MAIN_CLAIM_ID);
+    const claimMembers = await api.getClaimMembers(claimId);
     members = (claimMembers.members ?? [])
       .map((m) => ({ entity_id: m.playerEntityId, user_name: m.userName }))
       .sort((a, b) => a.user_name.localeCompare(b.user_name));
