@@ -26,7 +26,7 @@ import { Hono } from "hono";
 import { fetchEmpireData } from "./server/ordum-data";
 
 import { buildCache, createServerJita } from "./server/api-server";
-import { ORDUM_EMPIRE_NAME } from "./common/ordum-types";
+import { ORDUM_EMPIRE_ID } from "./common/ordum-types";
 import type { CacheProvider } from "@croct/cache";
 import { buildClaimInventory } from "./common/claim-inventory";
 import { buildSettlementPlan } from "./common/settlement-planner";
@@ -91,10 +91,7 @@ app.get("/api/empire", async (c) => {
 app.get("/api/empire-claims", async (c) => {
   try {
     const jita = c.get("jita");
-    const empires = await jita.listEmpires({ q: ORDUM_EMPIRE_NAME });
-    const empire = (empires.empires as any[]).find(
-      (e: any) => e.name?.toLowerCase() === ORDUM_EMPIRE_NAME.toLowerCase(),
-    );
+    const { empire } = await jita.getEmpire(ORDUM_EMPIRE_ID) as any;
     if (!empire) {
       return c.json({ error: "Empire not found" }, 404);
     }
@@ -102,7 +99,7 @@ app.get("/api/empire-claims", async (c) => {
     const capitalBuildingEntityId: string | null =
       empire.capitalBuildingEntityId ?? null;
 
-    const claimsData = await jita.getEmpireClaims(empire.entityId);
+    const claimsData = await jita.getEmpireClaims(ORDUM_EMPIRE_ID);
     const claims = (claimsData.claims as any[]).map((cl: any) => ({
       id: cl.entityId,
       name: cl.name,
@@ -487,17 +484,11 @@ async function getEmpireClaimIds(
   jita: ReturnType<typeof createServerJita>,
 ): Promise<string[]> {
   try {
-    const empires = await jita.listEmpires({ q: ORDUM_EMPIRE_NAME });
-    const empire = (empires.empires as any[]).find(
-      (e: any) => e.name?.toLowerCase() === ORDUM_EMPIRE_NAME.toLowerCase(),
+    const claimsData = await jita.getEmpireClaims(ORDUM_EMPIRE_ID);
+    const ids = (claimsData.claims as any[]).map(
+      (cl: any) => cl.entityId as string,
     );
-    if (empire) {
-      const claimsData = await jita.getEmpireClaims(empire.entityId);
-      const ids = (claimsData.claims as any[]).map(
-        (cl: any) => cl.entityId as string,
-      );
-      if (ids.length > 0) return ids;
-    }
+    if (ids.length > 0) return ids;
   } catch (err) {
     console.error("Failed to discover empire claims:", err);
   }

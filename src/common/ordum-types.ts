@@ -23,8 +23,8 @@
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
 
-/** Ordum empire name for BitJita lookups */
-export const ORDUM_EMPIRE_NAME = "Ordum";
+/** Ordum empire entity ID for direct BitJita API lookups */
+export const ORDUM_EMPIRE_ID = "379564";
 
 /** A claim entry as returned by the /api/empire-claims endpoint */
 export interface EmpireClaimInfo {

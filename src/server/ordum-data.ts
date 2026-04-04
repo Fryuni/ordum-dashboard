@@ -31,6 +31,7 @@ import type {
   JitaClaimMember,
 } from "../common/bitjita-client";
 import { BANK_BUILDING_IDS } from "../common/claim-inventory";
+import { ORDUM_EMPIRE_ID } from "../common/ordum-types";
 
 
 
@@ -320,17 +321,14 @@ export async function fetchEmpireData(
 
   if (!resolvedClaimIds) {
     try {
-      const empires = await api.listEmpires({ q: "Ordum" });
-      const empire = (empires.empires as any[]).find(
-        (e: any) => e.name?.toLowerCase() === "ordum",
-      );
+      const { empire } = await api.getEmpire(ORDUM_EMPIRE_ID) as any;
       if (empire) {
         hexite_reserve =
           Number(empire.empireCurrencyTreasury) ||
           Number(empire.shardTreasury) ||
           0;
         capitalBuildingEntityId = empire.capitalBuildingEntityId ?? null;
-        const claimsData = await api.getEmpireClaims(empire.entityId);
+        const claimsData = await api.getEmpireClaims(ORDUM_EMPIRE_ID);
         resolvedClaimIds = (claimsData.claims as any[]).map((cl: any) => ({
           id: cl.entityId,
           name: cl.name,
