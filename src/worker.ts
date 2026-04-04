@@ -481,7 +481,7 @@ app.all("/jita/*", async (c) => {
 
 /** Discover all claim IDs in the empire via the API. */
 async function getEmpireClaimIds(
-  jita: ReturnType<typeof createServerJita>,
+  jita: BitJitaClient,
 ): Promise<string[]> {
   try {
     const claimsData = await jita.getEmpireClaims(ORDUM_EMPIRE_ID);

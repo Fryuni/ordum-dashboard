@@ -209,9 +209,9 @@ const $importedTargets = computedAsync(
     const tier = parseInt(route.search.tier || "0");
     const claimParam = route.search.claim;
 
-    if (fromSettlement && tier > 0) {
+    if (fromSettlement && tier > 0 && claimParam) {
       try {
-        // Auto-select the claim inventory from the URL, or fall back to main
+        // Auto-select the claim inventory from the URL
         const claimId = claimParam;
         $inventorySource.set(claimId);
         const { claim } = await jita.getClaim(claimId);
