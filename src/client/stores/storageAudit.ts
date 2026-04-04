@@ -121,16 +121,8 @@ export async function triggerSync() {
   if ($syncing.get()) return;
   $syncing.set(true);
   try {
-    const claims = $auditClaims.get();
-    await Promise.all(
-      claims.map(async (claimId) => {
-        const resp = await fetch(
-          `/api/storage-audit/ingest?claim=${encodeURIComponent(claimId)}`,
-          { method: "POST" },
-        );
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      }),
-    );
+    const resp = await fetch("/api/storage-audit/ingest", { method: "POST" });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   } catch (e) {
     console.error("Sync error:", e);
   } finally {

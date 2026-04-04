@@ -391,9 +391,12 @@ app.get("/api/storage-audit", async (c) => {
 app.post("/api/storage-audit/ingest", async (c) => {
   try {
     const jita = c.get("jita");
-    const claimId = c.req.query("claim") || ORDUM_MAIN_CLAIM_ID;
-    const moreRemaining = await ingestLogs(jita, c.get("db"), claimId);
-    return c.json({ ingested: true, moreRemaining });
+    const claimIds = await getEmpireClaimIds(jita);
+    const results: Record<string, boolean> = {};
+    for (const claimId of claimIds) {
+      results[claimId] = await ingestLogs(jita, c.get("db"), claimId);
+    }
+    return c.json({ ingested: true, moreRemaining: results });
   } catch (e) {
     console.error("Failed to ingest storage audit data:", e);
     return c.json({ error: String(e) }, 500);
@@ -447,6 +450,28 @@ app.all("/jita/*", async (c) => {
 
 // ─── Cron: Storage Audit Ingestion ─────────────────────────────────────────────
 
+/** Discover all claim IDs in the empire via the API. */
+async function getEmpireClaimIds(
+  jita: ReturnType<typeof createServerJita>,
+): Promise<string[]> {
+  try {
+    const empires = await jita.listEmpires({ q: ORDUM_EMPIRE_NAME });
+    const empire = (empires.empires as any[]).find(
+      (e: any) => e.name?.toLowerCase() === ORDUM_EMPIRE_NAME.toLowerCase(),
+    );
+    if (empire) {
+      const claimsData = await jita.getEmpireClaims(empire.entityId);
+      const ids = (claimsData.claims as any[]).map(
+        (cl: any) => cl.entityId as string,
+      );
+      if (ids.length > 0) return ids;
+    }
+  } catch (err) {
+    console.error("Failed to discover empire claims:", err);
+  }
+  return [ORDUM_MAIN_CLAIM_ID];
+}
+
 async function scheduledHandler(
   _event: ScheduledEvent,
   env: Bindings,
@@ -457,8 +482,8 @@ async function scheduledHandler(
   const db = createDb(env.ordum_storage_audit);
   await migrateToLatest(db);
 
-  // Ingest for all known empire claims
-  const claimIds = [ORDUM_MAIN_CLAIM_ID];
+  // Ingest for all empire claims
+  const claimIds = await getEmpireClaimIds(jita);
 
   for (const claimId of claimIds) {
     let moreRemaining = true;
