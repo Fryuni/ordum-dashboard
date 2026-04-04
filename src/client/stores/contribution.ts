@@ -19,9 +19,10 @@
 import { persistentAtom } from "@nanostores/persistent";
 import { computedAsync } from "@nanostores/async";
 import { jita } from "../../common/api";
-import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
+
 import type { ContributionResponse } from "../../server/contribution";
 import { $updateTimer } from "../util-store";
+import { useCapitalAsDefault } from "./craftSource";
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -46,8 +47,9 @@ export type ContributionData = ContributionResponse;
 
 export const $contributionClaim = persistentAtom<string>(
   "contributionClaim",
-  ORDUM_MAIN_CLAIM_ID,
+  "",
 );
+useCapitalAsDefault($contributionClaim);
 
 export const $contributionPlayer = persistentAtom<string>(
   "contributionPlayer",

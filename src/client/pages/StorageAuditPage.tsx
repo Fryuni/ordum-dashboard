@@ -43,7 +43,7 @@ import {
   $auditView,
 } from "../stores/storageAudit";
 import { MultiSelect } from "../components/MultiSelect";
-import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
+
 import type { StorageAuditChartPoint } from "../../server/storage-audit";
 
 /** Convert a bucket string like "2026-03-15" or "2026-03-15T14" to a unix timestamp. */
@@ -292,7 +292,7 @@ export default function StorageAuditPage() {
                     value: claim.id,
                     label: claim.name,
                   }))
-                : [{ value: ORDUM_MAIN_CLAIM_ID, label: "Ordum City" }]
+                : []
             }
             selected={selectedClaims}
             onChange={(v) => $auditClaims.set(v)}

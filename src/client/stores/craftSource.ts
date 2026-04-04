@@ -49,6 +49,9 @@ export const $inventorySource = persistentAtom<string>(
 export const $empireClaims = atom<EmpireClaimInfo[]>([]);
 export const $empireClaimsLoading = atom(false);
 
+/** The capital claim ID as reported by the API */
+export const $empireCapitalClaimId = atom<string | null>(null);
+
 /** Fetch empire claims from the /api/empire-claims endpoint */
 export async function fetchEmpireClaims() {
   if ($empireClaims.get().length > 0) return; // already loaded
@@ -56,14 +59,64 @@ export async function fetchEmpireClaims() {
   try {
     const res = await fetch("/api/empire-claims");
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data: { claims?: EmpireClaimInfo[] } = await res.json();
+    const data: {
+      claims?: EmpireClaimInfo[];
+      capitalClaimId?: string | null;
+    } = await res.json();
     $empireClaims.set(data.claims ?? []);
+    $empireCapitalClaimId.set(data.capitalClaimId ?? data.claims?.[0]?.id ?? null);
   } catch (e) {
     console.error("Failed to fetch empire claims:", e);
   } finally {
     $empireClaimsLoading.set(false);
   }
 }
+
+/**
+ * Register a persistent claim store to receive the capital as its default.
+ * When the capital claim ID loads and the store is empty, it gets set.
+ */
+const pendingDefaults: Array<{
+  get: () => string | string[];
+  set: (v: any) => void;
+  isArray: boolean;
+}> = [];
+
+export function useCapitalAsDefault(store: {
+  get: () => string;
+  set: (v: string) => void;
+}): void {
+  const capital = $empireCapitalClaimId.get();
+  if (capital && !store.get()) {
+    store.set(capital);
+  } else if (!capital) {
+    pendingDefaults.push({ get: store.get.bind(store), set: store.set.bind(store), isArray: false });
+  }
+}
+
+export function useCapitalAsDefaultArray(store: {
+  get: () => string[];
+  set: (v: string[]) => void;
+}): void {
+  const capital = $empireCapitalClaimId.get();
+  if (capital && store.get().length === 0) {
+    store.set([capital]);
+  } else if (!capital) {
+    pendingDefaults.push({ get: store.get.bind(store), set: store.set.bind(store), isArray: true });
+  }
+}
+
+// When capital loads, apply to any pending stores
+$empireCapitalClaimId.listen((capitalId) => {
+  if (!capitalId) return;
+  for (const entry of pendingDefaults) {
+    const val = entry.get();
+    if (entry.isArray ? (val as string[]).length === 0 : !val) {
+      entry.set(entry.isArray ? [capitalId] : capitalId);
+    }
+  }
+  pendingDefaults.length = 0;
+});
 
 /** The currently selected claim name (for display) */
 export const $selectedClaimName = computed(

@@ -26,7 +26,7 @@ import { z } from "zod";
 import { $inventoryTotals, $inventorySource } from "./craftSource";
 import { $playerCapabilities } from "./playerCapabilities";
 import { jita } from "../../common/api";
-import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
+
 import { buildSettlementPlan } from "../../common/settlement-planner";
 import { $router } from "./router";
 
@@ -212,7 +212,7 @@ const $importedTargets = computedAsync(
     if (fromSettlement && tier > 0) {
       try {
         // Auto-select the claim inventory from the URL, or fall back to main
-        const claimId = claimParam || ORDUM_MAIN_CLAIM_ID;
+        const claimId = claimParam;
         $inventorySource.set(claimId);
         const { claim } = await jita.getClaim(claimId);
         const currentTier = claim.tier ?? 1;

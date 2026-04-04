@@ -28,7 +28,7 @@ import {
   $inventorySearchData,
   type InventorySearchItem,
 } from "../stores/inventorySearch";
-import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
+
 
 type SortColumn = "name" | "tier" | "quantity";
 
@@ -115,8 +115,8 @@ export default function InventorySearchPage() {
                   {claim.name}
                 </option>
               ))}
-              {!claimsLoading && claims.length === 0 && (
-                <option value={ORDUM_MAIN_CLAIM_ID}>Ordum City</option>
+              {!selectedClaim && (
+                <option value="" disabled>Loading claims…</option>
               )}
             </select>
           </div>

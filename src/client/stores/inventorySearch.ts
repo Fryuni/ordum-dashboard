@@ -18,8 +18,9 @@
  */
 import { persistentAtom } from "@nanostores/persistent";
 import { computedAsync } from "@nanostores/async";
-import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
+
 import { $updateTimer } from "../util-store";
+import { useCapitalAsDefault } from "./craftSource";
 
 export interface InventorySearchItem {
   key: string;
@@ -41,8 +42,9 @@ export interface InventorySearchResponse {
 
 export const $inventorySearchClaim = persistentAtom<string>(
   "inventorySearchClaim",
-  ORDUM_MAIN_CLAIM_ID,
+  "",
 );
+useCapitalAsDefault($inventorySearchClaim);
 
 export const $inventorySearchData = computedAsync(
   [$inventorySearchClaim, $updateTimer],

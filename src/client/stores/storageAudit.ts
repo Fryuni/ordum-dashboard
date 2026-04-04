@@ -19,9 +19,9 @@
 import { persistentAtom } from "@nanostores/persistent";
 import { atom, computed, onMount } from "nanostores";
 import { computedAsync } from "@nanostores/async";
-import { ORDUM_MAIN_CLAIM_ID } from "../../common/ordum-types";
 import type { StorageAuditResponse } from "../../server/storage-audit";
 import { $updateTimer } from "../util-store";
+import { useCapitalAsDefaultArray } from "./craftSource";
 
 // ─── JSON persistent atom helper ────────────────────────────────────────────────
 
@@ -40,9 +40,8 @@ function persistentJsonAtom<T>(key: string, defaultValue: T) {
 
 // ─── Filter Atoms ───────────────────────────────────────────────────────────────
 
-export const $auditClaims = persistentJsonAtom<string[]>("auditClaims", [
-  ORDUM_MAIN_CLAIM_ID,
-]);
+export const $auditClaims = persistentJsonAtom<string[]>("auditClaims", []);
+useCapitalAsDefaultArray($auditClaims);
 
 /** Selected player entity IDs (empty array = all players) */
 export const $auditPlayers = persistentJsonAtom<string[]>("auditPlayers", []);
