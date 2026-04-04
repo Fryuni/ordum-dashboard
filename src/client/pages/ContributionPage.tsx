@@ -259,7 +259,9 @@ export default function ContributionPage() {
                 </option>
               ))}
               {!selectedClaim && (
-                <option value="" disabled>Loading claims…</option>
+                <option value="" disabled>
+                  Loading claims…
+                </option>
               )}
             </select>
           </div>

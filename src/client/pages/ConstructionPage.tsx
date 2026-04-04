@@ -141,7 +141,9 @@ export default function ConstructionPage() {
                 </option>
               ))}
               {!selectedClaim && (
-                <option value="" disabled>Loading claims…</option>
+                <option value="" disabled>
+                  Loading claims…
+                </option>
               )}
             </select>
           </div>

@@ -27,7 +27,6 @@ import {
   fetchEmpireClaims,
 } from "../stores/craftSource";
 
-
 interface SettlementData {
   currentTier: number;
   supplies: number;
@@ -110,7 +109,9 @@ export default function SettlementPage() {
                 </option>
               ))}
               {!claimsLoading && claims.length === 0 && (
-                <option value="" disabled>Loading claims…</option>
+                <option value="" disabled>
+                  Loading claims…
+                </option>
               )}
             </select>
           </div>

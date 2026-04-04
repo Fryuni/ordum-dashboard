@@ -285,7 +285,11 @@ export default function StorageAuditPage() {
         <div class="form-row">
           <MultiSelect
             label="Claim"
-            placeholder={claimsLoading && claims.length === 0 ? "Loading claims..." : "All Claims"}
+            placeholder={
+              claimsLoading && claims.length === 0
+                ? "Loading claims..."
+                : "All Claims"
+            }
             options={
               claims.length > 0
                 ? claims.map((claim) => ({

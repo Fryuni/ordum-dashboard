@@ -155,7 +155,9 @@ export default function PlanCard({
                         {places.map((p) => (
                           <li key={p.name}>
                             <span>{p.name}</span>
-                            <span class="source-qty">×{p.quantity.toFixed(0)}</span>
+                            <span class="source-qty">
+                              ×{p.quantity.toFixed(0)}
+                            </span>
                           </li>
                         ))}
                       </ul>

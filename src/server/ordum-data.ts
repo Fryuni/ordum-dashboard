@@ -33,8 +33,6 @@ import type {
 import { BANK_BUILDING_IDS } from "../common/claim-inventory";
 import { ORDUM_EMPIRE_ID } from "../common/ordum-types";
 
-
-
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export interface ResourceItem {
@@ -321,7 +319,7 @@ export async function fetchEmpireData(
 
   if (!resolvedClaimIds) {
     try {
-      const { empire } = await api.getEmpire(ORDUM_EMPIRE_ID) as any;
+      const { empire } = (await api.getEmpire(ORDUM_EMPIRE_ID)) as any;
       if (empire) {
         hexite_reserve =
           Number(empire.empireCurrencyTreasury) ||
@@ -422,10 +420,7 @@ export async function fetchEmpireData(
   };
 }
 
-export async function fetchClaimMembers(
-  api: BitJitaClient,
-  claimId: string,
-) {
+export async function fetchClaimMembers(api: BitJitaClient, claimId: string) {
   let members: { entity_id: string; user_name: string }[] = [];
   try {
     const claimMembers = await api.getClaimMembers(claimId);

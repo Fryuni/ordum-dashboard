@@ -91,7 +91,7 @@ app.get("/api/empire", async (c) => {
 app.get("/api/empire-claims", async (c) => {
   try {
     const jita = c.get("jita");
-    const { empire } = await jita.getEmpire(ORDUM_EMPIRE_ID) as any;
+    const { empire } = (await jita.getEmpire(ORDUM_EMPIRE_ID)) as any;
     if (!empire) {
       return c.json({ error: "Empire not found" }, 404);
     }
@@ -122,9 +122,10 @@ app.get("/api/empire-claims", async (c) => {
         }),
       );
       capitalClaimId =
-        details.find(
-          (d) => d.ownerBuildingEntityId === capitalBuildingEntityId,
-        )?.id ?? claims[0]?.id ?? null;
+        details.find((d) => d.ownerBuildingEntityId === capitalBuildingEntityId)
+          ?.id ??
+        claims[0]?.id ??
+        null;
     } else if (claims.length > 0) {
       capitalClaimId = claims[0]?.id ?? null;
     }
@@ -140,7 +141,8 @@ app.get("/api/settlement", async (c) => {
   try {
     const jita = c.get("jita");
     const claimId = c.req.query("claim");
-    if (!claimId) return c.json({ error: "claim query parameter is required" }, 400);
+    if (!claimId)
+      return c.json({ error: "claim query parameter is required" }, 400);
     const { claim } = await jita.getClaim(claimId);
     const currentTier = claim.tier ?? 1;
     const supplies = Number(claim.supplies) || 0;
@@ -182,7 +184,8 @@ app.get("/api/construction", async (c) => {
   try {
     const jita = c.get("jita");
     const claimId = c.req.query("claim");
-    if (!claimId) return c.json({ error: "claim query parameter is required" }, 400);
+    if (!claimId)
+      return c.json({ error: "claim query parameter is required" }, 400);
     const [constructionData, claimInv] = await Promise.all([
       jita.getClaimConstruction(claimId),
       jita.getClaimInventories(claimId),
@@ -310,7 +313,8 @@ app.get("/api/inventory-search", async (c) => {
   try {
     const jitaClient = c.get("jita");
     const claimId = c.req.query("claim");
-    if (!claimId) return c.json({ error: "claim query parameter is required" }, 400);
+    if (!claimId)
+      return c.json({ error: "claim query parameter is required" }, 400);
     const rawInventory = await buildClaimInventory(claimId);
     const { claim } = await jitaClient.getClaim(claimId);
 
@@ -363,7 +367,8 @@ app.get("/api/contribution", async (c) => {
   try {
     const jita = c.get("jita");
     const claimId = c.req.query("claim");
-    if (!claimId) return c.json({ error: "claim query parameter is required" }, 400);
+    if (!claimId)
+      return c.json({ error: "claim query parameter is required" }, 400);
     const playerEntityId = c.req.query("player");
     if (!playerEntityId) {
       return c.json({ error: "player query parameter is required" }, 400);
@@ -385,7 +390,10 @@ app.get("/api/storage-audit", async (c) => {
   try {
     const claimIds = c.req.queries("claim")?.filter(Boolean);
     if (!claimIds || claimIds.length === 0)
-      return c.json({ error: "at least one claim query parameter is required" }, 400);
+      return c.json(
+        { error: "at least one claim query parameter is required" },
+        400,
+      );
     const resolvedClaims = claimIds;
     const page = Math.max(1, Number(c.req.query("page")) || 1);
     const pageSize = Math.min(
@@ -480,9 +488,7 @@ app.all("/jita/*", async (c) => {
 // ─── Cron: Storage Audit Ingestion ─────────────────────────────────────────────
 
 /** Discover all claim IDs in the empire via the API. */
-async function getEmpireClaimIds(
-  jita: BitJitaClient,
-): Promise<string[]> {
+async function getEmpireClaimIds(jita: BitJitaClient): Promise<string[]> {
   try {
     const claimsData = await jita.getEmpireClaims(ORDUM_EMPIRE_ID);
     const ids = (claimsData.claims as any[]).map(

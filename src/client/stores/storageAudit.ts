@@ -59,9 +59,13 @@ export const PAGE_SIZE = 50;
 
 // Reset page to 1 when any filter changes
 onMount($auditPage, () => {
-  const unsubs = [$auditClaims, $auditPlayers, $auditItems, $auditDateFrom, $auditDateTo].map((store) =>
-    store.listen(() => $auditPage.set(1)),
-  );
+  const unsubs = [
+    $auditClaims,
+    $auditPlayers,
+    $auditItems,
+    $auditDateFrom,
+    $auditDateTo,
+  ].map((store) => store.listen(() => $auditPage.set(1)));
   return () => unsubs.forEach((u) => u());
 });
 
@@ -90,7 +94,15 @@ function buildAuditUrl(
 // ─── Data Store ─────────────────────────────────────────────────────────────────
 
 export const $auditData = computedAsync(
-  [$auditClaims, $auditPlayers, $auditItems, $auditPage, $updateTimer, $auditDateFrom, $auditDateTo],
+  [
+    $auditClaims,
+    $auditPlayers,
+    $auditItems,
+    $auditPage,
+    $updateTimer,
+    $auditDateFrom,
+    $auditDateTo,
+  ],
   async (
     claims,
     players,

@@ -29,7 +29,6 @@ import {
   type InventorySearchItem,
 } from "../stores/inventorySearch";
 
-
 type SortColumn = "name" | "tier" | "quantity";
 
 export default function InventorySearchPage() {
@@ -116,7 +115,9 @@ export default function InventorySearchPage() {
                 </option>
               ))}
               {!selectedClaim && (
-                <option value="" disabled>Loading claims…</option>
+                <option value="" disabled>
+                  Loading claims…
+                </option>
               )}
             </select>
           </div>

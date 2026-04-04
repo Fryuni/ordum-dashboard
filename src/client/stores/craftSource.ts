@@ -64,7 +64,9 @@ export async function fetchEmpireClaims() {
       capitalClaimId?: string | null;
     } = await res.json();
     $empireClaims.set(data.claims ?? []);
-    $empireCapitalClaimId.set(data.capitalClaimId ?? data.claims?.[0]?.id ?? null);
+    $empireCapitalClaimId.set(
+      data.capitalClaimId ?? data.claims?.[0]?.id ?? null,
+    );
   } catch (e) {
     console.error("Failed to fetch empire claims:", e);
   } finally {
@@ -90,7 +92,11 @@ export function useCapitalAsDefault(store: {
   if (capital && !store.get()) {
     store.set(capital);
   } else if (!capital) {
-    pendingDefaults.push({ get: store.get.bind(store), set: store.set.bind(store), isArray: false });
+    pendingDefaults.push({
+      get: store.get.bind(store),
+      set: store.set.bind(store),
+      isArray: false,
+    });
   }
 }
 
@@ -102,7 +108,11 @@ export function useCapitalAsDefaultArray(store: {
   if (capital && store.get().length === 0) {
     store.set([capital]);
   } else if (!capital) {
-    pendingDefaults.push({ get: store.get.bind(store), set: store.set.bind(store), isArray: true });
+    pendingDefaults.push({
+      get: store.get.bind(store),
+      set: store.set.bind(store),
+      isArray: true,
+    });
   }
 }
 
