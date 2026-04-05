@@ -161,7 +161,11 @@ const $playerInventory = computedAsync(
         ]);
 
         for (const inv of invData.inventories ?? []) {
-          const invName = inv.inventoryName ?? inv.buildingName ?? "Backpack";
+          let invName = inv.inventoryName ?? inv.buildingName ?? "Backpack";
+          // Append claim name for bank buildings so each town bank is distinct
+          if (inv.claimName && /\bbank\b/i.test(invName)) {
+            invName = `${invName} (${inv.claimName})`;
+          }
           for (const pocket of inv.pockets ?? []) {
             if (pocket?.contents) {
               const c = pocket.contents;
