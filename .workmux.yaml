@@ -1,3 +1,2 @@
 post_create:
-  - <global>
   - bun install
