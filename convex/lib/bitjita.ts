@@ -79,46 +79,46 @@ function bigIntSafeParse(text: string): unknown {
 
 // ─── Typed API Helpers ──────────────────────────────────────────────────────
 
-export const ORDUM_EMPIRE_ID = "1224979098644868393";
+export const ORDUM_EMPIRE_ID = "379564";
 
 export function getEmpire(id: string) {
-  return fetchBitJita<any>(`/api/empire/${id}`);
+  return fetchBitJita<any>(`/api/empires/${id}`);
 }
 export function getEmpireClaims(id: string) {
-  return fetchBitJita<any>(`/api/empire/${id}/claims`);
+  return fetchBitJita<any>(`/api/empires/${id}/claims`);
 }
 export function getClaim(id: string) {
-  return fetchBitJita<any>(`/api/claim/${id}`);
+  return fetchBitJita<any>(`/api/claims/${id}`);
 }
 export function getClaimBuildings(id: string) {
-  return fetchBitJita<any>(`/api/claim/${id}/buildings`);
+  return fetchBitJita<any>(`/api/claims/${id}/buildings`);
 }
 export function getClaimInventories(id: string) {
-  return fetchBitJita<any>(`/api/claim/${id}/inventories`);
+  return fetchBitJita<any>(`/api/claims/${id}/inventories`);
 }
 export function getClaimMembers(id: string) {
-  return fetchBitJita<any>(`/api/claim/${id}/members`);
+  return fetchBitJita<any>(`/api/claims/${id}/members`);
 }
 export function getClaimConstruction(id: string) {
-  return fetchBitJita<any>(`/api/claim/${id}/construction`);
+  return fetchBitJita<any>(`/api/claims/${id}/construction`);
 }
 export function getPlayerBuffs(id: string) {
-  return fetchBitJita<any>(`/api/player/${id}/buffs`);
+  return fetchBitJita<any>(`/api/players/${id}/buffs`);
 }
 export function getPlayerInventories(id: string) {
-  return fetchBitJita<any>(`/api/player/${id}/inventories`);
+  return fetchBitJita<any>(`/api/players/${id}/inventories`);
 }
 export function getPlayerTravelerTasks(id: string) {
-  return fetchBitJita<any>(`/api/player/${id}/traveler-tasks`);
+  return fetchBitJita<any>(`/api/players/${id}/traveler-tasks`);
 }
 export function getPlayerPassiveCrafts(id: string) {
-  return fetchBitJita<any>(`/api/player/${id}/passive-crafts`);
+  return fetchBitJita<any>(`/api/players/${id}/passive-crafts`);
 }
 export function listPlayers(params: { q: string }) {
   return fetchBitJita<any>(`/api/players?q=${encodeURIComponent(params.q)}`);
 }
 export function getPlayer(id: string) {
-  return fetchBitJita<any>(`/api/player/${id}`);
+  return fetchBitJita<any>(`/api/players/${id}`);
 }
 export function listCrafts(params: {
   playerEntityId?: string;
