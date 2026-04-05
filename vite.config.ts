@@ -5,6 +5,7 @@ import path from "node:path";
 export default defineConfig({
   plugins: [preact()],
   root: "src/client",
+  envDir: "../../",
   build: {
     outDir: "../../dist/client",
     emptyOutDir: true,
