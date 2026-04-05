@@ -21,6 +21,8 @@ import { atom, computed } from "nanostores";
 import { computedAsync } from "@nanostores/async";
 import { $updateTimer } from "../util-store";
 import { jita } from "../../common/api";
+import { convexAction } from "../convex";
+import { api } from "../../../convex/_generated/api";
 import {
   addCraftsToInventory,
   addPassiveCraftsToInventory,
@@ -52,17 +54,12 @@ export const $empireClaimsLoading = atom(false);
 /** The capital claim ID as reported by the API */
 export const $empireCapitalClaimId = atom<string | null>(null);
 
-/** Fetch empire claims from the /api/empire-claims endpoint */
+/** Fetch empire claims via Convex action */
 export async function fetchEmpireClaims() {
   if ($empireClaims.get().length > 0) return; // already loaded
   $empireClaimsLoading.set(true);
   try {
-    const res = await fetch("/api/empire-claims");
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data: {
-      claims?: EmpireClaimInfo[];
-      capitalClaimId?: string | null;
-    } = await res.json();
+    const data = await convexAction(api.empire.getEmpireClaims, {});
     $empireClaims.set(data.claims ?? []);
     $empireCapitalClaimId.set(
       data.capitalClaimId ?? data.claims?.[0]?.id ?? null,

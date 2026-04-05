@@ -19,12 +19,12 @@
 import { persistentAtom } from "@nanostores/persistent";
 import { computedAsync } from "@nanostores/async";
 import { jita } from "../../common/api";
-
-import type { ContributionResponse } from "../../server/contribution";
 import { $updateTimer } from "../util-store";
 import { useCapitalAsDefault } from "./craftSource";
+import { convexAction } from "../convex";
+import { api } from "../../../convex/_generated/api";
 
-// ─── Types ──────────────────────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface ContributionMember {
   entityId: string;
@@ -41,9 +41,14 @@ export interface ContributionItemMeta {
   tag: string;
 }
 
-export type ContributionData = ContributionResponse;
+export interface ContributionData {
+  deposited: Record<string, number>;
+  withdrawn: Record<string, number>;
+  prices: Record<string, number>;
+  items: Record<string, ContributionItemMeta>;
+}
 
-// ─── Selection Atoms ────────────────────────────────────────────────────────────
+// ─── Selection Atoms ────────────────────────────────────────────────────────
 
 export const $contributionClaim = persistentAtom<string>(
   "contributionClaim",
@@ -56,9 +61,9 @@ export const $contributionPlayer = persistentAtom<string>(
   "",
 );
 
-// ─── Derived Stores ─────────────────────────────────────────────────────────────
+// ─── Derived Stores ─────────────────────────────────────────────────────────
 
-/** Claim members for the selected contribution claim. */
+/** Claim members for the selected contribution claim (still uses /jita proxy) */
 export const $claimMembers = computedAsync(
   $contributionClaim,
   async (claimId): Promise<ContributionMember[]> => {
@@ -74,17 +79,14 @@ export const $claimMembers = computedAsync(
   },
 );
 
-/** Contribution data for the selected (claim, player) pair. */
+/** Contribution data via Convex action */
 export const $contributionData = computedAsync(
   [$contributionClaim, $contributionPlayer, $updateTimer],
   async (claimId, playerEntityId): Promise<ContributionData | null> => {
     if (!claimId || !playerEntityId) return null;
-    const params = new URLSearchParams({
-      claim: claimId,
-      player: playerEntityId,
+    return convexAction(api.contribution.getContribution, {
+      claimId,
+      playerEntityId,
     });
-    const resp = await fetch(`/api/contribution?${params}`);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return resp.json() as Promise<ContributionData>;
   },
 );

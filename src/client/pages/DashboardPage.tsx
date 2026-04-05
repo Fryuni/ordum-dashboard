@@ -19,17 +19,15 @@
 import { useEffect, useState } from "preact/hooks";
 import type { EmpireSummary } from "../../common/ordum-types";
 import StatCard from "../components/StatCard";
+import { convexAction } from "../convex";
+import { api } from "../../../convex/_generated/api";
 
 export default function DashboardPage() {
   const [empire, setEmpire] = useState<EmpireSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/empire")
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<EmpireSummary>;
-      })
+    convexAction(api.empire.getEmpireData, {})
       .then(setEmpire)
       .catch((e) => setError(String(e)));
   }, []);

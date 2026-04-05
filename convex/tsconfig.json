@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ESNext"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "allowJs": true,
+    "outDir": "./_generated",
+    "resolveJsonModule": true
+  },
+  "include": ["./**/*"],
+  "exclude": ["./_generated"]
+}

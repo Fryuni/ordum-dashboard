@@ -44,7 +44,7 @@ import {
 } from "../stores/storageAudit";
 import { MultiSelect } from "../components/MultiSelect";
 
-import type { StorageAuditChartPoint } from "../../server/storage-audit";
+import type { StorageAuditChartPoint } from "../stores/storageAudit";
 
 /** Convert a bucket string like "2026-03-15" or "2026-03-15T14" to a unix timestamp. */
 function bucketToTime(bucket: string): Time {

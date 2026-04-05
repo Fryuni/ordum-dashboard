@@ -13,13 +13,17 @@ export default defineConfig({
     alias: {
       // Allow imports from src/common in client code
       "../../gamedata": path.resolve(__dirname, "gamedata"),
+      // Alias react to preact/compat for packages that import react
+      // (convex/react, @workos-inc/authkit-react, etc.)
+      react: "preact/compat",
+      "react-dom": "preact/compat",
+      "react/jsx-runtime": "preact/jsx-runtime",
     },
   },
   server: {
     port: 4321,
     proxy: {
-      // Proxy API and Jita routes to wrangler dev during development
-      "/api": "http://localhost:8787",
+      // Proxy Jita routes to wrangler dev during development
       "/jita": "http://localhost:8787",
     },
   },

@@ -17,6 +17,7 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { useStore } from "@nanostores/preact";
+import { useAuth } from "@workos-inc/authkit-react";
 import { $router } from "./stores/router";
 import DashboardPage from "./pages/DashboardPage";
 import SettlementPage from "./pages/SettlementPage";
@@ -35,7 +36,8 @@ type RouteName =
   | "travelerTask"
   | "contribution"
   | "storageAudit"
-  | "inventorySearch";
+  | "inventorySearch"
+  | "callback";
 
 function PageContent({ route }: { route: RouteName | null }) {
   switch (route) {
@@ -55,6 +57,13 @@ function PageContent({ route }: { route: RouteName | null }) {
       return <StorageAuditPage />;
     case "inventorySearch":
       return <InventorySearchPage />;
+    case "callback":
+      // AuthKitProvider handles the callback automatically
+      return (
+        <div class="page-header">
+          <h1>Signing in…</h1>
+        </div>
+      );
     default:
       return (
         <div class="page-header">
@@ -113,6 +122,27 @@ const NAV_ITEMS = [
   },
 ];
 
+function AuthButton() {
+  const { user, signIn, signOut, isLoading } = useAuth();
+
+  if (isLoading) return null;
+
+  if (user) {
+    return (
+      <div class="auth-status">
+        <span class="auth-user">{user.firstName ?? user.email ?? "User"}</span>
+        <button class="auth-btn" onClick={() => signOut()}>Sign out</button>
+      </div>
+    );
+  }
+
+  return (
+    <div class="auth-status">
+      <button class="auth-btn" onClick={() => signIn()}>Sign in</button>
+    </div>
+  );
+}
+
 export default function App() {
   const page = useStore($router);
 
@@ -132,6 +162,7 @@ export default function App() {
             </a>
           ))}
         </nav>
+        <AuthButton />
         <div class="sidebar-footer">
           <a
             href="https://discord.gg/xnvcKubejB"

@@ -19,13 +19,16 @@
 import { useState, useEffect } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
 import TierPlanCard from "../components/TierPlan";
-import type { TierPlan } from "../../common/settlement-planner";
+import { buildSettlementPlan, type TierPlan } from "../../common/settlement-planner";
+import { gd } from "../../common/gamedata";
 import {
   $empireClaims,
   $empireClaimsLoading,
   $empireCapitalClaimId,
   fetchEmpireClaims,
 } from "../stores/craftSource";
+import { convexAction } from "../convex";
+import { api } from "../../../convex/_generated/api";
 
 interface SettlementData {
   currentTier: number;
@@ -34,6 +37,15 @@ interface SettlementData {
   totalTechs: number;
   claimName: string;
   plans: TierPlan[];
+}
+
+interface RawSettlementData {
+  currentTier: number;
+  supplies: number;
+  learnedCount: number;
+  claimName: string;
+  learnedIds: number[];
+  inventory: Record<string, number>;
 }
 
 export default function SettlementPage() {
@@ -59,12 +71,25 @@ export default function SettlementPage() {
     if (!selectedClaim) return;
     setData(null);
     setError(null);
-    fetch(`/api/settlement?claim=${encodeURIComponent(selectedClaim)}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<SettlementData>;
+    convexAction(api.settlement.getSettlement, { claimId: selectedClaim })
+      .then((raw: RawSettlementData) => {
+        const learnedIds = new Set(raw.learnedIds);
+        const inventory = new Map(Object.entries(raw.inventory));
+        const plans = buildSettlementPlan(
+          raw.currentTier,
+          learnedIds,
+          raw.supplies,
+          inventory,
+        );
+        setData({
+          currentTier: raw.currentTier,
+          supplies: raw.supplies,
+          learnedCount: raw.learnedCount,
+          totalTechs: gd.claimTechs.length,
+          claimName: raw.claimName,
+          plans,
+        });
       })
-      .then(setData)
       .catch((e) => setError(String(e)));
   }, [selectedClaim]);
 

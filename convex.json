@@ -1,0 +1,29 @@
+{
+  "authKit": {
+    "dev": {
+      "configure": {
+        "redirectUris": ["http://localhost:4321/callback"],
+        "appHomepageUrl": "http://localhost:4321",
+        "corsOrigins": ["http://localhost:4321"]
+      },
+      "localEnvVars": {
+        "VITE_WORKOS_CLIENT_ID": "${authEnv.WORKOS_CLIENT_ID}",
+        "VITE_WORKOS_REDIRECT_URI": "http://localhost:4321/callback"
+      }
+    },
+    "preview": {
+      "configure": {
+        "redirectUris": ["${buildEnv.PREVIEW_ORIGIN}/callback"],
+        "appHomepageUrl": "${buildEnv.PREVIEW_ORIGIN}",
+        "corsOrigins": ["${buildEnv.PREVIEW_ORIGIN}"]
+      }
+    },
+    "prod": {
+      "configure": {
+        "redirectUris": ["https://ordum.fun/callback"],
+        "appHomepageUrl": "https://ordum.fun",
+        "corsOrigins": ["https://ordum.fun"]
+      }
+    }
+  }
+}

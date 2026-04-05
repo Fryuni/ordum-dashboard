@@ -25,8 +25,10 @@ import {
   $empireCapitalClaimId,
   fetchEmpireClaims,
 } from "../stores/craftSource";
-
 import { $router } from "../stores/router";
+import { convexAction } from "../convex";
+import { api } from "../../../convex/_generated/api";
+import { gd } from "../../common/gamedata";
 
 async function openCraftPlanner(targets: TargetItem[]) {
   const compressedBuffer = await new Response(
@@ -91,12 +93,96 @@ export default function ConstructionPage() {
     if (!selectedClaim) return;
     setData(null);
     setError(null);
-    fetch(`/api/construction?claim=${encodeURIComponent(selectedClaim)}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<ConstructionData>;
+    convexAction(api.construction.getConstruction, { claimId: selectedClaim })
+      .then((raw: any) => {
+        // Build item/cargo lookup dicts
+        const itemsDict: Record<string, any> = {};
+        for (const item of raw.constructionItems ?? []) {
+          if (!itemsDict[String(item.id)]) itemsDict[String(item.id)] = item;
+        }
+        const cargosDict: Record<string, any> = {};
+        for (const cargo of raw.constructionCargos ?? []) {
+          if (!cargosDict[String(cargo.id)]) cargosDict[String(cargo.id)] = cargo;
+        }
+
+        // Build construction recipe index
+        const recipeIndex = new Map<number, (typeof gd.constructionRecipes)[0]>();
+        for (const r of gd.constructionRecipes) {
+          recipeIndex.set(r.id, r);
+        }
+
+        const projects = (raw.projects ?? []).map((project: any) => {
+          const recipe = recipeIndex.get(project.constructionRecipeId);
+          const depositedItems: Record<string, number> = {};
+          for (const pocket of project.inventory ?? []) {
+            if (!pocket.contents) continue;
+            const itemType = pocket.contents.item_type === "cargo" ? "Cargo" : "Item";
+            const key = `${itemType}:${pocket.contents.item_id}`;
+            depositedItems[key] = (depositedItems[key] ?? 0) + (pocket.contents.quantity ?? 0);
+          }
+
+          const requirements = [
+            ...(recipe?.consumed_item_stacks ?? []).map((s) => {
+              const key = `Item:${s.item_id}`;
+              const info = itemsDict[String(s.item_id)];
+              const deposited = depositedItems[key] ?? 0;
+              return {
+                item_type: "Item" as const,
+                item_id: s.item_id,
+                name: info?.name ?? gd.items.get(s.item_id)?.name ?? `Item #${s.item_id}`,
+                icon: info?.iconAssetName ?? "",
+                tier: info?.tier ?? gd.items.get(s.item_id)?.tier ?? 0,
+                tag: info?.tag ?? gd.items.get(s.item_id)?.tag ?? "",
+                quantity_required: s.quantity,
+                quantity_deposited: deposited,
+                fulfilled: deposited >= s.quantity,
+              };
+            }),
+            ...(recipe?.consumed_cargo_stacks ?? []).map((s) => {
+              const key = `Cargo:${s.item_id}`;
+              const info = cargosDict[String(s.item_id)];
+              const deposited = depositedItems[key] ?? 0;
+              return {
+                item_type: "Cargo" as const,
+                item_id: s.item_id,
+                name: info?.name ?? gd.cargo.get(s.item_id)?.name ?? `Cargo #${s.item_id}`,
+                icon: info?.iconAssetName ?? "",
+                tier: info?.tier ?? gd.cargo.get(s.item_id)?.tier ?? 0,
+                tag: info?.tag ?? gd.cargo.get(s.item_id)?.tag ?? "",
+                quantity_required: s.quantity,
+                quantity_deposited: deposited,
+                fulfilled: deposited >= s.quantity,
+              };
+            }),
+          ];
+
+          const totalRequired = requirements.reduce((s, r) => s + r.quantity_required, 0);
+          const totalDeposited = requirements.reduce(
+            (s, r) => s + Math.min(r.quantity_deposited, r.quantity_required),
+            0,
+          );
+
+          return {
+            entity_id: project.entityId ?? project.entity_id ?? "",
+            building_name:
+              project.buildingNickname ??
+              project.buildingName ??
+              recipe?.name ??
+              "Unknown Building",
+            construction_recipe_id: project.constructionRecipeId,
+            recipe_name: recipe?.name ?? "Unknown Recipe",
+            requirements,
+            total_required: totalRequired,
+            total_deposited: totalDeposited,
+            progress_pct:
+              totalRequired > 0
+                ? Math.round((totalDeposited / totalRequired) * 100)
+                : 0,
+          };
+        });
+
+        setData({ projects });
       })
-      .then(setData)
       .catch((e) => setError(String(e)));
   }, [selectedClaim]);
 

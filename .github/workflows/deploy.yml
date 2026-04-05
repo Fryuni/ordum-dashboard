@@ -1,4 +1,27 @@
-name: Deploy to Cloudflare Workers
+name: Deploy (Convex + Cloudflare Workers)
+
+# ─── Required Secrets ────────────────────────────────────────────────────────
+#
+#   CONVEX_DEPLOY_KEY          — Production deploy key (from Convex dashboard)
+#   CONVEX_PREVIEW_DEPLOY_KEY  — Preview deploy key   (from Convex dashboard)
+#                                 format: preview:team-slug:project-slug|token
+#   CONVEX_ACCESS_TOKEN        — Personal Access Token (for deleting preview
+#                                 deployments via Management API)
+#   CLOUDFLARE_API_TOKEN       — CF Workers API token
+#   CLOUDFLARE_ACCOUNT_ID      — CF Workers account ID
+#
+# ─── Required Variables (Settings → Variables → Actions) ─────────────────────
+#
+#   VITE_CONVEX_URL            — Production Convex URL
+#                                 e.g. https://harmless-impala-26.convex.cloud
+#   VITE_WORKOS_CLIENT_ID      — Production WorkOS client ID
+#   VITE_WORKOS_REDIRECT_URI   — Production redirect URI (https://ordum.fun/callback)
+#   WORKOS_PREVIEW_CLIENT_ID   — Shared WorkOS client ID for all preview envs
+#   WORKOS_PREVIEW_API_KEY     — Shared WorkOS API key for auto-configuring
+#                                 preview redirect URIs
+#   CF_WORKERS_SUBDOMAIN       — CF Workers subdomain (e.g. "luiz-ferraz")
+#                                 Preview URLs: ordum-dashboard-pr-N.<this>.workers.dev
+#
 
 on:
   push:
@@ -8,13 +31,15 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
-    if: github.event.action != 'closed'
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Production deploy (main branch)
+  # ═══════════════════════════════════════════════════════════════════════════
+  deploy-production:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       deployments: write
-      pull-requests: write
 
     steps:
       - uses: actions/checkout@v6
@@ -32,40 +57,117 @@ jobs:
       - name: Type check
         run: bun run validate
 
-      - name: Build client
-        run: bun run build
+      - name: Deploy Convex functions + build client
+        run: |
+          npx convex deploy \
+            --cmd "bun run build" \
+            --cmd-url-env-var-name VITE_CONVEX_URL
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          VITE_WORKOS_CLIENT_ID: ${{ vars.VITE_WORKOS_CLIENT_ID }}
+          VITE_WORKOS_REDIRECT_URI: ${{ vars.VITE_WORKOS_REDIRECT_URI }}
 
-      - name: Deploy (production)
-        if: github.ref == 'refs/heads/main'
+      - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy --env=""
 
-      - name: Deploy preview worker
-        if: github.event_name == 'pull_request'
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Preview deploy (pull requests)
+  # Each PR gets its own Convex deployment (independent database) + CF Worker.
+  # WorkOS auth is shared across all previews via a single WorkOS environment.
+  # ═══════════════════════════════════════════════════════════════════════════
+  deploy-preview:
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+      pull-requests: write
+
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Download game data
+        run: bash scripts/update-gamedata.sh
+
+      - name: Type check
+        run: bun run validate
+
+      # Step 1: Deploy Convex preview + build client in one command.
+      # --preview-create creates a new Convex deployment with its own database.
+      # --cmd runs "bun run build" with VITE_CONVEX_URL set to the preview URL.
+      # The preview section in convex.json auto-configures WorkOS redirect URIs.
+      - name: Deploy Convex preview + build client
+        run: |
+          npx convex deploy \
+            --preview-create "pr-${PR_NUMBER}" \
+            --cmd "bun run build" \
+            --cmd-url-env-var-name VITE_CONVEX_URL
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_PREVIEW_DEPLOY_KEY }}
+          # WorkOS credentials for auto-configuring the preview AuthKit env
+          WORKOS_CLIENT_ID: ${{ vars.WORKOS_PREVIEW_CLIENT_ID }}
+          WORKOS_API_KEY: ${{ secrets.WORKOS_PREVIEW_API_KEY }}
+          # Preview origin for convex.json authKit.preview.configure
+          PREVIEW_ORIGIN: https://ordum-dashboard-pr-${{ env.PR_NUMBER }}.${{ vars.CF_WORKERS_SUBDOMAIN }}.workers.dev
+          # Client-side env vars for the Vite build
+          VITE_WORKOS_CLIENT_ID: ${{ vars.WORKOS_PREVIEW_CLIENT_ID }}
+          VITE_WORKOS_REDIRECT_URI: https://ordum-dashboard-pr-${{ env.PR_NUMBER }}.${{ vars.CF_WORKERS_SUBDOMAIN }}.workers.dev/callback
+
+      # Step 2: Set WORKOS_CLIENT_ID on the Convex preview deployment.
+      # auth.config.ts reads process.env.WORKOS_CLIENT_ID from Convex env vars.
+      - name: Set WorkOS env var on Convex preview
+        run: |
+          npx convex env set WORKOS_CLIENT_ID \
+            "${{ vars.WORKOS_PREVIEW_CLIENT_ID }}" \
+            --preview-name "pr-${PR_NUMBER}"
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_PREVIEW_DEPLOY_KEY }}
+
+      # Step 3: Deploy CF Worker preview with the built client
+      - name: Deploy CF Worker preview
         id: preview
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env preview --name ordum-dashboard-pr-${{ github.event.pull_request.number }}
+          command: deploy --env preview --name ordum-dashboard-pr-${{ env.PR_NUMBER }}
 
       - name: Comment preview URL on PR
-        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
-            const url = '${{ steps.preview.outputs.deployment-url }}'
-              || `https://ordum-dashboard-pr-${context.issue.number}.${context.repo.owner}.workers.dev`;
-            const body = `🚀 **Preview:** ${url}`;
+            const cfUrl = '${{ steps.preview.outputs.deployment-url }}'
+              || `https://ordum-dashboard-pr-${context.issue.number}.${{ vars.CF_WORKERS_SUBDOMAIN }}.workers.dev`;
+            const body = [
+              `🚀 **Preview deployed!**`,
+              ``,
+              `| | URL |`,
+              `|---|---|`,
+              `| Frontend | ${cfUrl} |`,
+              `| Convex | [Dashboard](https://dashboard.convex.dev/) (preview: \`pr-${context.issue.number}\`) |`,
+              ``,
+              `> Each PR gets its own Convex database. Data is isolated from production.`,
+            ].join('\n');
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: context.issue.number,
             });
-            const existing = comments.find(c => c.body.startsWith('🚀 **Preview:**'));
+            const existing = comments.find(c => c.body.startsWith('🚀 **Preview'));
             if (existing) {
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
@@ -82,12 +184,18 @@ jobs:
               });
             }
 
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Cleanup: delete both Convex preview deployment and CF Worker on PR close
+  # ═══════════════════════════════════════════════════════════════════════════
   cleanup-preview:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       deployments: write
+
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
 
     steps:
       - uses: actions/checkout@v6
@@ -96,9 +204,45 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Delete preview worker
+      # Delete Convex preview deployment via Management API.
+      # This removes the deployment and all its data.
+      - name: Delete Convex preview deployment
+        run: |
+          # Extract team and project slugs from the preview deploy key
+          # Format: preview:team-slug:project-slug|token
+          KEY_PREFIX="${CONVEX_PREVIEW_DEPLOY_KEY%%|*}"
+          TEAM_SLUG=$(echo "$KEY_PREFIX" | cut -d: -f2)
+          PROJECT_SLUG=$(echo "$KEY_PREFIX" | cut -d: -f3)
+
+          echo "Looking up preview deployment pr-${PR_NUMBER} in ${TEAM_SLUG}/${PROJECT_SLUG}..."
+
+          # Look up the deployment by its reference (preview:pr-N)
+          DEPLOY_INFO=$(curl -sf \
+            -H "Authorization: Bearer ${CONVEX_ACCESS_TOKEN}" \
+            "https://api.convex.dev/v1/teams/${TEAM_SLUG}/projects/${PROJECT_SLUG}/deployment?reference=preview:pr-${PR_NUMBER}" \
+            2>/dev/null || echo '{}')
+
+          DEPLOY_NAME=$(echo "$DEPLOY_INFO" | jq -r '.name // empty')
+
+          if [ -z "$DEPLOY_NAME" ]; then
+            echo "No preview deployment found for pr-${PR_NUMBER}, skipping."
+            exit 0
+          fi
+
+          echo "Deleting Convex deployment: ${DEPLOY_NAME}"
+          curl -sf -X POST \
+            -H "Authorization: Bearer ${CONVEX_ACCESS_TOKEN}" \
+            "https://api.convex.dev/v1/deployments/${DEPLOY_NAME}/delete" \
+            && echo "✅ Convex preview deployment deleted" \
+            || echo "⚠️ Failed to delete Convex preview deployment (may have auto-expired)"
+        env:
+          CONVEX_PREVIEW_DEPLOY_KEY: ${{ secrets.CONVEX_PREVIEW_DEPLOY_KEY }}
+          CONVEX_ACCESS_TOKEN: ${{ secrets.CONVEX_ACCESS_TOKEN }}
+
+      # Delete CF Worker preview
+      - name: Delete CF Worker preview
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: delete --name ordum-dashboard-pr-${{ github.event.pull_request.number }} --force
+          command: delete --name ordum-dashboard-pr-${{ env.PR_NUMBER }} --force

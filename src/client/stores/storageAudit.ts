@@ -19,11 +19,48 @@
 import { persistentAtom } from "@nanostores/persistent";
 import { atom, computed, onMount } from "nanostores";
 import { computedAsync } from "@nanostores/async";
-import type { StorageAuditResponse } from "../../server/storage-audit";
 import { $updateTimer } from "../util-store";
 import { useCapitalAsDefaultArray } from "./craftSource";
+import { convexQuery, convexAction } from "../convex";
+import { api } from "../../../convex/_generated/api";
 
-// ─── JSON persistent atom helper ────────────────────────────────────────────────
+// ─── Types (matching the Convex query response) ────────────────────────────
+
+export interface StorageAuditLogRow {
+  id: string;
+  claim_id: string;
+  player_entity_id: string;
+  player_name: string;
+  building_name: string;
+  item_type: string;
+  item_id: number;
+  item_name: string;
+  quantity: number;
+  unit_value: number;
+  action: string;
+  timestamp: string;
+}
+
+export interface StorageAuditChartPoint {
+  bucket: string;
+  deposits: number;
+  withdrawals: number;
+  net: number;
+  cumOpen: number;
+  cumClose: number;
+}
+
+export interface StorageAuditResponse {
+  logs: StorageAuditLogRow[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  chartData: StorageAuditChartPoint[];
+  players: Array<{ entityId: string; name: string }>;
+  items: Array<{ id: number; type: string; name: string }>;
+}
+
+// ─── JSON persistent atom helper ────────────────────────────────────────────
 
 function persistentJsonAtom<T>(key: string, defaultValue: T) {
   return persistentAtom<T>(key, defaultValue, {
@@ -38,7 +75,7 @@ function persistentJsonAtom<T>(key: string, defaultValue: T) {
   });
 }
 
-// ─── Filter Atoms ───────────────────────────────────────────────────────────────
+// ─── Filter Atoms ───────────────────────────────────────────────────────────
 
 export const $auditClaims = persistentJsonAtom<string[]>("auditClaims", []);
 useCapitalAsDefaultArray($auditClaims);
@@ -69,29 +106,7 @@ onMount($auditPage, () => {
   return () => unsubs.forEach((u) => u());
 });
 
-// ─── Fetch Helper ───────────────────────────────────────────────────────────────
-
-function buildAuditUrl(
-  claims: string[],
-  players: string[],
-  items: string[],
-  page: number,
-  dateFrom: string,
-  dateTo: string,
-): string {
-  const params = new URLSearchParams({
-    page: String(page),
-    pageSize: String(PAGE_SIZE),
-  });
-  for (const c of claims) params.append("claim", c);
-  for (const p of players) params.append("player", p);
-  for (const item of items) params.append("item", item);
-  if (dateFrom) params.set("from", dateFrom);
-  if (dateTo) params.set("to", dateTo);
-  return `/api/storage-audit?${params}`;
-}
-
-// ─── Data Store ─────────────────────────────────────────────────────────────────
+// ─── Data Store ─────────────────────────────────────────────────────────────
 
 export const $auditData = computedAsync(
   [
@@ -113,27 +128,31 @@ export const $auditData = computedAsync(
     dateTo,
   ): Promise<StorageAuditResponse | null> => {
     if (!claims || claims.length === 0) return null;
-    const url = buildAuditUrl(claims, players, items, page, dateFrom, dateTo);
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return resp.json() as Promise<StorageAuditResponse>;
+
+    return convexQuery(api.storageAudit.queryAudit, {
+      claimIds: claims,
+      playerEntityIds: players.length > 0 ? players : undefined,
+      itemKeys: items.length > 0 ? items : undefined,
+      from: dateFrom || undefined,
+      to: dateTo || undefined,
+      page,
+      pageSize: PAGE_SIZE,
+    });
   },
 );
 
-// ─── On-demand Sync ─────────────────────────────────────────────────────────────
+// ─── On-demand Sync ─────────────────────────────────────────────────────────
 
 export const $syncing = atom(false);
 
 /**
- * Trigger an on-demand ingestion. Calls the ingest endpoint, then
- * bumps $refreshTick so the query store re-fetches with fresh data.
+ * Trigger an on-demand ingestion via Convex action.
  */
 export async function triggerSync() {
   if ($syncing.get()) return;
   $syncing.set(true);
   try {
-    const resp = await fetch("/api/storage-audit/ingest", { method: "POST" });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    await convexAction(api.sync.triggerIngestion, {});
   } catch (e) {
     console.error("Sync error:", e);
   } finally {
@@ -141,7 +160,7 @@ export async function triggerSync() {
   }
 }
 
-// ─── Derived ────────────────────────────────────────────────────────────────────
+// ─── Derived ────────────────────────────────────────────────────────────────
 
 export const $auditTotalPages = computed($auditData, (state) => {
   if (state.state !== "ready" || !state.value) return 0;

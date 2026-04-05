@@ -21,6 +21,8 @@ import { computedAsync } from "@nanostores/async";
 
 import { $updateTimer } from "../util-store";
 import { useCapitalAsDefault } from "./craftSource";
+import { convexAction } from "../convex";
+import { api } from "../../../convex/_generated/api";
 
 export interface InventorySearchItem {
   key: string;
@@ -50,9 +52,6 @@ export const $inventorySearchData = computedAsync(
   [$inventorySearchClaim, $updateTimer],
   async (claimId): Promise<InventorySearchResponse | null> => {
     if (!claimId) return null;
-    const params = new URLSearchParams({ claim: claimId });
-    const resp = await fetch(`/api/inventory-search?${params}`);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return resp.json() as Promise<InventorySearchResponse>;
+    return convexAction(api.inventorySearch.search, { claimId });
   },
 );

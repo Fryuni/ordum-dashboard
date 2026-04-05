@@ -10,7 +10,7 @@ preview_urls = true
 directory = "./dist/client"
 not_found_handling = "single-page-application"
 binding = "ASSETS"
-run_worker_first = ["/api/*", "/jita/*"]
+run_worker_first = ["/jita/*"]
 
 [observability]
 enabled = true
@@ -24,35 +24,6 @@ invocation_logs = true
 [observability.traces]
 enabled = true
 
-[triggers]
-crons = ["*/5 * * * *"]
-
-[[kv_namespaces]]
-binding = "jita_api_cache"
-id = "4841edcb05cd4978bec7f705a82d12de"
-
-[[d1_databases]]
-binding = "ordum_storage_audit"
-database_name = "ordum-storage-audit"
-database_id = "b0aed2a4-0c01-4ea4-ac26-c87d6aa4cfa8"
-
 # ─── PR preview environment ─────────────────────────────────────────────────────
-# `wrangler deploy --env preview` creates a separate worker so that
-# observability (logs, traces) works — `versions upload` skips those settings.
-# The worker name is overridden per-PR via --name in CI.
 [env.preview]
 workers_dev = true
-
-# No cron triggers on preview — previews share the production D1 database,
-# so stale preview code would corrupt production data.
-[env.preview.triggers]
-crons = []
-
-[[env.preview.kv_namespaces]]
-binding = "jita_api_cache"
-id = "4841edcb05cd4978bec7f705a82d12de"
-
-[[env.preview.d1_databases]]
-binding = "ordum_storage_audit"
-database_name = "ordum-storage-audit"
-database_id = "b0aed2a4-0c01-4ea4-ac26-c87d6aa4cfa8"
