@@ -19,7 +19,6 @@
 import { persistentAtom } from "@nanostores/persistent";
 import { computedAsync } from "@nanostores/async";
 import { jita } from "../../common/api";
-import { $updateTimer } from "../util-store";
 import { useCapitalAsDefault } from "./craftSource";
 import { convexAction } from "../convex";
 import { api } from "../../../convex/_generated/api";
@@ -79,9 +78,9 @@ export const $claimMembers = computedAsync(
   },
 );
 
-/** Contribution data via Convex action */
+/** Contribution data via Convex action (fetched on demand, no polling) */
 export const $contributionData = computedAsync(
-  [$contributionClaim, $contributionPlayer, $updateTimer],
+  [$contributionClaim, $contributionPlayer],
   async (claimId, playerEntityId): Promise<ContributionData | null> => {
     if (!claimId || !playerEntityId) return null;
     return convexAction(api.contribution.getContribution, {

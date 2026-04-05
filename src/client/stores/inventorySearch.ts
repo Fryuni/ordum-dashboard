@@ -19,7 +19,6 @@
 import { persistentAtom } from "@nanostores/persistent";
 import { computedAsync } from "@nanostores/async";
 
-import { $updateTimer } from "../util-store";
 import { useCapitalAsDefault } from "./craftSource";
 import { convexAction } from "../convex";
 import { api } from "../../../convex/_generated/api";
@@ -49,7 +48,7 @@ export const $inventorySearchClaim = persistentAtom<string>(
 useCapitalAsDefault($inventorySearchClaim);
 
 export const $inventorySearchData = computedAsync(
-  [$inventorySearchClaim, $updateTimer],
+  [$inventorySearchClaim],
   async (claimId): Promise<InventorySearchResponse | null> => {
     if (!claimId) return null;
     return convexAction(api.inventorySearch.search, { claimId });

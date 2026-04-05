@@ -18,10 +18,9 @@
  */
 import { persistentAtom } from "@nanostores/persistent";
 import { atom, computed, onMount } from "nanostores";
-import { computedAsync } from "@nanostores/async";
-import { $updateTimer } from "../util-store";
 import { useCapitalAsDefaultArray } from "./craftSource";
-import { convexQuery, convexAction } from "../convex";
+import { convexAction } from "../convex";
+import { convexSub, type SubState } from "./convexSub";
 import { api } from "../../../convex/_generated/api";
 
 // ─── Types (matching the Convex query response) ────────────────────────────
@@ -106,30 +105,16 @@ onMount($auditPage, () => {
   return () => unsubs.forEach((u) => u());
 });
 
-// ─── Data Store ─────────────────────────────────────────────────────────────
+// ─── Data Store (real-time Convex subscription) ─────────────────────────────
 
-export const $auditData = computedAsync(
-  [
-    $auditClaims,
-    $auditPlayers,
-    $auditItems,
-    $auditPage,
-    $updateTimer,
-    $auditDateFrom,
-    $auditDateTo,
-  ],
-  async (
-    claims,
-    players,
-    items,
-    page,
-    _timer,
-    dateFrom,
-    dateTo,
-  ): Promise<StorageAuditResponse | null> => {
+export const $auditData: ReturnType<
+  typeof convexSub<typeof api.storageAudit.queryAudit, StorageAuditResponse | null>
+> = convexSub(
+  [$auditClaims, $auditPlayers, $auditItems, $auditPage, $auditDateFrom, $auditDateTo],
+  api.storageAudit.queryAudit,
+  (claims, players, items, page, dateFrom, dateTo) => {
     if (!claims || claims.length === 0) return null;
-
-    return convexQuery(api.storageAudit.queryAudit, {
+    return {
       claimIds: claims,
       playerEntityIds: players.length > 0 ? players : undefined,
       itemKeys: items.length > 0 ? items : undefined,
@@ -137,7 +122,7 @@ export const $auditData = computedAsync(
       to: dateTo || undefined,
       page,
       pageSize: PAGE_SIZE,
-    });
+    };
   },
 );
 
@@ -147,6 +132,7 @@ export const $syncing = atom(false);
 
 /**
  * Trigger an on-demand ingestion via Convex action.
+ * The subscription will auto-update when new data is written.
  */
 export async function triggerSync() {
   if ($syncing.get()) return;

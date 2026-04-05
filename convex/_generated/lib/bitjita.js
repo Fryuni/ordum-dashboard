@@ -69,45 +69,45 @@ function bigIntSafeParse(text) {
     });
 }
 // ─── Typed API Helpers ──────────────────────────────────────────────────────
-export const ORDUM_EMPIRE_ID = "1224979098644868393";
+export const ORDUM_EMPIRE_ID = "379564";
 export function getEmpire(id) {
-    return fetchBitJita(`/api/empire/${id}`);
+    return fetchBitJita(`/api/empires/${id}`);
 }
 export function getEmpireClaims(id) {
-    return fetchBitJita(`/api/empire/${id}/claims`);
+    return fetchBitJita(`/api/empires/${id}/claims`);
 }
 export function getClaim(id) {
-    return fetchBitJita(`/api/claim/${id}`);
+    return fetchBitJita(`/api/claims/${id}`);
 }
 export function getClaimBuildings(id) {
-    return fetchBitJita(`/api/claim/${id}/buildings`);
+    return fetchBitJita(`/api/claims/${id}/buildings`);
 }
 export function getClaimInventories(id) {
-    return fetchBitJita(`/api/claim/${id}/inventories`);
+    return fetchBitJita(`/api/claims/${id}/inventories`);
 }
 export function getClaimMembers(id) {
-    return fetchBitJita(`/api/claim/${id}/members`);
+    return fetchBitJita(`/api/claims/${id}/members`);
 }
 export function getClaimConstruction(id) {
-    return fetchBitJita(`/api/claim/${id}/construction`);
+    return fetchBitJita(`/api/claims/${id}/construction`);
 }
 export function getPlayerBuffs(id) {
-    return fetchBitJita(`/api/player/${id}/buffs`);
+    return fetchBitJita(`/api/players/${id}/buffs`);
 }
 export function getPlayerInventories(id) {
-    return fetchBitJita(`/api/player/${id}/inventories`);
+    return fetchBitJita(`/api/players/${id}/inventories`);
 }
 export function getPlayerTravelerTasks(id) {
-    return fetchBitJita(`/api/player/${id}/traveler-tasks`);
+    return fetchBitJita(`/api/players/${id}/traveler-tasks`);
 }
 export function getPlayerPassiveCrafts(id) {
-    return fetchBitJita(`/api/player/${id}/passive-crafts`);
+    return fetchBitJita(`/api/players/${id}/passive-crafts`);
 }
 export function listPlayers(params) {
     return fetchBitJita(`/api/players?q=${encodeURIComponent(params.q)}`);
 }
 export function getPlayer(id) {
-    return fetchBitJita(`/api/player/${id}`);
+    return fetchBitJita(`/api/players/${id}`);
 }
 export function listCrafts(params) {
     const searchParams = new URLSearchParams();
