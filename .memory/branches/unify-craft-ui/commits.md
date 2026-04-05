@@ -109,3 +109,43 @@ This branch unified the player and claim crafting interfaces into a single `Craf
 - Standardized TypeScript configurations by adding a client-specific `tsconfig.json` for browser-specific types (e.g., `Uint8Array.toBase64`) while isolating Cloudflare Worker types to the root configuration.
 - Improved CI/CD reliability by upgrading GitHub Actions to use Node.js 20 compatible versions and configuring explicit `workers_dev` and `preview_urls` settings in `wrangler.toml`.
 - Established custom domain routing for `ordum.fun` directly in the Wrangler configuration.
+
+---
+
+## Commit ce9f46e8 | 2026-04-05T02:36:11.727Z
+
+### Branch Purpose
+
+Unify the crafting experience into a single location-aware interface, modernize the API layer with BitJita, and migrate the infrastructure to a Cloudflare Workers + Vite architecture for improved performance and scalability.
+
+### Previous Progress Summary
+
+This branch unified player and claim crafting into a single `CraftPage` with location-aware inventory tracking and transitioned the backend to a typed BitJita API client. It migrated the infrastructure to a Cloudflare Workers + Vite architecture with a Hono-based API worker and a Preact SPA. The project resolved critical worker startup crashes, fixed various TypeScript errors (including Baseline 2025 type declarations), and implemented a traveler selection feature for task planning. Additionally, it revamped the Storage Audit system with value-based charting, runtime D1 migrations, and automated ingestion scripts, while ensuring proper type safety across all database and API interactions.
+
+### This Commit's Contribution
+
+- Modified player inventory building in `craftSource.ts` to append claim names in parentheses for bank buildings (e.g., "Town Bank (Ordum City)") for better differentiation.
+- Implemented regex-based detection (`/\bbank\b/i`) to identify bank buildings (Town Bank, Ancient Bank) within the player inventory data structure.
+- Enhanced tooltips in the crafting planner by providing clear context for where items are stored when they reside in shared banks across different settlements.
+- Fixed craft planner rarity logic to treat the selected rarity as a minimum (e.g., "Common or higher") rather than an exact match, improving the accuracy of craft count calculations.
+- Standardized Storage Audit chart display by forcing zero-precision formatting for quantity and volume axes.
+- Optimized D1 schema management by transitioning to a sequential migration runner that auto-applies on ingestion, removing the dependency on external CLI tools for CI/CD.
+
+---
+
+## Commit 945cdaf9 | 2026-04-05T03:08:41.558Z
+
+### Branch Purpose
+
+Unify the crafting experience into a single location-aware interface, modernize the API layer with BitJita, and migrate the infrastructure to a Cloudflare Workers + Vite architecture for improved performance and scalability.
+
+### Previous Progress Summary
+
+This branch unified the player and claim crafting interfaces into a single `CraftPage` with a persistent `$inventorySource` selector and location-aware inventory tracking (distinguishing between specific chests and backpacks). It successfully transitioned the backend from the legacy Resubaka API to a fully typed BitJita client and integrated settlement and traveler task requirements directly into the crafting engine. Most recently, the application was migrated from a Bun-native server to a Cloudflare Workers + Vite architecture, including a Hono-based API worker and a Preact SPA, while resolving critical worker startup crashes related to gamedata hydration.
+
+### This Commit's Contribution
+
+- Modified player inventory building in `craftSource.ts` to append claim names in parentheses for bank buildings (Town Bank, Ancient Bank) for better differentiation.
+- Implemented regex-based detection (`/\bbank\b/i`) to identify bank buildings within the player inventory data structure.
+- Appends `(claimName)` to bank names when available so tooltips clearly show which city each shared bank belongs to (e.g., "Town Bank (Ordum City)", "Ancient Bank (Brightwall)").
+- Enhanced the crafting planner UI by providing clear context for items stored in shared settlement infrastructure across different claims.
