@@ -57,7 +57,7 @@ jobs:
       - name: Generate Convex types
         run: npx convex codegen
         env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          CONVEX_DEPLOYMENT: ${{ vars.CONVEX_DEPLOYMENT }}
 
       - name: Type check
         run: bun run validate
@@ -111,7 +111,7 @@ jobs:
       - name: Generate Convex types
         run: npx convex codegen
         env:
-          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_PREVIEW_DEPLOY_KEY }}
+          CONVEX_DEPLOYMENT: ${{ vars.CONVEX_DEPLOYMENT }}
 
       - name: Type check
         run: bun run validate
