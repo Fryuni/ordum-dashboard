@@ -81,10 +81,5 @@ jobs:
       - name: Download game data
         run: bash scripts/update-gamedata.sh
 
-      - name: Generate Convex types
-        run: npx convex codegen
-        env:
-          CONVEX_DEPLOYMENT: ${{ vars.CONVEX_DEPLOYMENT }}
-
       - name: Type check
         run: bun run validate
