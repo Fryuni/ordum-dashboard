@@ -16,5 +16,6 @@ pnpm-lock.yaml
 /test-results
 /.wrangler-out
 /.playwright-cli
+/convex/_generated/
 
 .env.local
