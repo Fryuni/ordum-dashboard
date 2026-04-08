@@ -24,6 +24,7 @@ import type { CraftPlan } from "../../../common/craft-planner";
 import { $inventory } from "../../stores/craftSource";
 import { $playerCapabilities } from "../../stores/playerCapabilities";
 import { referenceKey } from "../../../common/gamedata/definition";
+import { nameWithRarity } from "../../../common/gamedata/helpers";
 
 interface Props {
   plan: CraftPlan;
@@ -142,12 +143,13 @@ export default function PlanCard({
         <div class="already-have">
           <h4>✅ Already Have</h4>
           <div class="have-chips">
-            {filteredHave.map((item: any) => {
+            {filteredHave.map((item) => {
               const key = referenceKey(item);
               const places = inventory.get(key);
               return (
                 <span class="have-chip" key={item.name}>
-                  {item.name} <strong>×{item.quantity.toFixed(0)}</strong>
+                  {nameWithRarity(item)}{" "}
+                  <strong>×{item.quantity.toFixed(0)}</strong>
                   {places && places.length > 0 && (
                     <div class="have-chip-tooltip">
                       <div class="sources-header">Found in</div>
