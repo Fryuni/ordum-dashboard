@@ -24,7 +24,11 @@
  * singleton is for stores that don't need authenticated access.
  */
 import { ConvexClient } from "convex/browser";
-import type { FunctionReference, FunctionArgs, FunctionReturnType } from "convex/server";
+import type {
+  FunctionReference,
+  FunctionArgs,
+  FunctionReturnType,
+} from "convex/server";
 
 const CONVEX_URL = (import.meta as any).env.VITE_CONVEX_URL as string;
 

@@ -102,11 +102,15 @@ export default function ConstructionPage() {
         }
         const cargosDict: Record<string, any> = {};
         for (const cargo of raw.constructionCargos ?? []) {
-          if (!cargosDict[String(cargo.id)]) cargosDict[String(cargo.id)] = cargo;
+          if (!cargosDict[String(cargo.id)])
+            cargosDict[String(cargo.id)] = cargo;
         }
 
         // Build construction recipe index
-        const recipeIndex = new Map<number, (typeof gd.constructionRecipes)[0]>();
+        const recipeIndex = new Map<
+          number,
+          (typeof gd.constructionRecipes)[0]
+        >();
         for (const r of gd.constructionRecipes) {
           recipeIndex.set(r.id, r);
         }
@@ -116,9 +120,11 @@ export default function ConstructionPage() {
           const depositedItems: Record<string, number> = {};
           for (const pocket of project.inventory ?? []) {
             if (!pocket.contents) continue;
-            const itemType = pocket.contents.item_type === "cargo" ? "Cargo" : "Item";
+            const itemType =
+              pocket.contents.item_type === "cargo" ? "Cargo" : "Item";
             const key = `${itemType}:${pocket.contents.item_id}`;
-            depositedItems[key] = (depositedItems[key] ?? 0) + (pocket.contents.quantity ?? 0);
+            depositedItems[key] =
+              (depositedItems[key] ?? 0) + (pocket.contents.quantity ?? 0);
           }
 
           const requirements = [
@@ -129,7 +135,10 @@ export default function ConstructionPage() {
               return {
                 item_type: "Item" as const,
                 item_id: s.item_id,
-                name: info?.name ?? gd.items.get(s.item_id)?.name ?? `Item #${s.item_id}`,
+                name:
+                  info?.name ??
+                  gd.items.get(s.item_id)?.name ??
+                  `Item #${s.item_id}`,
                 icon: info?.iconAssetName ?? "",
                 tier: info?.tier ?? gd.items.get(s.item_id)?.tier ?? 0,
                 tag: info?.tag ?? gd.items.get(s.item_id)?.tag ?? "",
@@ -145,7 +154,10 @@ export default function ConstructionPage() {
               return {
                 item_type: "Cargo" as const,
                 item_id: s.item_id,
-                name: info?.name ?? gd.cargo.get(s.item_id)?.name ?? `Cargo #${s.item_id}`,
+                name:
+                  info?.name ??
+                  gd.cargo.get(s.item_id)?.name ??
+                  `Cargo #${s.item_id}`,
                 icon: info?.iconAssetName ?? "",
                 tier: info?.tier ?? gd.cargo.get(s.item_id)?.tier ?? 0,
                 tag: info?.tag ?? gd.cargo.get(s.item_id)?.tag ?? "",
@@ -156,7 +168,10 @@ export default function ConstructionPage() {
             }),
           ];
 
-          const totalRequired = requirements.reduce((s, r) => s + r.quantity_required, 0);
+          const totalRequired = requirements.reduce(
+            (s, r) => s + r.quantity_required,
+            0,
+          );
           const totalDeposited = requirements.reduce(
             (s, r) => s + Math.min(r.quantity_deposited, r.quantity_required),
             0,

@@ -78,9 +78,7 @@ function resolveItemName(
   return `${normalType} #${itemId}`;
 }
 
-async function getStorageBuildings(
-  claimId: string,
-): Promise<BuildingInfo[]> {
+async function getStorageBuildings(claimId: string): Promise<BuildingInfo[]> {
   const resp = await jita.getClaimBuildings(claimId);
   const buildings = (
     Array.isArray(resp) ? resp : (resp.buildings ?? resp)
@@ -171,134 +169,131 @@ async function doIngestForClaim(
   ctx: ActionCtx,
   claimId: string,
 ): Promise<boolean> {
-    // 1. Get storage buildings for this claim
-    const buildings = await getStorageBuildings(claimId);
-    if (buildings.length === 0) return false;
+  // 1. Get storage buildings for this claim
+  const buildings = await getStorageBuildings(claimId);
+  if (buildings.length === 0) return false;
 
-    // 2. Ensure all buildings have fetch state entries
-    for (const b of buildings) {
-      await ctx.runMutation(internal.storageAudit.upsertFetchState, {
-        claimId,
-        buildingEntityId: b.entityId,
-      });
-    }
-
-    // 3. Find stale buildings
-    const staleBuildings: Array<{
-      buildingEntityId: string;
-      newestLogId: string | undefined;
-    }> = await ctx.runQuery(internal.storageAudit.getStaleBuildings, {
+  // 2. Ensure all buildings have fetch state entries
+  for (const b of buildings) {
+    await ctx.runMutation(internal.storageAudit.upsertFetchState, {
       claimId,
-      cooldownMs: BUILDING_COOLDOWN_MS,
-      limit: MAX_BUILDINGS_PER_REQUEST,
+      buildingEntityId: b.entityId,
     });
+  }
 
-    if (staleBuildings.length === 0) return false;
+  // 3. Find stale buildings
+  const staleBuildings: Array<{
+    buildingEntityId: string;
+    newestLogId: string | undefined;
+  }> = await ctx.runQuery(internal.storageAudit.getStaleBuildings, {
+    claimId,
+    cooldownMs: BUILDING_COOLDOWN_MS,
+    limit: MAX_BUILDINGS_PER_REQUEST,
+  });
 
-    // 4. Fetch logs for each stale building
-    let totalPagesFetched = 0;
-    const buildingNameMap = new Map(
-      buildings.map((b) => [b.entityId, b.buildingName ?? "Unknown"]),
-    );
+  if (staleBuildings.length === 0) return false;
 
-    for (const state of staleBuildings) {
-      if (totalPagesFetched >= MAX_PAGES_PER_REQUEST) break;
+  // 4. Fetch logs for each stale building
+  let totalPagesFetched = 0;
+  const buildingNameMap = new Map(
+    buildings.map((b) => [b.entityId, b.buildingName ?? "Unknown"]),
+  );
 
-      const buildingId = state.buildingEntityId;
-      const newestLogId = state.newestLogId;
-      const allNewLogs: StorageLogEntry[] = [];
-      const itemMetaMap = new Map<string, ItemMeta>();
-      let pageAfterId: string | undefined;
-      let reachedCursor = false;
+  for (const state of staleBuildings) {
+    if (totalPagesFetched >= MAX_PAGES_PER_REQUEST) break;
 
-      while (!reachedCursor && totalPagesFetched < MAX_PAGES_PER_REQUEST) {
-        totalPagesFetched++;
+    const buildingId = state.buildingEntityId;
+    const newestLogId = state.newestLogId;
+    const allNewLogs: StorageLogEntry[] = [];
+    const itemMetaMap = new Map<string, ItemMeta>();
+    let pageAfterId: string | undefined;
+    let reachedCursor = false;
 
-        const params: {
-          buildingEntityId: string;
-          limit: number;
-          afterId?: string;
-        } = { buildingEntityId: buildingId, limit: LOG_PAGE_SIZE };
-        if (pageAfterId) params.afterId = pageAfterId;
+    while (!reachedCursor && totalPagesFetched < MAX_PAGES_PER_REQUEST) {
+      totalPagesFetched++;
 
-        const resp = await jita.getLogsStorage(params);
-        const logs = resp.logs as StorageLogEntry[];
+      const params: {
+        buildingEntityId: string;
+        limit: number;
+        afterId?: string;
+      } = { buildingEntityId: buildingId, limit: LOG_PAGE_SIZE };
+      if (pageAfterId) params.afterId = pageAfterId;
 
-        for (const item of (resp.items ?? []) as ItemMeta[]) {
-          itemMetaMap.set(String(item.id), item);
-        }
-        for (const cargo of (resp.cargos ?? []) as ItemMeta[]) {
-          itemMetaMap.set(String(cargo.id), cargo);
-        }
+      const resp = await jita.getLogsStorage(params);
+      const logs = resp.logs as StorageLogEntry[];
 
-        if (logs.length === 0) break;
-
-        for (const log of logs) {
-          if (newestLogId && log.id === newestLogId) {
-            reachedCursor = true;
-            break;
-          }
-          allNewLogs.push(log);
-        }
-
-        pageAfterId = logs[logs.length - 1]!.id;
-        if (logs.length < LOG_PAGE_SIZE) break;
+      for (const item of (resp.items ?? []) as ItemMeta[]) {
+        itemMetaMap.set(String(item.id), item);
+      }
+      for (const cargo of (resp.cargos ?? []) as ItemMeta[]) {
+        itemMetaMap.set(String(cargo.id), cargo);
       }
 
-      // 5. Fetch market prices
-      const itemPrices =
-        allNewLogs.length > 0
-          ? await fetchItemPrices(allNewLogs)
-          : new Map<string, number>();
+      if (logs.length === 0) break;
 
-      // 6. Insert new logs in batches
-      for (let i = 0; i < allNewLogs.length; i += INSERT_BATCH_SIZE) {
-        const chunk = allNewLogs.slice(i, i + INSERT_BATCH_SIZE);
-        const rows = chunk.map((log) => {
-          const itemType = log.data.item_type === "cargo" ? "Cargo" : "Item";
-          return {
-            logId: log.id,
-            claimId,
-            playerEntityId: log.subjectEntityId,
-            playerName: log.subjectName,
-            buildingEntityId: buildingId,
-            buildingName:
-              log.building?.buildingName ??
-              buildingNameMap.get(buildingId) ??
-              "Unknown",
-            itemType,
-            itemId: log.data.item_id,
-            itemName: resolveItemName(
-              log.data.item_type,
-              log.data.item_id,
-              itemMetaMap,
-            ),
-            quantity: log.data.quantity,
-            unitValue:
-              Number(itemPrices.get(`${itemType}:${log.data.item_id}`)) || 0,
-            action: log.data.type.startsWith("deposit")
-              ? "deposit"
-              : "withdraw",
-            timestamp: log.timestamp.replace(/\+\d{2}$/, ""),
-          };
-        });
-
-        await ctx.runMutation(internal.storageAudit.insertLogBatch, {
-          logs: rows,
-        });
+      for (const log of logs) {
+        if (newestLogId && log.id === newestLogId) {
+          reachedCursor = true;
+          break;
+        }
+        allNewLogs.push(log);
       }
 
-      // 7. Update fetch state
-      const newNewestId =
-        allNewLogs.length > 0 ? allNewLogs[0]!.id : newestLogId;
-      await ctx.runMutation(internal.storageAudit.updateFetchState, {
-        claimId,
-        buildingEntityId: buildingId,
-        newestLogId: newNewestId,
+      pageAfterId = logs[logs.length - 1]!.id;
+      if (logs.length < LOG_PAGE_SIZE) break;
+    }
+
+    // 5. Fetch market prices
+    const itemPrices =
+      allNewLogs.length > 0
+        ? await fetchItemPrices(allNewLogs)
+        : new Map<string, number>();
+
+    // 6. Insert new logs in batches
+    for (let i = 0; i < allNewLogs.length; i += INSERT_BATCH_SIZE) {
+      const chunk = allNewLogs.slice(i, i + INSERT_BATCH_SIZE);
+      const rows = chunk.map((log) => {
+        const itemType = log.data.item_type === "cargo" ? "Cargo" : "Item";
+        return {
+          logId: log.id,
+          claimId,
+          playerEntityId: log.subjectEntityId,
+          playerName: log.subjectName,
+          buildingEntityId: buildingId,
+          buildingName:
+            log.building?.buildingName ??
+            buildingNameMap.get(buildingId) ??
+            "Unknown",
+          itemType,
+          itemId: log.data.item_id,
+          itemName: resolveItemName(
+            log.data.item_type,
+            log.data.item_id,
+            itemMetaMap,
+          ),
+          quantity: log.data.quantity,
+          unitValue:
+            Number(itemPrices.get(`${itemType}:${log.data.item_id}`)) || 0,
+          action: log.data.type.startsWith("deposit") ? "deposit" : "withdraw",
+          timestamp: log.timestamp.replace(/\+\d{2}$/, ""),
+        };
+      });
+
+      await ctx.runMutation(internal.storageAudit.insertLogBatch, {
+        logs: rows,
       });
     }
 
-    return true; // may have more stale buildings
+    // 7. Update fetch state
+    const newNewestId = allNewLogs.length > 0 ? allNewLogs[0]!.id : newestLogId;
+    await ctx.runMutation(internal.storageAudit.updateFetchState, {
+      claimId,
+      buildingEntityId: buildingId,
+      newestLogId: newNewestId,
+    });
+  }
+
+  return true; // may have more stale buildings
 }
 
 export const ingestForClaim = internalAction({
@@ -345,4 +340,3 @@ export const ingestAll = internalAction({
     }
   },
 });
-

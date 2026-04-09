@@ -55,7 +55,8 @@ export const queryAudit = query({
             const base = idx
               .eq("claimId", claimId)
               .eq("playerEntityId", playerEntityIds![0]!);
-            if (fromTs && toTs) return base.gte("timestamp", fromTs).lt("timestamp", toTs);
+            if (fromTs && toTs)
+              return base.gte("timestamp", fromTs).lt("timestamp", toTs);
             if (fromTs) return base.gte("timestamp", fromTs);
             if (toTs) return base.lt("timestamp", toTs);
             return base;
@@ -65,7 +66,8 @@ export const queryAudit = query({
           .query("storageLogs")
           .withIndex("by_claimId_and_timestamp", (idx) => {
             const base = idx.eq("claimId", claimId);
-            if (fromTs && toTs) return base.gte("timestamp", fromTs).lt("timestamp", toTs);
+            if (fromTs && toTs)
+              return base.gte("timestamp", fromTs).lt("timestamp", toTs);
             if (fromTs) return base.gte("timestamp", fromTs);
             if (toTs) return base.lt("timestamp", toTs);
             return base;
@@ -90,8 +92,7 @@ export const queryAudit = query({
       if (parsed.length > 0) {
         filtered = filtered.filter((l) =>
           parsed.some(
-            ([type, id]) =>
-              l.itemType === type && l.itemId === Number(id),
+            ([type, id]) => l.itemType === type && l.itemId === Number(id),
           ),
         );
       }
@@ -137,12 +138,21 @@ export const queryAudit = query({
       a[0].localeCompare(b[0]),
     );
     let cumulative = 0;
-    const chartData = sortedBuckets.map(([bucket, { deposits, withdrawals }]) => {
-      const net = deposits - withdrawals;
-      const cumOpen = cumulative;
-      cumulative += net;
-      return { bucket, deposits, withdrawals, net, cumOpen, cumClose: cumulative };
-    });
+    const chartData = sortedBuckets.map(
+      ([bucket, { deposits, withdrawals }]) => {
+        const net = deposits - withdrawals;
+        const cumOpen = cumulative;
+        cumulative += net;
+        return {
+          bucket,
+          deposits,
+          withdrawals,
+          net,
+          cumOpen,
+          cumClose: cumulative,
+        };
+      },
+    );
 
     // Distinct players for filter dropdown
     const playerMap = new Map<string, string>();
@@ -156,7 +166,10 @@ export const queryAudit = query({
       .sort((a, b) => a.name.localeCompare(b.name));
 
     // Distinct items for filter dropdown
-    const itemMap = new Map<string, { id: number; type: string; name: string }>();
+    const itemMap = new Map<
+      string,
+      { id: number; type: string; name: string }
+    >();
     for (const l of allLogs) {
       const key = `${l.itemType}:${l.itemId}`;
       if (!itemMap.has(key)) {

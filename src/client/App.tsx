@@ -72,11 +72,7 @@ function SignInPage() {
           />
           <input name="flow" type="hidden" value={flow} />
           <button type="submit" class="sign-in-btn primary" disabled={loading}>
-            {loading
-              ? "..."
-              : flow === "signIn"
-                ? "Sign in"
-                : "Create account"}
+            {loading ? "..." : flow === "signIn" ? "Sign in" : "Create account"}
           </button>
         </form>
 
@@ -151,14 +147,11 @@ function ProfileIcon() {
   const ref = useRef<HTMLDivElement>(null);
 
   // Close dropdown on outside click
-  const handleClickOutside = useCallback(
-    (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    },
-    [],
-  );
+  const handleClickOutside = useCallback((e: MouseEvent) => {
+    if (ref.current && !ref.current.contains(e.target as Node)) {
+      setOpen(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (open) {

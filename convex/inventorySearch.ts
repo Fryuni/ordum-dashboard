@@ -42,7 +42,9 @@ export const search = action({
     for (const building of claimInv.buildings ?? []) {
       if (BANK_BUILDING_IDS.has(building.buildingDescriptionId)) continue;
       const buildingLabel =
-        building.buildingNickname ?? building.buildingName ?? "Unknown Building";
+        building.buildingNickname ??
+        building.buildingName ??
+        "Unknown Building";
 
       for (const pocket of building.inventory ?? []) {
         if (!pocket.contents) continue;
@@ -79,9 +81,7 @@ export const search = action({
       const [type, idStr] = key.split(":");
       const id = Number(idStr);
       const isCargo = type === "Cargo";
-      const desc = isCargo
-        ? cargosDict[String(id)]
-        : itemsDict[String(id)];
+      const desc = isCargo ? cargosDict[String(id)] : itemsDict[String(id)];
 
       const totalQuantity = places.reduce((sum, p) => sum + p.quantity, 0);
       if (totalQuantity <= 0) continue;

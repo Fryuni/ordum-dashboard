@@ -41,8 +41,5 @@ export default defineSchema({
     buildingEntityId: v.string(),
     newestLogId: v.optional(v.string()),
     updatedAt: v.optional(v.number()), // epoch ms
-  }).index("by_claimId_and_buildingEntityId", [
-    "claimId",
-    "buildingEntityId",
-  ]),
+  }).index("by_claimId_and_buildingEntityId", ["claimId", "buildingEntityId"]),
 });

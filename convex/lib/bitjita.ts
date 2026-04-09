@@ -65,16 +65,19 @@ export async function postBitJita<T = any>(
  */
 function bigIntSafeParse(text: string): unknown {
   // @ts-ignore ES2025 3-arg JSON.parse reviver
-  return JSON.parse(text, (_key: string, value: unknown, ctx: { source: string }) => {
-    if (
-      typeof value === "number" &&
-      !ctx.source.includes(".") &&
-      !Number.isSafeInteger(value)
-    ) {
-      return ctx.source;
-    }
-    return value;
-  });
+  return JSON.parse(
+    text,
+    (_key: string, value: unknown, ctx: { source: string }) => {
+      if (
+        typeof value === "number" &&
+        !ctx.source.includes(".") &&
+        !Number.isSafeInteger(value)
+      ) {
+        return ctx.source;
+      }
+      return value;
+    },
+  );
 }
 
 // ─── Typed API Helpers ──────────────────────────────────────────────────────

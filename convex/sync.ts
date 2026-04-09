@@ -8,7 +8,11 @@ import { internal } from "./_generated/api";
 export const triggerIngestion = action({
   args: {},
   handler: async (ctx) => {
-    await ctx.scheduler.runAfter(0, internal.storageAuditIngestion.ingestAll, {});
+    await ctx.scheduler.runAfter(
+      0,
+      internal.storageAuditIngestion.ingestAll,
+      {},
+    );
     return { scheduled: true };
   },
 });

@@ -19,7 +19,10 @@
 import { useState, useEffect } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
 import TierPlanCard from "../components/TierPlan";
-import { buildSettlementPlan, type TierPlan } from "../../common/settlement-planner";
+import {
+  buildSettlementPlan,
+  type TierPlan,
+} from "../../common/settlement-planner";
 import { gd } from "../../common/gamedata";
 import {
   $empireClaims,

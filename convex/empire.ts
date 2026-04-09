@@ -135,8 +135,7 @@ export const getEmpireData = action({
       capital_claim_entity_id:
         capitalBuildingEntityId !== null
           ? (claims.find(
-              (c) =>
-                c.owner_building_entity_id === capitalBuildingEntityId,
+              (c) => c.owner_building_entity_id === capitalBuildingEntityId,
             )?.entity_id ?? null)
           : null,
       all_building_resources: mergedBuilding,

@@ -108,9 +108,19 @@ onMount($auditPage, () => {
 // ─── Data Store (real-time Convex subscription) ─────────────────────────────
 
 export const $auditData: ReturnType<
-  typeof convexSub<typeof api.storageAudit.queryAudit, StorageAuditResponse | null>
+  typeof convexSub<
+    typeof api.storageAudit.queryAudit,
+    StorageAuditResponse | null
+  >
 > = convexSub(
-  [$auditClaims, $auditPlayers, $auditItems, $auditPage, $auditDateFrom, $auditDateTo],
+  [
+    $auditClaims,
+    $auditPlayers,
+    $auditItems,
+    $auditPage,
+    $auditDateFrom,
+    $auditDateTo,
+  ],
   api.storageAudit.queryAudit,
   (claims, players, items, page, dateFrom, dateTo) => {
     if (!claims || claims.length === 0) return null;
