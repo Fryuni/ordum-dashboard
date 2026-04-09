@@ -32,48 +32,53 @@ export const queryAudit = query({
       };
     }
 
-    // We need to query per-claim and merge results since Convex indexes
-    // are per-table and we filter by claim.
-    // For efficiency, we collect all matching logs and do in-memory filtering
-    // for the complex multi-claim, multi-filter case.
+    // Query per-claim using index range bounds on timestamp to avoid
+    // unbounded table scans, then merge results across claims.
+    const MAX_LOGS_PER_CLAIM = 10_000;
+    const fromTs = from ? from + "T00:00:00" : undefined;
+    const toTs = to ? to + "T00:00:00" : undefined;
     const allLogs: any[] = [];
 
     for (const claimId of claimIds) {
-      // Use the most specific index available
-      let q;
-      if (
+      // Use the most specific index available, with timestamp bounds.
+      // Enumerate range combos explicitly for Convex's progressive type narrowing.
+      const useSinglePlayer =
         playerEntityIds &&
         playerEntityIds.length === 1 &&
-        (!itemKeys || itemKeys.length === 0)
-      ) {
+        (!itemKeys || itemKeys.length === 0);
+
+      let q;
+      if (useSinglePlayer) {
         q = ctx.db
           .query("storageLogs")
-          .withIndex("by_claimId_and_playerEntityId_and_timestamp", (idx) =>
-            idx.eq("claimId", claimId).eq("playerEntityId", playerEntityIds[0]!),
-          );
+          .withIndex("by_claimId_and_playerEntityId_and_timestamp", (idx) => {
+            const base = idx
+              .eq("claimId", claimId)
+              .eq("playerEntityId", playerEntityIds![0]!);
+            if (fromTs && toTs) return base.gte("timestamp", fromTs).lt("timestamp", toTs);
+            if (fromTs) return base.gte("timestamp", fromTs);
+            if (toTs) return base.lt("timestamp", toTs);
+            return base;
+          });
       } else {
         q = ctx.db
           .query("storageLogs")
-          .withIndex("by_claimId_and_timestamp", (idx) =>
-            idx.eq("claimId", claimId),
-          );
+          .withIndex("by_claimId_and_timestamp", (idx) => {
+            const base = idx.eq("claimId", claimId);
+            if (fromTs && toTs) return base.gte("timestamp", fromTs).lt("timestamp", toTs);
+            if (fromTs) return base.gte("timestamp", fromTs);
+            if (toTs) return base.lt("timestamp", toTs);
+            return base;
+          });
       }
 
-      const logs = await q.order("desc").collect();
+      const logs = await q.order("desc").take(MAX_LOGS_PER_CLAIM);
       allLogs.push(...logs);
     }
 
-    // Apply in-memory filters
+    // Apply in-memory filters for dimensions not covered by the index
     let filtered = allLogs;
 
-    if (from) {
-      const fromTs = from + "T00:00:00";
-      filtered = filtered.filter((l) => l.timestamp >= fromTs);
-    }
-    if (to) {
-      const toTs = to + "T00:00:00";
-      filtered = filtered.filter((l) => l.timestamp < toTs);
-    }
     if (playerEntityIds && playerEntityIds.length > 0) {
       const playerSet = new Set(playerEntityIds);
       filtered = filtered.filter((l) => playerSet.has(l.playerEntityId));

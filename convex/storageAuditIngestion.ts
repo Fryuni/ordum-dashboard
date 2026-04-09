@@ -6,6 +6,7 @@
  */
 import { v } from "convex/values";
 import { internalAction } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import * as jita from "./lib/bitjita";
 
@@ -164,15 +165,12 @@ async function fetchItemPrices(
   return prices;
 }
 
-// ─── Main Ingestion Action ──────────────────────────────────────────────────
+// ─── Main Ingestion Logic ───────────────────────────────────────────────────
 
-export const ingestForClaim = internalAction({
-  args: {
-    claimId: v.string(),
-  },
-  handler: async (ctx, args): Promise<boolean> => {
-    const { claimId } = args;
-
+async function doIngestForClaim(
+  ctx: ActionCtx,
+  claimId: string,
+): Promise<boolean> {
     // 1. Get storage buildings for this claim
     const buildings = await getStorageBuildings(claimId);
     if (buildings.length === 0) return false;
@@ -301,7 +299,11 @@ export const ingestForClaim = internalAction({
     }
 
     return true; // may have more stale buildings
-  },
+}
+
+export const ingestForClaim = internalAction({
+  args: { claimId: v.string() },
+  handler: async (ctx, args) => doIngestForClaim(ctx, args.claimId),
 });
 
 // ─── Ingest All Empire Claims ───────────────────────────────────────────────
@@ -328,10 +330,7 @@ export const ingestAll = internalAction({
       while (moreRemaining && rounds < MAX_ROUNDS) {
         rounds++;
         try {
-          moreRemaining = await ctx.runAction(
-            internal.storageAuditIngestion.ingestForClaim,
-            { claimId },
-          );
+          moreRemaining = await doIngestForClaim(ctx, claimId);
         } catch (e) {
           console.error(
             `Ingestion error (claim=${claimId}, round=${rounds}):`,
@@ -347,11 +346,3 @@ export const ingestAll = internalAction({
   },
 });
 
-// ─── Public action for on-demand sync ───────────────────────────────────────
-
-export const triggerSync = internalAction({
-  args: {},
-  handler: async (ctx) => {
-    await ctx.runAction(internal.storageAuditIngestion.ingestAll, {});
-  },
-});
