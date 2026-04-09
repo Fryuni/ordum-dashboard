@@ -1,5 +1,11 @@
 # CLAUDE.md
 
+## Project Overview
+
+**Ordum Dashboard** — A web-based empire management dashboard for the Bitcraft game.
+Tracks resources, members, settlements, crafting plans, storage audit logs, and more
+across multiple claims. Live at https://ordum.fun.
+
 ## Package Manager
 
 This project uses **bun**. Do not use npm, yarn, or pnpm.
@@ -9,15 +15,53 @@ This project uses **bun**. Do not use npm, yarn, or pnpm.
 
 ## Common Commands
 
-- `bun run dev` — Start dev server (worker + vite)
+- `bun run dev` — Start all three services concurrently (convex + worker + vite)
+- `bun run dev:convex` — Convex dev server only
+- `bun run dev:worker` — Cloudflare Worker (Wrangler) only
+- `bun run dev:client` — Vite dev server only
 - `bun run build` — Build with vite
 - `bun run validate` — Type check (`tsc --noEmit`)
 - `bun run format` — Format with prettier
-- `bun run deploy` — Build and deploy with wrangler
+- `bun run deploy` — Build and deploy frontend to Cloudflare Workers
+- `bun run deploy:convex` — Deploy Convex backend
 
-## Client State Management
+## Architecture
 
-Always use **Nanostores** for client-side state. Prefer `persistentAtom` for user selections, `computedAsync` for API-driven data, and `computed` for derived state. Avoid `useState`/`useEffect` for data fetching — use stores instead so state is shared across pages and components.
+### Frontend (Preact + Nanostores)
+
+- **Framework:** Preact (not React) with `@preact/preset-vite`
+- **State:** Nanostores — `persistentAtom` for user selections, `computedAsync` for API-driven data, `computed` for derived state
+- **Routing:** `@nanostores/router` — 8 pages (dashboard, settlement, construction, craft, traveler tasks, contribution, storage audit, inventory search)
+- **Auth:** WorkOS AuthKit (`@workos-inc/authkit-react`)
+- Avoid `useState`/`useEffect` for data fetching — use stores so state is shared across pages and components
+
+### Convex Backend
+
+Most backend functions are **actions** that proxy to the BitJita API (the Bitcraft game's API). Only the storage audit feature uses Convex tables for persistent data.
+
+- **Tables:** `storageLogs` (audit transaction log), `storageFetchState` (ingestion cursor per building)
+- **Cron:** `ingestAll` runs every 5 minutes to pull new storage logs from BitJita
+- **Auth:** WorkOS JWT via `convex/auth.config.ts` (custom JWT provider)
+
+### Cloudflare Worker
+
+Slim layer — serves the built SPA and proxies `/jita/*` requests to bitjita.com with BigInt-safe JSON parsing. No business logic.
+
+### Shared Code (`src/common/`)
+
+Game data indexing, recipe resolution (7000+ items), topological sorting, inventory aggregation. Used by both client and Convex actions.
+
+## Convex-Specific Patterns
+
+### Real-Time Subscriptions (`convexSub`)
+
+`src/client/stores/convexSub.ts` provides reactive Convex query subscriptions for nanostores. It wraps `convexClient.onUpdate()` with `loading/ready/failed` states and re-subscribes when dependency stores change. Use this for any query that should stay in sync with the DB.
+
+### Convex Client (Non-React)
+
+`src/client/convex.ts` exports a `ConvexClient` (browser, non-React) singleton with `convexQuery()`, `convexMutation()`, and `convexAction()` helpers. Auth token is injected via `setAuth()` after WorkOS login. Use `ConvexProviderWithAuth` only in the root component; stores use the singleton directly.
+
+### Convex Guidelines
 
 <!-- convex-ai-start -->
 This project uses [Convex](https://convex.dev) as its backend.
