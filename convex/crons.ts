@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 
 const crons = cronJobs();
 
-// Storage audit ingestion — every 5 minutes (matches old CF cron)
+// Storage audit ingestion — every 5 minutes
 crons.interval(
   "storage audit ingestion",
   { minutes: 5 },

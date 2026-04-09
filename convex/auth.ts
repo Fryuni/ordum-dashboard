@@ -4,7 +4,12 @@ import Discord from "@auth/core/providers/discord";
 import { query } from "./_generated/server";
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-  providers: [Password, Discord],
+  providers: [
+    Password,
+    Discord({
+      authorization: "https://discord.com/api/oauth2/authorize?scope=identify",
+    }),
+  ],
 });
 
 export const currentUser = query({
