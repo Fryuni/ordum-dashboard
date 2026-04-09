@@ -1,7 +1,9 @@
 import { defineSchema, defineTable } from "convex/server";
+import { authTables } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 
 export default defineSchema({
+  ...authTables,
   // ─── Storage Audit ──────────────────────────────────────────────────────────
   // Migrated from D1 storage_logs table
   storageLogs: defineTable({

@@ -28,7 +28,7 @@ export const $router = createRouter({
   contribution: "/contribution",
   storageAudit: "/storage-audit",
   inventorySearch: "/inventory-search",
-  callback: "/callback",
+  signIn: "/sign-in",
 });
 
 export const $routeName = computed($router, (r) => r?.route ?? "unknown");

@@ -20,7 +20,8 @@
  * Convex client singleton for use in nanostores and components.
  *
  * Uses ConvexClient (non-React) so it can be used from nanostores.
- * Auth token injection is handled via setAuth() after WorkOS login.
+ * Auth is handled by ConvexAuthProvider in the React tree; this
+ * singleton is for stores that don't need authenticated access.
  */
 import { ConvexClient } from "convex/browser";
 import type { FunctionReference, FunctionArgs, FunctionReturnType } from "convex/server";

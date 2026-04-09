@@ -32,7 +32,7 @@ This project uses **bun**. Do not use npm, yarn, or pnpm.
 - **Framework:** Preact (not React) with `@preact/preset-vite`
 - **State:** Nanostores — `persistentAtom` for user selections, `computedAsync` for API-driven data, `computed` for derived state
 - **Routing:** `@nanostores/router` — 8 pages (dashboard, settlement, construction, craft, traveler tasks, contribution, storage audit, inventory search)
-- **Auth:** WorkOS AuthKit (`@workos-inc/authkit-react`)
+- **Auth:** Convex Auth (`@convex-dev/auth`) — email+password and Discord OAuth
 - Avoid `useState`/`useEffect` for data fetching — use stores so state is shared across pages and components
 
 ### Convex Backend
@@ -41,7 +41,7 @@ Most backend functions are **actions** that proxy to the BitJita API (the Bitcra
 
 - **Tables:** `storageLogs` (audit transaction log), `storageFetchState` (ingestion cursor per building)
 - **Cron:** `ingestAll` runs every 5 minutes to pull new storage logs from BitJita
-- **Auth:** WorkOS JWT via `convex/auth.config.ts` (custom JWT provider)
+- **Auth:** Convex Auth via `convex/auth.ts` (Password + Discord providers)
 
 ### BitJita Proxy (Cloudflare Worker)
 
@@ -59,7 +59,7 @@ Game data indexing, recipe resolution (7000+ items), topological sorting, invent
 
 ### Convex Client (Non-React)
 
-`src/client/convex.ts` exports a `ConvexClient` (browser, non-React) singleton with `convexQuery()`, `convexMutation()`, and `convexAction()` helpers. Auth token is injected via `setAuth()` after WorkOS login. Use `ConvexProviderWithAuth` only in the root component; stores use the singleton directly.
+`src/client/convex.ts` exports a `ConvexClient` (browser, non-React) singleton with `convexQuery()`, `convexMutation()`, and `convexAction()` helpers. The React tree uses `ConvexAuthProvider` from `@convex-dev/auth/react` for auth; stores use the singleton directly.
 
 ### Convex Guidelines
 

@@ -8,10 +8,12 @@
  * @module
  */
 
+import type * as auth from "../auth.js";
 import type * as construction from "../construction.js";
 import type * as contribution from "../contribution.js";
 import type * as crons from "../crons.js";
 import type * as empire from "../empire.js";
+import type * as http from "../http.js";
 import type * as inventorySearch from "../inventorySearch.js";
 import type * as lib_bitjita from "../lib/bitjita.js";
 import type * as settlement from "../settlement.js";
@@ -26,10 +28,12 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  auth: typeof auth;
   construction: typeof construction;
   contribution: typeof contribution;
   crons: typeof crons;
   empire: typeof empire;
+  http: typeof http;
   inventorySearch: typeof inventorySearch;
   "lib/bitjita": typeof lib_bitjita;
   settlement: typeof settlement;

@@ -17,9 +17,8 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { render } from "preact";
-import { AuthKitProvider, useAuth } from "@workos-inc/authkit-react";
 import { ConvexReactClient } from "convex/react";
-import { ConvexProviderWithAuthKit } from "./ConvexProviderWithAuthKit";
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import App from "./App";
 
 const convex = new ConvexReactClient(
@@ -27,13 +26,8 @@ const convex = new ConvexReactClient(
 );
 
 render(
-  <AuthKitProvider
-    clientId={(import.meta as any).env.VITE_WORKOS_CLIENT_ID as string}
-    redirectUri={(import.meta as any).env.VITE_WORKOS_REDIRECT_URI as string}
-  >
-    <ConvexProviderWithAuthKit client={convex} useAuth={useAuth}>
-      <App />
-    </ConvexProviderWithAuthKit>
-  </AuthKitProvider>,
+  <ConvexAuthProvider client={convex}>
+    <App />
+  </ConvexAuthProvider>,
   document.getElementById("app")!,
 );

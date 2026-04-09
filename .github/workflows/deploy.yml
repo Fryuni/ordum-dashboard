@@ -16,12 +16,16 @@ name: Deploy (Convex + Cloudflare)
 #                                 e.g. https://harmless-impala-26.convex.cloud
 #   VITE_PROXY_URL             — Production proxy URL
 #                                 e.g. https://ordum-proxy.<subdomain>.workers.dev/jita
-#   VITE_WORKOS_CLIENT_ID      — Production WorkOS client ID
-#   VITE_WORKOS_REDIRECT_URI   — Production redirect URI (https://ordum.fun/callback)
-#   WORKOS_PREVIEW_CLIENT_ID   — Shared WorkOS client ID for all preview envs
-#   WORKOS_PREVIEW_API_KEY     — Shared WorkOS API key for auto-configuring
-#                                 preview redirect URIs
 #   CF_PAGES_PROJECT           — Cloudflare Pages project name (e.g. "ordum-dashboard")
+#
+# ─── Required Convex Environment Variables (set via `npx convex env set`) ────
+#
+#   JWT_PRIVATE_KEY            — RSA256 private key for signing auth JWTs
+#   JWKS                       — JSON Web Key Set with the public key
+#   SITE_URL                   — Client origin for OAuth redirects
+#                                 (e.g. https://ordum.fun)
+#   AUTH_DISCORD_ID            — Discord OAuth client ID
+#   AUTH_DISCORD_SECRET        — Discord OAuth client secret
 #
 
 on:
@@ -66,8 +70,6 @@ jobs:
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
           VITE_PROXY_URL: ${{ vars.VITE_PROXY_URL }}
-          VITE_WORKOS_CLIENT_ID: ${{ vars.VITE_WORKOS_CLIENT_ID }}
-          VITE_WORKOS_REDIRECT_URI: ${{ vars.VITE_WORKOS_REDIRECT_URI }}
 
       - name: Deploy proxy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
@@ -87,6 +89,8 @@ jobs:
   # Preview deploy (pull requests)
   # Each PR gets its own Convex deployment (independent database) and a
   # Cloudflare Pages preview deployment.  The proxy is shared.
+  # Auth env vars (JWT keys, Discord credentials) are inherited from the
+  # parent project by Convex preview deployments.
   # ═══════════════════════════════════════════════════════════════════════════
   deploy-preview:
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
@@ -115,7 +119,7 @@ jobs:
       - name: Type check
         run: bun run validate
 
-      # Compute the Pages preview URL so we can set WorkOS redirect URIs
+      # Compute the Pages preview URL for SITE_URL
       - name: Compute preview origin
         id: origin
         run: echo "url=https://pr-${PR_NUMBER}.${{ vars.CF_PAGES_PROJECT }}.pages.dev" >> "$GITHUB_OUTPUT"
@@ -131,22 +135,13 @@ jobs:
             --cmd-url-env-var-name VITE_CONVEX_URL
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_PREVIEW_DEPLOY_KEY }}
-          # Previews share the production proxy
           VITE_PROXY_URL: ${{ vars.VITE_PROXY_URL }}
-          # WorkOS credentials for auto-configuring the preview AuthKit env
-          WORKOS_CLIENT_ID: ${{ vars.WORKOS_PREVIEW_CLIENT_ID }}
-          WORKOS_API_KEY: ${{ secrets.WORKOS_PREVIEW_API_KEY }}
-          PREVIEW_ORIGIN: ${{ steps.origin.outputs.url }}
-          # Client-side env vars for the Vite build
-          VITE_WORKOS_CLIENT_ID: ${{ vars.WORKOS_PREVIEW_CLIENT_ID }}
-          VITE_WORKOS_REDIRECT_URI: ${{ steps.origin.outputs.url }}/callback
 
-      # Set WORKOS_CLIENT_ID on the Convex preview deployment.
-      # auth.config.ts reads process.env.WORKOS_CLIENT_ID from Convex env vars.
-      - name: Set WorkOS env var on Convex preview
+      # Set SITE_URL on the preview so OAuth redirects back to the right origin
+      - name: Set SITE_URL on Convex preview
         run: |
-          npx convex env set WORKOS_CLIENT_ID \
-            "${{ vars.WORKOS_PREVIEW_CLIENT_ID }}" \
+          npx convex env set SITE_URL \
+            "${{ steps.origin.outputs.url }}" \
             --preview-name "pr-${PR_NUMBER}"
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_PREVIEW_DEPLOY_KEY }}
