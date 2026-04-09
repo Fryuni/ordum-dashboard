@@ -7,7 +7,7 @@ export default defineConfig({
   root: "src/client",
   envDir: "../../",
   build: {
-    outDir: "../../dist/client",
+    outDir: "../../dist",
     emptyOutDir: true,
   },
   resolve: {
@@ -23,9 +23,5 @@ export default defineConfig({
   },
   server: {
     port: 4321,
-    proxy: {
-      // Proxy Jita routes to wrangler dev during development
-      "/jita": "http://localhost:8787",
-    },
   },
 });

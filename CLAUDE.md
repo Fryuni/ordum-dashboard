@@ -15,15 +15,15 @@ This project uses **bun**. Do not use npm, yarn, or pnpm.
 
 ## Common Commands
 
-- `bun run dev` — Start all three services concurrently (convex + worker + vite)
+- `bun run dev` — Start Convex + Vite concurrently (the static client)
 - `bun run dev:convex` — Convex dev server only
-- `bun run dev:worker` — Cloudflare Worker (Wrangler) only
+- `bun run dev:proxy` — BitJita proxy (Wrangler) only — run separately if needed
 - `bun run dev:client` — Vite dev server only
-- `bun run build` — Build with vite
+- `bun run build` — Build static client with Vite (output: `dist/`)
 - `bun run validate` — Type check (`tsc --noEmit`)
 - `bun run format` — Format with prettier
-- `bun run deploy` — Build and deploy frontend to Cloudflare Workers
 - `bun run deploy:convex` — Deploy Convex backend
+- `bun run deploy:proxy` — Deploy BitJita proxy to Cloudflare Workers
 
 ## Architecture
 
@@ -43,9 +43,9 @@ Most backend functions are **actions** that proxy to the BitJita API (the Bitcra
 - **Cron:** `ingestAll` runs every 5 minutes to pull new storage logs from BitJita
 - **Auth:** WorkOS JWT via `convex/auth.config.ts` (custom JWT provider)
 
-### Cloudflare Worker
+### BitJita Proxy (Cloudflare Worker)
 
-Slim layer — serves the built SPA and proxies `/jita/*` requests to bitjita.com with BigInt-safe JSON parsing. No business logic.
+Standalone proxy (`src/worker.ts`) that forwards `/jita/*` requests to bitjita.com with BigInt-safe JSON parsing and CORS headers. Deployed independently — the static client reaches it via `VITE_PROXY_URL`. No business logic, no asset serving.
 
 ### Shared Code (`src/common/`)
 

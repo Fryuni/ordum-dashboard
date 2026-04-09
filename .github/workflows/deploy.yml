@@ -1,4 +1,4 @@
-name: Deploy (Convex + Cloudflare Workers)
+name: Deploy (Convex + Cloudflare)
 
 # ─── Required Secrets ────────────────────────────────────────────────────────
 #
@@ -7,20 +7,21 @@ name: Deploy (Convex + Cloudflare Workers)
 #                                 format: preview:team-slug:project-slug|token
 #   CONVEX_ACCESS_TOKEN        — Personal Access Token (for deleting preview
 #                                 deployments via Management API)
-#   CLOUDFLARE_API_TOKEN       — CF Workers API token
-#   CLOUDFLARE_ACCOUNT_ID      — CF Workers account ID
+#   CLOUDFLARE_API_TOKEN       — CF API token (needs Workers + Pages permissions)
+#   CLOUDFLARE_ACCOUNT_ID      — CF account ID
 #
 # ─── Required Variables (Settings → Variables → Actions) ─────────────────────
 #
 #   VITE_CONVEX_URL            — Production Convex URL
 #                                 e.g. https://harmless-impala-26.convex.cloud
+#   VITE_PROXY_URL             — Production proxy URL
+#                                 e.g. https://ordum-proxy.<subdomain>.workers.dev/jita
 #   VITE_WORKOS_CLIENT_ID      — Production WorkOS client ID
 #   VITE_WORKOS_REDIRECT_URI   — Production redirect URI (https://ordum.fun/callback)
 #   WORKOS_PREVIEW_CLIENT_ID   — Shared WorkOS client ID for all preview envs
 #   WORKOS_PREVIEW_API_KEY     — Shared WorkOS API key for auto-configuring
 #                                 preview redirect URIs
-#   CF_WORKERS_SUBDOMAIN       — CF Workers subdomain (e.g. "luiz-ferraz")
-#                                 Preview URLs: ordum-dashboard-pr-N.<this>.workers.dev
+#   CF_PAGES_PROJECT           — Cloudflare Pages project name (e.g. "ordum-dashboard")
 #
 
 on:
@@ -64,20 +65,28 @@ jobs:
             --cmd-url-env-var-name VITE_CONVEX_URL
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY }}
+          VITE_PROXY_URL: ${{ vars.VITE_PROXY_URL }}
           VITE_WORKOS_CLIENT_ID: ${{ vars.VITE_WORKOS_CLIENT_ID }}
           VITE_WORKOS_REDIRECT_URI: ${{ vars.VITE_WORKOS_REDIRECT_URI }}
 
-      - name: Deploy to Cloudflare Workers
+      - name: Deploy proxy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env=""
+          command: deploy
+
+      - name: Deploy client to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist/ --project-name ${{ vars.CF_PAGES_PROJECT }} --branch main
 
   # ═══════════════════════════════════════════════════════════════════════════
   # Preview deploy (pull requests)
-  # Each PR gets its own Convex deployment (independent database) + CF Worker.
-  # WorkOS auth is shared across all previews via a single WorkOS environment.
+  # Each PR gets its own Convex deployment (independent database) and a
+  # Cloudflare Pages preview deployment.  The proxy is shared.
   # ═══════════════════════════════════════════════════════════════════════════
   deploy-preview:
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
@@ -106,10 +115,14 @@ jobs:
       - name: Type check
         run: bun run validate
 
-      # Step 1: Deploy Convex preview + build client in one command.
+      # Compute the Pages preview URL so we can set WorkOS redirect URIs
+      - name: Compute preview origin
+        id: origin
+        run: echo "url=https://pr-${PR_NUMBER}.${{ vars.CF_PAGES_PROJECT }}.pages.dev" >> "$GITHUB_OUTPUT"
+
+      # Deploy Convex preview + build client in one command.
       # --preview-create creates a new Convex deployment with its own database.
       # --cmd runs "bun run build" with VITE_CONVEX_URL set to the preview URL.
-      # The preview section in convex.json auto-configures WorkOS redirect URIs.
       - name: Deploy Convex preview + build client
         run: |
           npx convex deploy \
@@ -118,16 +131,17 @@ jobs:
             --cmd-url-env-var-name VITE_CONVEX_URL
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_PREVIEW_DEPLOY_KEY }}
+          # Previews share the production proxy
+          VITE_PROXY_URL: ${{ vars.VITE_PROXY_URL }}
           # WorkOS credentials for auto-configuring the preview AuthKit env
           WORKOS_CLIENT_ID: ${{ vars.WORKOS_PREVIEW_CLIENT_ID }}
           WORKOS_API_KEY: ${{ secrets.WORKOS_PREVIEW_API_KEY }}
-          # Preview origin for convex.json authKit.preview.configure
-          PREVIEW_ORIGIN: https://ordum-dashboard-pr-${{ env.PR_NUMBER }}.${{ vars.CF_WORKERS_SUBDOMAIN }}.workers.dev
+          PREVIEW_ORIGIN: ${{ steps.origin.outputs.url }}
           # Client-side env vars for the Vite build
           VITE_WORKOS_CLIENT_ID: ${{ vars.WORKOS_PREVIEW_CLIENT_ID }}
-          VITE_WORKOS_REDIRECT_URI: https://ordum-dashboard-pr-${{ env.PR_NUMBER }}.${{ vars.CF_WORKERS_SUBDOMAIN }}.workers.dev/callback
+          VITE_WORKOS_REDIRECT_URI: ${{ steps.origin.outputs.url }}/callback
 
-      # Step 2: Set WORKOS_CLIENT_ID on the Convex preview deployment.
+      # Set WORKOS_CLIENT_ID on the Convex preview deployment.
       # auth.config.ts reads process.env.WORKOS_CLIENT_ID from Convex env vars.
       - name: Set WorkOS env var on Convex preview
         run: |
@@ -137,27 +151,27 @@ jobs:
         env:
           CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_PREVIEW_DEPLOY_KEY }}
 
-      # Step 3: Deploy CF Worker preview with the built client
-      - name: Deploy CF Worker preview
-        id: preview
+      # Deploy client to Cloudflare Pages as a preview branch
+      - name: Deploy preview to Cloudflare Pages
+        id: pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: deploy --env preview --name ordum-dashboard-pr-${{ env.PR_NUMBER }}
+          command: pages deploy dist/ --project-name ${{ vars.CF_PAGES_PROJECT }} --branch pr-${{ env.PR_NUMBER }}
 
       - name: Comment preview URL on PR
         uses: actions/github-script@v7
         with:
           script: |
-            const cfUrl = '${{ steps.preview.outputs.deployment-url }}'
-              || `https://ordum-dashboard-pr-${context.issue.number}.${{ vars.CF_WORKERS_SUBDOMAIN }}.workers.dev`;
+            const pagesUrl = '${{ steps.pages.outputs.deployment-url }}'
+              || '${{ steps.origin.outputs.url }}';
             const body = [
               `🚀 **Preview deployed!**`,
               ``,
               `| | URL |`,
               `|---|---|`,
-              `| Frontend | ${cfUrl} |`,
+              `| Frontend | ${pagesUrl} |`,
               `| Convex | [Dashboard](https://dashboard.convex.dev/) (preview: \`pr-${context.issue.number}\`) |`,
               ``,
               `> Each PR gets its own Convex database. Data is isolated from production.`,
@@ -185,7 +199,8 @@ jobs:
             }
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # Cleanup: delete both Convex preview deployment and CF Worker on PR close
+  # Cleanup: delete Convex preview deployment on PR close.
+  # Cloudflare Pages preview deployments are cleaned up automatically.
   # ═══════════════════════════════════════════════════════════════════════════
   cleanup-preview:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
@@ -238,11 +253,3 @@ jobs:
         env:
           CONVEX_PREVIEW_DEPLOY_KEY: ${{ secrets.CONVEX_PREVIEW_DEPLOY_KEY }}
           CONVEX_ACCESS_TOKEN: ${{ secrets.CONVEX_ACCESS_TOKEN }}
-
-      # Delete CF Worker preview
-      - name: Delete CF Worker preview
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: delete --name ordum-dashboard-pr-${{ env.PR_NUMBER }} --force

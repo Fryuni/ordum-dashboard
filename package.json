@@ -3,14 +3,14 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "dev": "concurrently -n convex,worker,vite -c magenta,blue,green \"CONVEX_TMPDIR=.convex-tmp convex dev\" \"wrangler dev\" \"vite\"",
+    "dev": "concurrently -n convex,vite -c magenta,green \"CONVEX_TMPDIR=.convex-tmp convex dev\" \"vite\"",
     "dev:convex": "CONVEX_TMPDIR=.convex-tmp convex dev",
-    "dev:worker": "wrangler dev",
+    "dev:proxy": "wrangler dev",
     "dev:client": "vite",
     "build": "vite build",
-    "preview": "wrangler dev --assets dist/client",
-    "deploy": "vite build && wrangler deploy",
+    "preview": "vite preview",
     "deploy:convex": "convex deploy",
+    "deploy:proxy": "wrangler deploy",
     "validate": "tsc --noEmit",
     "format": "prettier -w ."
   },

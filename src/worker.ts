@@ -17,21 +17,20 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 /**
- * Ordum Dashboard — Cloudflare Worker (slim)
+ * Ordum Dashboard — BitJita Proxy (Cloudflare Worker)
  *
- * Now only handles:
- * - /jita/* proxy to BitJita (needed by the client-side BitJita client)
- * - Static assets (SPA) served by Cloudflare's asset binding
+ * A standalone proxy that forwards /jita/* requests to bitjita.com with
+ * BigInt-safe JSON parsing.  Deployed independently from the static client.
  *
- * All backend logic has been migrated to Convex.
+ * The static client is configured to reach this proxy via VITE_PROXY_URL.
  */
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 
-type Bindings = {
-  ASSETS: Fetcher;
-};
+const app = new Hono();
 
-const app = new Hono<{ Bindings: Bindings }>();
+// Allow any origin — the proxy carries no auth and only forwards public data.
+app.use("/*", cors());
 
 // ─── BitJita Proxy ─────────────────────────────────────────────────────────────
 
