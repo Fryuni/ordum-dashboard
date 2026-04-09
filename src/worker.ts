@@ -31,7 +31,6 @@ import type { CacheProvider } from "@croct/cache";
 import { buildClaimInventory } from "./common/claim-inventory";
 import { buildSettlementPlan } from "./common/settlement-planner";
 import { gd, getItemInfo } from "./common/gamedata";
-import { fetchContribution } from "./server/contribution";
 import { queryStorageAudit, ingestLogs } from "./server/storage-audit";
 import { createDb } from "./server/db";
 import { migrateToLatest } from "./server/db/migrations";
@@ -359,29 +358,6 @@ app.get("/api/inventory-search", async (c) => {
     });
   } catch (e) {
     console.error("Failed to fetch inventory search data:", e);
-    return c.json({ error: String(e) }, 500);
-  }
-});
-
-app.get("/api/contribution", async (c) => {
-  try {
-    const jita = c.get("jita");
-    const claimId = c.req.query("claim");
-    if (!claimId)
-      return c.json({ error: "claim query parameter is required" }, 400);
-    const playerEntityId = c.req.query("player");
-    if (!playerEntityId) {
-      return c.json({ error: "player query parameter is required" }, 400);
-    }
-    const result = await fetchContribution(
-      jita,
-      c.env.jita_api_cache,
-      claimId,
-      playerEntityId,
-    );
-    return c.json(result);
-  } catch (e) {
-    console.error("Failed to fetch contribution data:", e);
     return c.json({ error: String(e) }, 500);
   }
 });

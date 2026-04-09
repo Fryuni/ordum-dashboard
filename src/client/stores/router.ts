@@ -25,7 +25,6 @@ export const $router = createRouter({
   construction: "/construction",
   craft: "/craft",
   travelerTask: "/traveler-task",
-  contribution: "/contribution",
   storageAudit: "/storage-audit",
   inventorySearch: "/inventory-search",
 });
