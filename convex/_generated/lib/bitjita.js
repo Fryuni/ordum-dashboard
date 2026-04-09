@@ -9,23 +9,17 @@ const TIMEOUT = 15_000;
  */
 export async function fetchBitJita(path, options) {
     const url = `${BASE_URL}${path}`;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT);
-    try {
-        const res = await fetch(url, {
-            method: options?.method ?? "GET",
-            headers: { Accept: "application/json" },
-            body: options?.body,
-            signal: controller.signal,
-        });
-        if (!res.ok)
-            throw new Error(`BitJita ${res.status}: ${url}`);
-        const text = await res.text();
-        return bigIntSafeParse(text);
-    }
-    finally {
-        clearTimeout(timer);
-    }
+    const signal = AbortSignal.timeout(TIMEOUT);
+    const res = await fetch(url, {
+        method: options?.method ?? "GET",
+        headers: { Accept: "application/json" },
+        body: options?.body,
+        signal,
+    });
+    if (!res.ok)
+        throw new Error(`BitJita ${res.status}: ${url}`);
+    const text = await res.text();
+    return bigIntSafeParse(text);
 }
 /**
  * POST JSON to BitJita.
@@ -58,7 +52,6 @@ export async function postBitJita(path, body) {
  * Uses the ES2025 3-arg reviver to convert unsafe integers to strings.
  */
 function bigIntSafeParse(text) {
-    // @ts-ignore ES2025 3-arg JSON.parse reviver
     return JSON.parse(text, (_key, value, ctx) => {
         if (typeof value === "number" &&
             !ctx.source.includes(".") &&

@@ -14,21 +14,16 @@ export async function fetchBitJita<T = any>(
   options?: { method?: string; body?: string },
 ): Promise<T> {
   const url = `${BASE_URL}${path}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT);
-  try {
-    const res = await fetch(url, {
-      method: options?.method ?? "GET",
-      headers: { Accept: "application/json" },
-      body: options?.body,
-      signal: controller.signal,
-    });
-    if (!res.ok) throw new Error(`BitJita ${res.status}: ${url}`);
-    const text = await res.text();
-    return bigIntSafeParse(text) as T;
-  } finally {
-    clearTimeout(timer);
-  }
+  const signal = AbortSignal.timeout(TIMEOUT);
+  const res = await fetch(url, {
+    method: options?.method ?? "GET",
+    headers: { Accept: "application/json" },
+    body: options?.body,
+    signal,
+  });
+  if (!res.ok) throw new Error(`BitJita ${res.status}: ${url}`);
+  const text = await res.text();
+  return bigIntSafeParse(text) as T;
 }
 
 /**
@@ -64,8 +59,7 @@ export async function postBitJita<T = any>(
  * Uses the ES2025 3-arg reviver to convert unsafe integers to strings.
  */
 function bigIntSafeParse(text: string): unknown {
-  // @ts-ignore ES2025 3-arg JSON.parse reviver
-  return JSON.parse(
+  return (JSON.parse as any)(
     text,
     (_key: string, value: unknown, ctx: { source: string }) => {
       if (
