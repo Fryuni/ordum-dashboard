@@ -16,18 +16,11 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { createRouter } from "@nanostores/router";
-import { computed } from "nanostores";
+import { itemsCodex } from "./codex";
+import { referenceKey, type ItemReference } from "./definition";
 
-export const $router = createRouter({
-  dashboard: "/",
-  settlement: "/settlement",
-  construction: "/construction",
-  craft: "/craft",
-  travelerTask: "/traveler-task",
-  storageAudit: "/storage-audit",
-  inventorySearch: "/inventory-search",
-  signIn: "/sign-in",
-});
-
-export const $routeName = computed($router, (r) => r?.route ?? "unknown");
+export function nameWithRarity(item: ItemReference) {
+  const entry = itemsCodex.get(referenceKey(item));
+  if (!entry) return "Unknown item";
+  return `${entry.name} (${entry.rarity})`;
+}

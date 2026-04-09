@@ -28,7 +28,6 @@ import SettlementPage from "./pages/SettlementPage";
 import CraftPage from "./pages/CraftPage";
 import TravelerTaskPage from "./pages/TravelerTaskPage";
 import ConstructionPage from "./pages/ConstructionPage";
-import ContributionPage from "./pages/ContributionPage";
 import StorageAuditPage from "./pages/StorageAuditPage";
 import InventorySearchPage from "./pages/InventorySearchPage";
 
@@ -227,7 +226,6 @@ type RouteName =
   | "construction"
   | "craft"
   | "travelerTask"
-  | "contribution"
   | "storageAudit"
   | "inventorySearch"
   | "signIn";
@@ -244,8 +242,6 @@ function PageContent({ route }: { route: RouteName | null }) {
       return <CraftPage />;
     case "travelerTask":
       return <TravelerTaskPage />;
-    case "contribution":
-      return <ContributionPage />;
     case "storageAudit":
       return <StorageAuditPage />;
     case "inventorySearch":
@@ -289,12 +285,6 @@ const NAV_ITEMS = [
     href: "/traveler-task",
     icon: "🧳",
     label: "Traveler Tasks",
-  },
-  {
-    route: "contribution" as const,
-    href: "/contribution",
-    icon: "📦",
-    label: "Contribution",
   },
   {
     route: "storageAudit" as const,

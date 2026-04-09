@@ -17,6 +17,7 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import type { CraftStep as Step } from "../../../common/craft-planner";
+import { nameWithRarity } from "../../../common/gamedata/helpers";
 import type { PlayerCapabilities } from "../../../common/player-capabilities";
 
 export default function CraftStep({
@@ -39,9 +40,7 @@ export default function CraftStep({
       <div class="timeline-node">{step.depth + 1}</div>
       <div class="timeline-card">
         <div class="step-header">
-          <span class="step-title">
-            {step.outputs.length > 1 ? step.recipe_name : firstOutput.item.name}
-          </span>
+          <span class="step-title">{step.recipe_name}</span>
           <span class="step-qty">
             ×{step.craft_count} craft{step.craft_count > 1 ? "s" : ""} →{" "}
             {(step.craft_count * firstOutput.quantity_per_craft).toFixed(0)}{" "}
@@ -109,7 +108,7 @@ export default function CraftStep({
                 class={`input-card ${d ? "deficit" : "ok"}`}
                 key={inp.item.name}
               >
-                <span class="input-name">{inp.item.name}</span>
+                <span class="input-name">{nameWithRarity(inp.item)}</span>
                 <span class={`input-qty ${d ? "deficit" : "ok"}`}>
                   {available} / {total}
                   {d ? ` (need ${deficit})` : ""}
