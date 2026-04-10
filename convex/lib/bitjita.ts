@@ -119,13 +119,17 @@ export function getPlayer(id: string) {
 }
 export function listCrafts(params: {
   playerEntityId?: string;
-  claimId?: string;
+  claimEntityId?: string;
+  regionId?: number;
   completed?: boolean;
 }) {
   const searchParams = new URLSearchParams();
   if (params.playerEntityId)
     searchParams.set("playerEntityId", params.playerEntityId);
-  if (params.claimId) searchParams.set("claimId", params.claimId);
+  if (params.claimEntityId)
+    searchParams.set("claimEntityId", params.claimEntityId);
+  if (params.regionId !== undefined)
+    searchParams.set("regionId", String(params.regionId));
   if (params.completed !== undefined)
     searchParams.set("completed", String(params.completed));
   return fetchBitJita<any>(`/api/crafts?${searchParams}`);

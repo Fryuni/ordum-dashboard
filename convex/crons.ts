@@ -11,4 +11,12 @@ crons.interval(
   {},
 );
 
+// Empire data sync — every 5 minutes
+crons.interval(
+  "empire data sync",
+  { minutes: 30 },
+  internal.empireSync.syncAll,
+  {},
+);
+
 export default crons;

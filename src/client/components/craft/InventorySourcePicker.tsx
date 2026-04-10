@@ -17,12 +17,10 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { useStore } from "@nanostores/preact";
-import { useEffect } from "preact/hooks";
 import {
   $inventorySource,
   $empireClaims,
   $empireClaimsLoading,
-  fetchEmpireClaims,
 } from "../../stores/craftSource";
 import PlayerPicker from "./PlayerPicker";
 
@@ -30,11 +28,6 @@ export default function InventorySourcePicker() {
   const source = useStore($inventorySource);
   const claims = useStore($empireClaims);
   const loading = useStore($empireClaimsLoading);
-
-  // Fetch empire claims on mount
-  useEffect(() => {
-    fetchEmpireClaims();
-  }, []);
 
   function handleSourceChange(e: Event) {
     $inventorySource.set((e.target as HTMLSelectElement).value);

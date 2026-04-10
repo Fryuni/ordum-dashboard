@@ -21,18 +21,19 @@ import { atom, computed } from "nanostores";
 import { computedAsync } from "@nanostores/async";
 import { $updateTimer } from "../util-store";
 import { jita } from "../../common/api";
-import { convexAction } from "../convex";
 import { api } from "../../../convex/_generated/api";
 import {
   addCraftsToInventory,
   addPassiveCraftsToInventory,
-  buildClaimInventory,
-  jitaCraftSchema,
+  addToInventory,
   type ItemPlace,
 } from "../../common/claim-inventory";
+import { recipesCodex } from "../../common/gamedata/codex";
+import { referenceKey } from "../../common/gamedata/definition";
 import type { EmpireClaimInfo } from "../../common/ordum-types";
 import { $playerInfo } from "./player";
 import { asyncDefaultValue, selectorAtom } from "./utils";
+import { convexSub } from "./convexSub";
 
 // ─── Inventory Source ──────────────────────────────────────────────────────────
 
@@ -45,31 +46,33 @@ export const $inventorySource = persistentAtom<string>(
   "player",
 );
 
-// ─── Empire Claims ─────────────────────────────────────────────────────────────
+// ─── Empire Claims (subscription-based) ────────────────────────────────────────
 
-/** Fetched list of empire claims from the server */
-export const $empireClaims = atom<EmpireClaimInfo[]>([]);
-export const $empireClaimsLoading = atom(false);
+const $empireClaimsData = convexSub(
+  [],
+  api.empireData.getEmpireClaims,
+  () => ({}),
+);
 
-/** The capital claim ID as reported by the API */
-export const $empireCapitalClaimId = atom<string | null>(null);
+/** Fetched list of empire claims — reactive via Convex subscription */
+export const $empireClaims = computed(
+  $empireClaimsData,
+  (state): EmpireClaimInfo[] =>
+    state.state === "ready" ? state.value.claims : [],
+);
 
-/** Fetch empire claims via Convex action */
-export async function fetchEmpireClaims() {
-  if ($empireClaims.get().length > 0) return; // already loaded
-  $empireClaimsLoading.set(true);
-  try {
-    const data = await convexAction(api.empire.getEmpireClaims, {});
-    $empireClaims.set(data.claims ?? []);
-    $empireCapitalClaimId.set(
-      data.capitalClaimId ?? data.claims?.[0]?.id ?? null,
-    );
-  } catch (e) {
-    console.error("Failed to fetch empire claims:", e);
-  } finally {
-    $empireClaimsLoading.set(false);
-  }
-}
+/** Whether claims are still loading */
+export const $empireClaimsLoading = computed(
+  $empireClaimsData,
+  (state) => state.state === "loading",
+);
+
+/** The capital claim ID as reported by the synced data */
+export const $empireCapitalClaimId = computed(
+  $empireClaimsData,
+  (state): string | null =>
+    state.state === "ready" ? state.value.capitalClaimId : null,
+);
 
 /**
  * Register a persistent claim store to receive the capital as its default.
@@ -184,6 +187,8 @@ const $playerInventory = computedAsync(
 
         try {
           // Add items being crafted by this player (active crafts)
+          const { jitaCraftSchema } =
+            await import("../../common/claim-inventory");
           const crafts = jitaCraftSchema.parse([
             ...completedCrafts,
             ...ongoingCrafts,
@@ -203,18 +208,80 @@ const $playerInventory = computedAsync(
   },
 );
 
-// ─── Claim Inventory ───────────────────────────────────────────────────────────
+// ─── Claim Inventory (subscription-based) ─────────────────────────────────────
 
 /** The claim ID to fetch inventory for (null when using player source) */
 const $activeClaimId = computed($inventorySource, (source) =>
   source === "player" ? null : source,
 );
 
-const $claimInventory = computedAsync(
-  [$activeClaimId, $updateTimer],
-  async (claimId) => {
-    if (!claimId) return new Map<string, ItemPlace[]>();
-    return buildClaimInventory(claimId);
+/** Building inventories from Convex subscription */
+const $claimBuildingInventory = convexSub(
+  [$activeClaimId],
+  api.empireData.getClaimInventory,
+  (claimId) => (claimId ? { claimId } : null),
+);
+
+/** Craft data from Convex subscription */
+const $claimCraftData = convexSub(
+  [$activeClaimId],
+  api.empireData.getClaimCrafts,
+  (claimId) => (claimId ? { claimId } : null),
+);
+
+/**
+ * Build claim inventory Map from subscription data.
+ * Combines building inventories with craft outputs (resolved via client-side codex).
+ */
+const $claimInventory = computed(
+  [$claimBuildingInventory, $claimCraftData],
+  (buildingState, craftState): Map<string, ItemPlace[]> => {
+    if (buildingState.state !== "ready") return new Map();
+
+    const inventory = new Map<string, ItemPlace[]>();
+    const buildings = buildingState.value;
+
+    // Add building inventories
+    for (const item of buildings.items) {
+      for (const loc of item.locations) {
+        addToInventory(inventory, item.key, {
+          name: loc.name,
+          quantity: loc.quantity,
+        });
+      }
+    }
+
+    // Add craft outputs (resolved client-side via recipesCodex)
+    if (craftState.state === "ready") {
+      for (const craft of craftState.value) {
+        const recipe = recipesCodex.get(craft.recipeId);
+        if (!recipe) continue;
+
+        if (craft.isPassive) {
+          const place =
+            craft.progress >= craft.totalActionsRequired
+              ? "Crafted"
+              : "Being crafted";
+          for (const output of recipe.outputs) {
+            addToInventory(inventory, referenceKey(output), {
+              name: place,
+              quantity: output.quantity,
+            });
+          }
+        } else {
+          const isComplete = craft.progress >= craft.totalActionsRequired;
+          const place = isComplete ? "Crafted" : "Being crafted";
+          for (const output of recipe.outputs) {
+            addToInventory(inventory, referenceKey(output), {
+              name: place,
+              quantity: output.quantity * craft.craftCount,
+            });
+          }
+        }
+      }
+    }
+
+    return inventory;
   },
 );
 
@@ -225,7 +292,7 @@ const $emptyInventory = atom(new Map<string, ItemPlace[]>());
 export const $inventory = selectorAtom(
   $inventorySource,
   { player: asyncDefaultValue($playerInventory, $emptyInventory) },
-  asyncDefaultValue($claimInventory, $emptyInventory),
+  computed($claimInventory, (v) => v),
 );
 
 /**

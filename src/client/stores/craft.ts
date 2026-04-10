@@ -25,7 +25,8 @@ import type { ItemReference } from "../../common/gamedata/definition";
 import { z } from "zod";
 import { $inventoryTotals, $inventorySource } from "./craftSource";
 import { $playerCapabilities } from "./playerCapabilities";
-import { jita } from "../../common/api";
+import { convexQuery } from "../convex";
+import { api } from "../../../convex/_generated/api";
 
 import { buildSettlementPlan } from "../../common/settlement-planner";
 import { $router } from "./router";
@@ -214,12 +215,14 @@ const $importedTargets = computedAsync(
         // Auto-select the claim inventory from the URL
         const claimId = claimParam;
         $inventorySource.set(claimId);
-        const { claim } = await jita.getClaim(claimId);
-        const currentTier = claim.tier ?? 1;
-        const learnedIds = new Set<number>(
-          (claim.researchedTechs ?? []).map((t) => Number(t.id)),
+        const settlementData = await convexQuery(
+          api.empireData.getSettlementData,
+          { claimId },
         );
-        const supplies = Number(claim.supplies) || 0;
+        if (!settlementData) throw new Error("Claim not found");
+        const currentTier = settlementData.currentTier;
+        const learnedIds = new Set<number>(settlementData.learnedIds);
+        const supplies = settlementData.supplies;
 
         const plans = buildSettlementPlan(
           currentTier,

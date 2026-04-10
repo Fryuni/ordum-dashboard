@@ -28,11 +28,7 @@ import {
   type HistogramData,
   type Time,
 } from "lightweight-charts";
-import {
-  $empireClaims,
-  $empireClaimsLoading,
-  fetchEmpireClaims,
-} from "../stores/craftSource";
+import { $empireClaims, $empireClaimsLoading } from "../stores/craftSource";
 import {
   $auditClaims,
   $auditPlayers,
@@ -256,10 +252,6 @@ export default function StorageAuditPage() {
   const dateFrom = useStore($auditDateFrom);
   const dateTo = useStore($auditDateTo);
   const { dataAsync, page, totalPages } = useStore($auditView);
-
-  useEffect(() => {
-    fetchEmpireClaims();
-  }, []);
 
   const claimNameMap = useMemo(() => {
     const m = new Map<string, string>();

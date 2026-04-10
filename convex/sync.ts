@@ -13,6 +13,7 @@ export const triggerIngestion = action({
       internal.storageAuditIngestion.ingestAll,
       {},
     );
+    await ctx.scheduler.runAfter(0, internal.empireSync.syncAll, {});
     return { scheduled: true };
   },
 });
