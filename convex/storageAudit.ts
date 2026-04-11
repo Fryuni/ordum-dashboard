@@ -3,7 +3,13 @@
  * Migrated from D1 queryStorageAudit.
  */
 import { v } from "convex/values";
-import { query, internalQuery, internalMutation } from "./_generated/server";
+import {
+  query,
+  internalQuery,
+  internalMutation,
+  internalAction,
+} from "./_generated/server";
+import { internal } from "./_generated/api";
 
 // ─── Query: Paginated storage audit logs with chart data ────────────────────
 
@@ -279,6 +285,41 @@ export const insertLogBatch = internalMutation({
         await ctx.db.insert("storageLogs", log);
       }
     }
+  },
+});
+
+// Used by the D1 → Convex migration script. Takes a big page of logs and
+// fans out to `insertLogBatch` in smaller chunks that fit under the mutation
+// runtime limit. Lets the script pay the `convex run` subprocess overhead
+// once per ~2000 logs instead of once per ~250.
+export const importLogsAction = internalAction({
+  args: {
+    logs: v.array(
+      v.object({
+        logId: v.string(),
+        claimId: v.string(),
+        playerEntityId: v.string(),
+        playerName: v.string(),
+        buildingEntityId: v.string(),
+        buildingName: v.string(),
+        itemType: v.string(),
+        itemId: v.number(),
+        itemName: v.string(),
+        quantity: v.number(),
+        unitValue: v.number(),
+        action: v.string(),
+        timestamp: v.string(),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    const CHUNK = 250;
+    for (let i = 0; i < args.logs.length; i += CHUNK) {
+      await ctx.runMutation(internal.storageAudit.insertLogBatch, {
+        logs: args.logs.slice(i, i + CHUNK),
+      });
+    }
+    return { processed: args.logs.length };
   },
 });
 
