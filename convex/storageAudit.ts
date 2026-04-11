@@ -282,6 +282,42 @@ export const insertLogBatch = internalMutation({
   },
 });
 
+// Used by the D1 → Convex migration script to seed fetch state without
+// overwriting any rows already written by the production ingestion cron.
+export const importFetchStateBatch = internalMutation({
+  args: {
+    states: v.array(
+      v.object({
+        claimId: v.string(),
+        buildingEntityId: v.string(),
+        newestLogId: v.optional(v.string()),
+        updatedAt: v.optional(v.number()),
+      }),
+    ),
+  },
+  handler: async (ctx, args) => {
+    let inserted = 0;
+    let skipped = 0;
+    for (const s of args.states) {
+      const existing = await ctx.db
+        .query("storageFetchState")
+        .withIndex("by_claimId_and_buildingEntityId", (idx) =>
+          idx
+            .eq("claimId", s.claimId)
+            .eq("buildingEntityId", s.buildingEntityId),
+        )
+        .unique();
+      if (existing) {
+        skipped++;
+        continue;
+      }
+      await ctx.db.insert("storageFetchState", s);
+      inserted++;
+    }
+    return { inserted, skipped };
+  },
+});
+
 export const updateFetchState = internalMutation({
   args: {
     claimId: v.string(),
