@@ -4,7 +4,7 @@
  *
  * Called by the cron job every 5 minutes and on-demand via sync trigger.
  */
-import { ActionCtx, internalAction } from "./_generated/server";
+import { type ActionCtx, internalAction } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import * as jita from "./lib/bitjita";
 
