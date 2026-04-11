@@ -16,18 +16,25 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { useState, useEffect, useMemo, useCallback } from "preact/hooks";
+import { useState, useMemo, useCallback } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
-import {
-  $empireClaims,
-  $empireClaimsLoading,
-  fetchEmpireClaims,
-} from "../stores/craftSource";
+import { $empireClaims, $empireClaimsLoading } from "../stores/craftSource";
 import {
   $inventorySearchClaim,
   $inventorySearchData,
-  type InventorySearchItem,
 } from "../stores/inventorySearch";
+import { getItemInfo } from "../../common/gamedata";
+import type { ItemType } from "../../common/gamedata/definition";
+
+interface EnrichedItem {
+  key: string;
+  name: string;
+  tier: number;
+  tag: string;
+  rarity: string;
+  totalQuantity: number;
+  locations: Array<{ name: string; quantity: number }>;
+}
 
 type SortColumn = "name" | "tier" | "quantity";
 
@@ -41,13 +48,35 @@ export default function InventorySearchPage() {
   const selectedClaim = useStore($inventorySearchClaim);
   const dataAsync = useStore($inventorySearchData);
 
-  const data = dataAsync.state === "ready" ? dataAsync.value : null;
+  const data =
+    dataAsync.state === "ready" && dataAsync.value ? dataAsync.value : null;
   const loading = dataAsync.state === "loading";
   const error = dataAsync.state === "failed" ? String(dataAsync.error) : null;
 
-  useEffect(() => {
-    fetchEmpireClaims();
-  }, []);
+  // Enrich items with names from game data codex
+  const enrichedItems = useMemo((): EnrichedItem[] => {
+    if (!data) return [];
+    return data.items.map(
+      (item: {
+        key: string;
+        itemType: string;
+        itemId: number;
+        totalQuantity: number;
+        locations: Array<{ name: string; quantity: number }>;
+      }) => {
+        const info = getItemInfo(item.itemType as ItemType, item.itemId);
+        return {
+          key: item.key,
+          name: info.name,
+          tier: info.tier,
+          tag: info.tag,
+          rarity: info.rarity,
+          totalQuantity: item.totalQuantity,
+          locations: item.locations,
+        };
+      },
+    );
+  }, [data]);
 
   const handleSort = useCallback(
     (col: SortColumn) => {
@@ -61,10 +90,8 @@ export default function InventorySearchPage() {
     [sortCol],
   );
 
-  const rows = useMemo((): InventorySearchItem[] => {
-    if (!data) return [];
-
-    let result = [...data.items];
+  const rows = useMemo((): EnrichedItem[] => {
+    let result = [...enrichedItems];
 
     const q = search.toLowerCase().trim();
     if (q) {
@@ -83,7 +110,7 @@ export default function InventorySearchPage() {
     }
 
     return result;
-  }, [data, search, sortCol, sortDir]);
+  }, [enrichedItems, search, sortCol, sortDir]);
 
   return (
     <>
@@ -256,7 +283,7 @@ export default function InventorySearchPage() {
 
           <div style="text-align: center; color: var(--text-muted); font-size: 0.85rem; margin-top: 12px">
             {rows.length} item{rows.length !== 1 ? "s" : ""} shown
-            {search ? ` (filtered from ${data.items.length})` : ""}
+            {search ? ` (filtered from ${enrichedItems.length})` : ""}
           </div>
         </>
       ) : null}

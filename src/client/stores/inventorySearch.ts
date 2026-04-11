@@ -17,28 +17,10 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { persistentAtom } from "@nanostores/persistent";
-import { computedAsync } from "@nanostores/async";
 
-import { $updateTimer } from "../util-store";
 import { useCapitalAsDefault } from "./craftSource";
-
-export interface InventorySearchItem {
-  key: string;
-  name: string;
-  tier: number;
-  tag: string;
-  rarity: string;
-  totalQuantity: number;
-  locations: Array<{ name: string; quantity: number }>;
-}
-
-export interface InventorySearchResponse {
-  items: InventorySearchItem[];
-  claimName: string;
-  regionName: string;
-  claimLocationX: number;
-  claimLocationZ: number;
-}
+import { convexSub } from "./convexSub";
+import { api } from "../../../convex/_generated/api";
 
 export const $inventorySearchClaim = persistentAtom<string>(
   "inventorySearchClaim",
@@ -46,13 +28,8 @@ export const $inventorySearchClaim = persistentAtom<string>(
 );
 useCapitalAsDefault($inventorySearchClaim);
 
-export const $inventorySearchData = computedAsync(
-  [$inventorySearchClaim, $updateTimer],
-  async (claimId): Promise<InventorySearchResponse | null> => {
-    if (!claimId) return null;
-    const params = new URLSearchParams({ claim: claimId });
-    const resp = await fetch(`/api/inventory-search?${params}`);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return resp.json() as Promise<InventorySearchResponse>;
-  },
+export const $inventorySearchData = convexSub(
+  [$inventorySearchClaim],
+  api.empireData.getClaimInventory,
+  (claimId) => (claimId ? { claimId } : null),
 );

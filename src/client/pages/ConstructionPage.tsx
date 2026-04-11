@@ -16,17 +16,19 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { useState, useEffect, useMemo } from "preact/hooks";
+import { useMemo } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
+import { persistentAtom } from "@nanostores/persistent";
 import type { TargetItem } from "../stores/craft";
 import {
   $empireClaims,
   $empireClaimsLoading,
-  $empireCapitalClaimId,
-  fetchEmpireClaims,
+  useCapitalAsDefault,
 } from "../stores/craftSource";
-
 import { $router } from "../stores/router";
+import { convexSub } from "../stores/convexSub";
+import { api } from "../../../convex/_generated/api";
+import { gd, getItemInfo } from "../../common/gamedata";
 
 async function openCraftPlanner(targets: TargetItem[]) {
   const compressedBuffer = await new Response(
@@ -66,49 +68,129 @@ interface ConstructionProject {
   progress_pct: number;
 }
 
-interface ConstructionData {
-  projects: ConstructionProject[];
-}
+const $constructionClaim = persistentAtom<string>("constructionClaim", "");
+useCapitalAsDefault($constructionClaim);
+
+const $constructionData = convexSub(
+  [$constructionClaim],
+  api.empireData.getConstructionData,
+  (claimId) => (claimId ? { claimId } : null),
+);
 
 export default function ConstructionPage() {
-  const [data, setData] = useState<ConstructionData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedClaim, setSelectedClaim] = useState("");
   const claims = useStore($empireClaims);
   const claimsLoading = useStore($empireClaimsLoading);
-  const capitalClaimId = useStore($empireCapitalClaimId);
+  const selectedClaim = useStore($constructionClaim);
+  const dataState = useStore($constructionData);
 
-  useEffect(() => {
-    fetchEmpireClaims();
+  // Build construction recipe index
+  const recipeIndex = useMemo(() => {
+    const map = new Map<number, (typeof gd.constructionRecipes)[0]>();
+    for (const r of gd.constructionRecipes) {
+      map.set(r.id, r);
+    }
+    return map;
   }, []);
 
-  // Default to capital claim once loaded
-  useEffect(() => {
-    if (!selectedClaim && capitalClaimId) setSelectedClaim(capitalClaimId);
-  }, [capitalClaimId]);
+  // Process raw data into ConstructionProject[]
+  const projects = useMemo((): ConstructionProject[] => {
+    if (dataState.state !== "ready") return [];
+    const raw = dataState.value as {
+      projects: Array<{
+        entityId: string;
+        buildingName: string;
+        buildingNickname?: string;
+        constructionRecipeId: number;
+        depositedItems: Array<{
+          itemType: string;
+          itemId: number;
+          quantity: number;
+        }>;
+      }>;
+    };
+    return raw.projects.map((project) => {
+      const recipe = recipeIndex.get(project.constructionRecipeId);
 
-  useEffect(() => {
-    if (!selectedClaim) return;
-    setData(null);
-    setError(null);
-    fetch(`/api/construction?claim=${encodeURIComponent(selectedClaim)}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<ConstructionData>;
-      })
-      .then(setData)
-      .catch((e) => setError(String(e)));
-  }, [selectedClaim]);
+      // Build deposited items map from raw data
+      const depositedItems: Record<string, number> = {};
+      for (const item of project.depositedItems) {
+        const key = `${item.itemType}:${item.itemId}`;
+        depositedItems[key] = (depositedItems[key] ?? 0) + item.quantity;
+      }
+
+      const requirements = [
+        ...(recipe?.consumed_item_stacks ?? []).map((s) => {
+          const key = `Item:${s.item_id}`;
+          const info = getItemInfo("Item", s.item_id);
+          const deposited = depositedItems[key] ?? 0;
+          return {
+            item_type: "Item" as const,
+            item_id: s.item_id,
+            name: info.name,
+            icon: info.icon,
+            tier: info.tier,
+            tag: info.tag,
+            quantity_required: s.quantity,
+            quantity_deposited: deposited,
+            fulfilled: deposited >= s.quantity,
+          };
+        }),
+        ...(recipe?.consumed_cargo_stacks ?? []).map((s) => {
+          const key = `Cargo:${s.item_id}`;
+          const info = getItemInfo("Cargo", s.item_id);
+          const deposited = depositedItems[key] ?? 0;
+          return {
+            item_type: "Cargo" as const,
+            item_id: s.item_id,
+            name: info.name,
+            icon: info.icon,
+            tier: info.tier,
+            tag: info.tag,
+            quantity_required: s.quantity,
+            quantity_deposited: deposited,
+            fulfilled: deposited >= s.quantity,
+          };
+        }),
+      ];
+
+      const totalRequired = requirements.reduce(
+        (s, r) => s + r.quantity_required,
+        0,
+      );
+      const totalDeposited = requirements.reduce(
+        (s, r) => s + Math.min(r.quantity_deposited, r.quantity_required),
+        0,
+      );
+
+      return {
+        entity_id: project.entityId,
+        building_name:
+          project.buildingNickname ??
+          project.buildingName ??
+          recipe?.name ??
+          "Unknown Building",
+        construction_recipe_id: project.constructionRecipeId,
+        recipe_name: recipe?.name ?? "Unknown Recipe",
+        requirements,
+        total_required: totalRequired,
+        total_deposited: totalDeposited,
+        progress_pct:
+          totalRequired > 0
+            ? Math.round((totalDeposited / totalRequired) * 100)
+            : 0,
+      };
+    });
+  }, [dataState, recipeIndex]);
 
   function handleClaimChange(e: Event) {
-    setSelectedClaim((e.target as HTMLSelectElement).value);
+    $constructionClaim.set((e.target as HTMLSelectElement).value);
   }
 
-  if (error) {
+  if (dataState.state === "failed") {
     return (
       <div class="error-banner">
         <span class="error-icon">⚠</span>
-        <span>{error}</span>
+        <span>{String(dataState.error)}</span>
       </div>
     );
   }
@@ -150,14 +232,14 @@ export default function ConstructionPage() {
         </div>
       </div>
 
-      {!data ? (
+      {dataState.state === "loading" ? (
         <div class="loading-container">
           <div class="spinner-wrap">
             <div class="spinner" />
             <span class="loading-text">Loading construction data…</span>
           </div>
         </div>
-      ) : data.projects.length === 0 ? (
+      ) : projects.length === 0 ? (
         <div class="empty-state">
           <span class="empty-icon">🏗️</span>
           <p>No buildings are currently under construction in this claim.</p>
@@ -167,23 +249,23 @@ export default function ConstructionPage() {
           <div class="kpi-row">
             <div class="kpi-card">
               <div class="kpi-label">Active Projects</div>
-              <div class="kpi-value text-accent">{data.projects.length}</div>
+              <div class="kpi-value text-accent">{projects.length}</div>
             </div>
             <div class="kpi-card">
               <div class="kpi-label">Fully Supplied</div>
               <div class="kpi-value">
                 <span class="text-green">
-                  {data.projects.filter((p) => p.progress_pct === 100).length}
+                  {projects.filter((p) => p.progress_pct === 100).length}
                 </span>
-                <span class="kpi-muted"> / {data.projects.length}</span>
+                <span class="kpi-muted"> / {projects.length}</span>
               </div>
             </div>
             <div class="kpi-card">
               <div class="kpi-label">Avg. Progress</div>
               <div class="kpi-value">
                 {Math.round(
-                  data.projects.reduce((s, p) => s + p.progress_pct, 0) /
-                    data.projects.length,
+                  projects.reduce((s, p) => s + p.progress_pct, 0) /
+                    projects.length,
                 )}
                 %
               </div>
@@ -191,7 +273,7 @@ export default function ConstructionPage() {
           </div>
 
           <div class="plans-container">
-            {data.projects.map((project) => (
+            {projects.map((project) => (
               <ProjectCard key={project.entity_id} project={project} />
             ))}
           </div>

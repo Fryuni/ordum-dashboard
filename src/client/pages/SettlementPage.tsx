@@ -16,67 +16,74 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { useState, useEffect } from "preact/hooks";
+import { useMemo } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
+import { persistentAtom } from "@nanostores/persistent";
 import TierPlanCard from "../components/TierPlan";
-import type { TierPlan } from "../../common/settlement-planner";
+import { buildSettlementPlan } from "../../common/settlement-planner";
+import { gd } from "../../common/gamedata";
 import {
   $empireClaims,
   $empireClaimsLoading,
-  $empireCapitalClaimId,
-  fetchEmpireClaims,
+  useCapitalAsDefault,
 } from "../stores/craftSource";
+import { convexSub } from "../stores/convexSub";
+import { api } from "../../../convex/_generated/api";
 
-interface SettlementData {
-  currentTier: number;
-  supplies: number;
-  learnedCount: number;
-  totalTechs: number;
-  claimName: string;
-  plans: TierPlan[];
-}
+const $settlementClaim = persistentAtom<string>("settlementClaim", "");
+useCapitalAsDefault($settlementClaim);
+
+const $settlementData = convexSub(
+  [$settlementClaim],
+  api.empireData.getSettlementData,
+  (claimId) => (claimId ? { claimId } : null),
+);
 
 export default function SettlementPage() {
-  const [data, setData] = useState<SettlementData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedClaim, setSelectedClaim] = useState("");
   const claims = useStore($empireClaims);
   const claimsLoading = useStore($empireClaimsLoading);
-  const capitalClaimId = useStore($empireCapitalClaimId);
+  const selectedClaim = useStore($settlementClaim);
+  const dataState = useStore($settlementData);
 
-  // Fetch empire claims on mount
-  useEffect(() => {
-    fetchEmpireClaims();
-  }, []);
-
-  // Default to capital claim once loaded
-  useEffect(() => {
-    if (!selectedClaim && capitalClaimId) setSelectedClaim(capitalClaimId);
-  }, [capitalClaimId]);
-
-  // Fetch settlement data when claim changes
-  useEffect(() => {
-    if (!selectedClaim) return;
-    setData(null);
-    setError(null);
-    fetch(`/api/settlement?claim=${encodeURIComponent(selectedClaim)}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<SettlementData>;
-      })
-      .then(setData)
-      .catch((e) => setError(String(e)));
-  }, [selectedClaim]);
+  const data = useMemo(() => {
+    if (dataState.state !== "ready" || !dataState.value) return null;
+    const raw = dataState.value as {
+      currentTier: number;
+      supplies: number;
+      learnedCount: number;
+      claimName: string;
+      learnedIds: number[];
+      inventory: Record<string, number>;
+    };
+    const learnedIds = new Set<number>(raw.learnedIds);
+    const inventory = new Map<string, number>(
+      Object.entries(raw.inventory as Record<string, number>),
+    );
+    const plans = buildSettlementPlan(
+      raw.currentTier,
+      learnedIds,
+      raw.supplies,
+      inventory,
+    );
+    return {
+      currentTier: raw.currentTier,
+      supplies: raw.supplies,
+      learnedCount: raw.learnedCount,
+      totalTechs: gd.claimTechs.length,
+      claimName: raw.claimName,
+      plans,
+    };
+  }, [dataState]);
 
   function handleClaimChange(e: Event) {
-    setSelectedClaim((e.target as HTMLSelectElement).value);
+    $settlementClaim.set((e.target as HTMLSelectElement).value);
   }
 
-  if (error) {
+  if (dataState.state === "failed") {
     return (
       <div class="error-banner">
         <span class="error-icon">⚠</span>
-        <span>{error}</span>
+        <span>{String(dataState.error)}</span>
       </div>
     );
   }

@@ -17,33 +17,39 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { useEffect, useState } from "preact/hooks";
-import type { EmpireSummary } from "../../common/ordum-types";
+import { useStore } from "@nanostores/preact";
 import StatCard from "../components/StatCard";
+import { convexAction } from "../convex";
+import { convexSub } from "../stores/convexSub";
+import { api } from "../../../convex/_generated/api";
+
+const $dashboardData = convexSub(
+  [],
+  api.empireData.getDashboardData,
+  () => ({}),
+);
 
 export default function DashboardPage() {
-  const [empire, setEmpire] = useState<EmpireSummary | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const dataState = useStore($dashboardData);
+  const [onlineCount, setOnlineCount] = useState<number | null>(null);
 
+  // Fetch online count (the only live BitJita data)
   useEffect(() => {
-    fetch("/api/empire")
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json() as Promise<EmpireSummary>;
-      })
-      .then(setEmpire)
-      .catch((e) => setError(String(e)));
+    convexAction(api.empire.getOnlineCount, {})
+      .then((r) => setOnlineCount(r.onlineCount))
+      .catch((e) => console.error("Failed to fetch online count:", e));
   }, []);
 
-  if (error) {
+  if (dataState.state === "failed") {
     return (
       <div class="error-banner">
         <span class="error-icon">⚠</span>
-        <span>{error}</span>
+        <span>{String(dataState.error)}</span>
       </div>
     );
   }
 
-  if (!empire) {
+  if (dataState.state === "loading") {
     return (
       <div class="loading-container">
         <div class="spinner-wrap">
@@ -54,16 +60,16 @@ export default function DashboardPage() {
     );
   }
 
+  const empire = dataState.value;
+
   return (
     <>
       <div class="page-header">
         <h1>👑 Ordum Empire</h1>
         <p class="subtitle">
-          Last updated:{" "}
-          {new Date(empire.fetched_at).toLocaleString("en-US", {
-            dateStyle: "medium",
-            timeStyle: "short",
-          })}{" "}
+          {empire.synced_at
+            ? `Last synced: ${new Date(empire.synced_at).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}`
+            : "Syncing…"}{" "}
           · {empire.claims.length} claim{empire.claims.length > 1 ? "s" : ""}
         </p>
       </div>
@@ -77,7 +83,7 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Online Now"
-          value={empire.totals.online_members}
+          value={onlineCount ?? "…"}
           icon="🟢"
           accent="var(--accent-3)"
         />
@@ -101,13 +107,16 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Treasury"
-          value={empire.claims.reduce((s, c) => s + c.treasury, 0)}
+          value={empire.claims.reduce(
+            (s: number, c: { treasury: number }) => s + c.treasury,
+            0,
+          )}
           icon="💰"
           accent="var(--accent-4)"
         />
       </div>
 
-      {empire.claims.map((c) => (
+      {empire.claims.map((c: any) => (
         <ClaimSection
           key={c.entity_id}
           claim={c}
@@ -122,7 +131,17 @@ function ClaimSection({
   claim: c,
   isCapital,
 }: {
-  claim: EmpireSummary["claims"][0];
+  claim: {
+    entity_id: string;
+    name: string;
+    region: string;
+    tier: number | null;
+    supplies: number;
+    treasury: number;
+    num_tiles: number;
+    building_count: number;
+    member_count: number;
+  };
   isCapital: boolean;
 }) {
   return (

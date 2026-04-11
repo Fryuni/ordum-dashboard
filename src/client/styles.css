@@ -155,6 +155,7 @@ body {
 
 /* Main Content */
 .main-content {
+  position: relative;
   flex: 1;
   margin-left: 200px;
   padding: 16px 20px;
@@ -2376,4 +2377,235 @@ body {
   border-top-color: var(--accent);
   border-radius: 50%;
   animation: spin 0.6s linear infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Sign-In Page & Auth
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sign-in-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: var(--bg-base);
+}
+
+.sign-in-card {
+  width: 100%;
+  max-width: 380px;
+  padding: 40px 32px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.sign-in-brand {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.sign-in-subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 24px;
+}
+
+.sign-in-input {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.sign-in-input:focus {
+  border-color: var(--accent);
+}
+
+.sign-in-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+
+.sign-in-btn.primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.sign-in-btn.primary:hover {
+  background: #5a7aee;
+}
+
+.sign-in-btn.primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sign-in-btn.discord {
+  background: #5865f2;
+  color: #fff;
+  border-color: #5865f2;
+}
+
+.sign-in-btn.discord:hover {
+  background: #4752c4;
+}
+
+.sign-in-toggle {
+  display: block;
+  margin: 12px auto;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sign-in-toggle:hover {
+  color: var(--text);
+}
+
+.sign-in-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.sign-in-divider::before,
+.sign-in-divider::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid var(--border);
+}
+
+.sign-in-error {
+  color: var(--red);
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* ─── Profile Icon & Dropdown ─────────────────────────────────────────── */
+
+.profile-wrapper {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  z-index: 100;
+}
+
+a.profile-icon,
+button.profile-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-surface-2);
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+  padding: 0;
+  font: inherit;
+}
+
+a.profile-icon {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  z-index: 100;
+}
+
+a.profile-icon:hover,
+button.profile-icon:hover {
+  border-color: var(--border-hover);
+  color: var(--text);
+}
+
+button.profile-icon.authenticated {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+button.profile-icon.authenticated:hover {
+  background: #5a7aee;
+}
+
+.profile-initial {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.profile-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 180px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+}
+
+.profile-dropdown-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-dropdown-item {
+  display: block;
+  width: 100%;
+  padding: 9px 14px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.profile-dropdown-item:hover {
+  background: var(--bg-surface-2);
+  color: var(--text);
 }

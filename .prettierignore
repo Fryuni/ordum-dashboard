@@ -1,3 +1,5 @@
 /.memory
 /gamedata
 /src/common/gamedata/*.json
+/convex/_generated
+/.convex

@@ -1,16 +1,17 @@
 #:schema node_modules/wrangler/config-schema.json
-name = "ordum-dashboard"
+name = "ordum-proxy"
 main = "src/worker.ts"
 compatibility_date = "2026-02-24"
 compatibility_flags = ["nodejs_compat"]
-workers_dev = false
-preview_urls = true
+workers_dev = true
 
-[assets]
-directory = "./dist/client"
-not_found_handling = "single-page-application"
-binding = "ASSETS"
-run_worker_first = ["/api/*", "/jita/*"]
+# Production route: /jita/* on ordum.fun is served by this Worker.
+# The rest of ordum.fun/* goes to the Cloudflare Pages project (ordum-dashboard),
+# which is bound to the zone as a custom domain. Worker routes take precedence
+# over Pages on matching paths.
+routes = [
+  { pattern = "ordum.fun/jita/*", zone_name = "ordum.fun" },
+]
 
 [observability]
 enabled = true
@@ -23,36 +24,3 @@ invocation_logs = true
 
 [observability.traces]
 enabled = true
-
-[triggers]
-crons = ["*/5 * * * *"]
-
-[[kv_namespaces]]
-binding = "jita_api_cache"
-id = "4841edcb05cd4978bec7f705a82d12de"
-
-[[d1_databases]]
-binding = "ordum_storage_audit"
-database_name = "ordum-storage-audit"
-database_id = "b0aed2a4-0c01-4ea4-ac26-c87d6aa4cfa8"
-
-# ─── PR preview environment ─────────────────────────────────────────────────────
-# `wrangler deploy --env preview` creates a separate worker so that
-# observability (logs, traces) works — `versions upload` skips those settings.
-# The worker name is overridden per-PR via --name in CI.
-[env.preview]
-workers_dev = true
-
-# No cron triggers on preview — previews share the production D1 database,
-# so stale preview code would corrupt production data.
-[env.preview.triggers]
-crons = []
-
-[[env.preview.kv_namespaces]]
-binding = "jita_api_cache"
-id = "4841edcb05cd4978bec7f705a82d12de"
-
-[[env.preview.d1_databases]]
-binding = "ordum_storage_audit"
-database_name = "ordum-storage-audit"
-database_id = "b0aed2a4-0c01-4ea4-ac26-c87d6aa4cfa8"

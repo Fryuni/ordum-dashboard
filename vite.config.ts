@@ -5,22 +5,23 @@ import path from "node:path";
 export default defineConfig({
   plugins: [preact()],
   root: "src/client",
+  envDir: "../../",
   build: {
-    outDir: "../../dist/client",
+    outDir: "../../dist",
     emptyOutDir: true,
   },
   resolve: {
     alias: {
       // Allow imports from src/common in client code
       "../../gamedata": path.resolve(__dirname, "gamedata"),
+      // Alias react to preact/compat for packages that import react
+      // (convex/react, @convex-dev/auth/react, etc.)
+      react: "preact/compat",
+      "react-dom": "preact/compat",
+      "react/jsx-runtime": "preact/jsx-runtime",
     },
   },
   server: {
     port: 4321,
-    proxy: {
-      // Proxy API and Jita routes to wrangler dev during development
-      "/api": "http://localhost:8787",
-      "/jita": "http://localhost:8787",
-    },
   },
 });

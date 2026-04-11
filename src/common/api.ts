@@ -18,11 +18,28 @@
  */
 import BitJitaClient from "./bitjita-client";
 
+/**
+ * Resolve the BitJita base URL.
+ *
+ * In the browser the client calls through a proxy whose URL is provided
+ * at build time via `VITE_PROXY_URL`.  On the server (SSR / scripts) it
+ * falls back to the upstream API directly.
+ */
+function resolveBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    const url = (import.meta as any).env?.VITE_PROXY_URL as string | undefined;
+    if (!url) {
+      throw new Error(
+        "VITE_PROXY_URL is not set — the static client needs a proxy URL to reach the BitJita API",
+      );
+    }
+    return url;
+  }
+  return "https://bitjita.com";
+}
+
 /** Global API client instance. Server-side caching is handled by the proxy layer. */
 export const jita = new BitJitaClient({
-  baseUrl:
-    typeof window === "undefined"
-      ? "https://bitjita.com"
-      : `${window.location.origin}/jita`,
+  baseUrl: resolveBaseUrl(),
   timeout: 15_000,
 });

@@ -28,11 +28,7 @@ import {
   type HistogramData,
   type Time,
 } from "lightweight-charts";
-import {
-  $empireClaims,
-  $empireClaimsLoading,
-  fetchEmpireClaims,
-} from "../stores/craftSource";
+import { $empireClaims, $empireClaimsLoading } from "../stores/craftSource";
 import {
   $auditClaims,
   $auditPlayers,
@@ -44,7 +40,7 @@ import {
 } from "../stores/storageAudit";
 import { MultiSelect } from "../components/MultiSelect";
 
-import type { StorageAuditChartPoint } from "../../server/storage-audit";
+import type { StorageAuditChartPoint } from "../stores/storageAudit";
 
 /** Convert a bucket string like "2026-03-15" or "2026-03-15T14" to a unix timestamp. */
 function bucketToTime(bucket: string): Time {
@@ -256,10 +252,6 @@ export default function StorageAuditPage() {
   const dateFrom = useStore($auditDateFrom);
   const dateTo = useStore($auditDateTo);
   const { dataAsync, page, totalPages } = useStore($auditView);
-
-  useEffect(() => {
-    fetchEmpireClaims();
-  }, []);
 
   const claimNameMap = useMemo(() => {
     const m = new Map<string, string>();

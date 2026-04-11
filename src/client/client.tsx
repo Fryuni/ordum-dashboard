@@ -17,6 +17,17 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { render } from "preact";
+import { ConvexReactClient } from "convex/react";
+import { ConvexAuthProvider } from "@convex-dev/auth/react";
 import App from "./App";
 
-render(<App />, document.getElementById("app")!);
+const convex = new ConvexReactClient(
+  (import.meta as any).env.VITE_CONVEX_URL as string,
+);
+
+render(
+  <ConvexAuthProvider client={convex}>
+    <App />
+  </ConvexAuthProvider>,
+  document.getElementById("app")!,
+);
