@@ -5,6 +5,14 @@ compatibility_date = "2026-02-24"
 compatibility_flags = ["nodejs_compat"]
 workers_dev = true
 
+# Production route: /jita/* on ordum.fun is served by this Worker.
+# The rest of ordum.fun/* goes to the Cloudflare Pages project (ordum-dashboard),
+# which is bound to the zone as a custom domain. Worker routes take precedence
+# over Pages on matching paths.
+routes = [
+  { pattern = "ordum.fun/jita/*", zone_name = "ordum.fun" },
+]
+
 [observability]
 enabled = true
 head_sampling_rate = 1
