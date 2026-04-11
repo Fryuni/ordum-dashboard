@@ -25,7 +25,7 @@ export const syncAll = internalAction({
       const { empire } = await jita.getEmpire(empireId);
       if (!empire) {
         console.error(`Unknown empire ${empireId}`);
-        return
+        return;
       }
 
       const hexiteReserve =

@@ -261,12 +261,15 @@ async function deleteByClaimId(
 export const getEmpires = query(async (ctx) => {
   const empires: Array<{ id: string; name: string }> = [];
   for await (const empire of ctx.db.query("empireInfo").fullTableScan()) {
-    empires.push({ id: empire.empireId, name: empire.name ?? 'Unknown empire' });
+    empires.push({
+      id: empire.empireId,
+      name: empire.name ?? "Unknown empire",
+    });
   }
   if (empires.length === 0) {
     empires.push({
       id: ORDUM_EMPIRE_ID,
-      name: 'Ordum',
+      name: "Ordum",
     });
   }
   return empires;
@@ -302,7 +305,7 @@ export const getDashboardData = query({
       .withIndex("by_empireId", (q) => q.eq("empireId", empireId))
       .unique();
 
-    if (!info) throw new Error('Unknown empire ID');
+    if (!info) throw new Error("Unknown empire ID");
 
     const claims = await ctx.db
       .query("empireClaims")
@@ -355,7 +358,7 @@ export const getDashboardData = query({
         total_buildings: totalBuildings,
         total_tiles: totalTiles,
       },
-      empireName: info?.name ?? 'Unknown empire',
+      empireName: info?.name ?? "Unknown empire",
       hexite_reserve: info?.hexiteReserve ?? 0,
       capital_claim_entity_id: info?.capitalClaimId ?? null,
       synced_at: info?.syncedAt ?? null,

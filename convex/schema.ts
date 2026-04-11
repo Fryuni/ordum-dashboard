@@ -54,8 +54,7 @@ export default defineSchema({
     hexiteReserve: v.number(),
     capitalClaimId: v.optional(v.string()),
     syncedAt: v.number(),
-  })
-    .index("by_empireId", ["empireId"]),
+  }).index("by_empireId", ["empireId"]),
 
   // Claims belonging to an empire
   empireClaims: defineTable({
