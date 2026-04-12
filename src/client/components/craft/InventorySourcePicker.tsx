@@ -18,43 +18,62 @@
  */
 import { useStore } from "@nanostores/preact";
 import {
-  $inventorySource,
-  $empireClaims,
-  $empireClaimsLoading,
+  $inventorySources,
+  $availableSources,
+  toggleSource,
 } from "../../stores/craftSource";
 import PlayerPicker from "./PlayerPicker";
 
 export default function InventorySourcePicker() {
-  const source = useStore($inventorySource);
-  const claims = useStore($empireClaims);
-  const loading = useStore($empireClaimsLoading);
+  const selected = useStore($inventorySources);
+  const sources = useStore($availableSources);
+  const selectedSet = new Set(selected);
 
-  function handleSourceChange(e: Event) {
-    $inventorySource.set((e.target as HTMLSelectElement).value);
-  }
+  const playerSources = sources.filter((s) => s.group === "player");
+  const claimSources = sources.filter((s) => s.group === "claim");
 
   return (
     <div class="inventory-source-picker">
       <div class="form-row">
         <PlayerPicker />
-        <div class="input-group source-select-container">
-          <label for="inventory-source">Inventory Source</label>
-          <select
-            id="inventory-source"
-            class="source-select"
-            value={source}
-            onChange={handleSourceChange}
-          >
-            <option value="player">👤 Player Inventory</option>
-            {loading && claims.length === 0 && (
-              <option disabled>Loading claims…</option>
-            )}
-            {claims.map((claim) => (
-              <option key={claim.id} value={claim.id}>
-                🏰 {claim.name}
-              </option>
-            ))}
-          </select>
+      </div>
+      <div class="inventory-sources-panel">
+        <label class="inventory-sources-label">Inventory Sources</label>
+        <div class="inventory-sources-grid">
+          {playerSources.length > 0 && (
+            <div class="source-group">
+              <div class="source-group-label">Player</div>
+              {playerSources.map((s) => (
+                <label key={s.key} class="source-checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={selectedSet.has(s.key)}
+                    onChange={() => toggleSource(s.key)}
+                  />
+                  <span>
+                    {s.icon} {s.label}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+          {claimSources.length > 0 && (
+            <div class="source-group">
+              <div class="source-group-label">Claims</div>
+              {claimSources.map((s) => (
+                <label key={s.key} class="source-checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={selectedSet.has(s.key)}
+                    onChange={() => toggleSource(s.key)}
+                  />
+                  <span>
+                    {s.icon} {s.label}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -687,6 +687,16 @@ export interface PlayerEquipmentResponse {
   [key: string]: unknown;
 }
 
+export interface PlayerEquipmentPresetsResponse {
+  presets: Array<{
+    entityId: string;
+    index: number;
+    active: boolean;
+    equipmentSlots: unknown[];
+  }>;
+  [key: string]: unknown;
+}
+
 export interface PlayerExplorationResponse {
   bitmap: string;
   exploredChunksCount: number;
@@ -1728,6 +1738,19 @@ export class BitJitaClient {
   async getPlayerEquipment(id: string): Promise<PlayerEquipmentResponse> {
     return this.request<PlayerEquipmentResponse>(
       `/api/players/${id}/equipment`,
+    );
+  }
+
+  /**
+   * `GET /api/players/[id]/equipment/presets`
+   *
+   * Get all equipment presets for a player (active and inactive)
+   */
+  async getPlayerEquipmentPresets(
+    id: string,
+  ): Promise<PlayerEquipmentPresetsResponse> {
+    return this.request<PlayerEquipmentPresetsResponse>(
+      `/api/players/${id}/equipment/presets`,
     );
   }
 

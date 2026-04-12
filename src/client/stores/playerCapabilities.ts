@@ -26,7 +26,7 @@
 
 import { computedAsync } from "@nanostores/async";
 import { $playerData } from "./player";
-import { $inventory } from "./craftSource";
+import { $equippedItems } from "./craftSource";
 import { jita } from "../../common/api";
 import { toolItemsCodex } from "../../common/gamedata/codex";
 import type { PlayerCapabilities } from "../../common/player-capabilities";
@@ -67,8 +67,8 @@ function xpToLevel(
 // ─── Player Capabilities (async computed) ───────────────────────────────────────
 
 export const $playerCapabilities = computedAsync(
-  [$playerData, $inventory],
-  async (playerData, inventory): Promise<PlayerCapabilities | undefined> => {
+  [$playerData, $equippedItems],
+  async (playerData, equipped): Promise<PlayerCapabilities | undefined> => {
     if (!playerData) return undefined;
 
     // Build skill levels
@@ -90,11 +90,11 @@ export const $playerCapabilities = computedAsync(
       }
     }
 
-    // Build max tool tiers from inventory
+    // Build max tool tiers from equipped items (toolbelt + armor)
     const hasToolData = toolItemsCodex.size > 0;
     const maxToolTiers = new Map<string, number>();
-    if (hasToolData && inventory instanceof Map) {
-      for (const [key] of inventory) {
+    if (hasToolData && equipped instanceof Map) {
+      for (const [key] of equipped) {
         // key format is "Item:123" or "Cargo:123"
         const [itemType, idStr] = key.split(":", 2);
         if (itemType !== "Item") continue;

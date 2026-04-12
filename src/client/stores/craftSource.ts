@@ -17,7 +17,7 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { persistentAtom } from "@nanostores/persistent";
-import { atom, computed } from "nanostores";
+import { computed } from "nanostores";
 import { computedAsync } from "@nanostores/async";
 import { $updateTimer } from "../util-store";
 import { jita } from "../../common/api";
@@ -32,21 +32,38 @@ import { recipesCodex } from "../../common/gamedata/codex";
 import { referenceKey } from "../../common/gamedata/definition";
 import type { EmpireClaimInfo } from "../../common/ordum-types";
 import { $playerInfo } from "./player";
-import { asyncDefaultValue, selectorAtom } from "./utils";
 import { convexSub } from "./convexSub";
 
-// ─── Inventory Source ──────────────────────────────────────────────────────────
+// ─── Inventory Sources (multi-select) ─────────────────────────────────────────
 
 /**
- * Inventory source: "player" uses the selected player's inventory,
- * any other string is a claim entity ID.
+ * Selected inventory source keys. Each entry is one of:
+ * - "player"           — backpack + deployables + player crafts
+ * - "equipment"        — toolbelt + worn armor/accessories (all presets)
+ * - "bank:<claimId>"   — Town Bank / Ancient Bank at a specific claim
+ * - "house-storage"    — storage buildings (chests, bins, stockpiles) across all claims
+ * - "claim:<claimId>"  — non-storage claim building inventory + claim crafts
  */
-export const $inventorySource = persistentAtom<string>(
-  "craftInventorySource",
-  "player",
+export const $inventorySources = persistentAtom<string[]>(
+  "craftInventorySources",
+  ["player"],
+  { encode: JSON.stringify, decode: JSON.parse },
 );
 
-// ─── Empire Claims (subscription-based) ────────────────────────────────────────
+export function toggleSource(key: string) {
+  const current = $inventorySources.get();
+  if (current.includes(key)) {
+    $inventorySources.set(current.filter((k) => k !== key));
+  } else {
+    $inventorySources.set([...current, key]);
+  }
+}
+
+export function setSourcesForClaim(claimId: string) {
+  $inventorySources.set([`claim:${claimId}`]);
+}
+
+// ─── Empire Claims (subscription-based) ──────────────────────────────────���─────
 
 const $empireClaimsData = convexSub(
   [],
@@ -128,171 +145,354 @@ $empireCapitalClaimId.listen((capitalId) => {
   pendingDefaults.length = 0;
 });
 
-/** The currently selected claim name (for display) */
-export const $selectedClaimName = computed(
-  [$inventorySource, $empireClaims],
-  (source, claims) => {
-    if (source === "player") return null;
-    return claims.find((c) => c.id === source)?.name ?? "Unknown Claim";
-  },
-);
+// ─── Player Inventory (categorized) ──────────────────────────────────────────
 
-// ─── Player Inventory ──────────────────────────────────────────────────────────
+const BANK_NAME_RE = /\bbank\b/i;
+const TOOLBELT_NAME_RE = /\btoolbelt\b/i;
 
-const $playerInventory = computedAsync(
+export interface CategorizedPlayerInventory {
+  personal: Map<string, ItemPlace[]>;
+  equipment: Map<string, ItemPlace[]>;
+  houseStorage: Map<string, ItemPlace[]>;
+  banks: Map<string, Map<string, ItemPlace[]>>;
+  /** claimEntityId → display label for each bank, e.g. "Town Bank (Aldebaran)" */
+  bankLabels: Map<string, string>;
+}
+
+const $categorizedPlayerInventory = computedAsync(
   [$playerInfo, $updateTimer],
   async (player) => {
-    const inventory = new Map<string, ItemPlace[]>();
-    if (player) {
-      try {
-        const [
-          invData,
-          { craftResults: completedCrafts },
-          { craftResults: ongoingCrafts },
-          passiveCrafts,
-        ] = await Promise.all([
-          jita.getPlayerInventories(player.entityId),
-          jita.listCrafts({ playerEntityId: player.entityId, completed: true }),
-          jita.listCrafts({
-            playerEntityId: player.entityId,
-            completed: false,
-          }),
-          jita.getPlayerPassiveCrafts(player.entityId),
-        ]);
+    const personal = new Map<string, ItemPlace[]>();
+    const equipment = new Map<string, ItemPlace[]>();
+    const houseStorage = new Map<string, ItemPlace[]>();
+    const banks = new Map<string, Map<string, ItemPlace[]>>();
+    const bankLabels = new Map<string, string>();
 
-        for (const inv of invData.inventories ?? []) {
-          let invName = inv.inventoryName ?? inv.buildingName ?? "Backpack";
-          // Append claim name for bank buildings so each town bank is distinct
-          if (inv.claimName && /\bbank\b/i.test(invName)) {
-            invName = `${invName} (${inv.claimName})`;
+    if (!player)
+      return { personal, equipment, houseStorage, banks, bankLabels };
+
+    try {
+      const [
+        invData,
+        { craftResults: completedCrafts },
+        { craftResults: ongoingCrafts },
+        passiveCrafts,
+        activeEquipment,
+        equipmentPresets,
+      ] = await Promise.all([
+        jita.getPlayerInventories(player.entityId),
+        jita.listCrafts({ playerEntityId: player.entityId, completed: true }),
+        jita.listCrafts({ playerEntityId: player.entityId, completed: false }),
+        jita.getPlayerPassiveCrafts(player.entityId),
+        jita.getPlayerEquipment(player.entityId),
+        jita.getPlayerEquipmentPresets(player.entityId),
+      ]);
+
+      for (const inv of invData.inventories ?? []) {
+        const rawName = inv.inventoryName ?? inv.buildingName ?? null;
+        const isBank = rawName !== null && BANK_NAME_RE.test(rawName);
+
+        // Determine which category this inventory belongs to
+        let target: Map<string, ItemPlace[]>;
+        let placeName: string;
+
+        if (isBank && inv.claimEntityId) {
+          // Bank → per-claim bucket
+          let bankInv = banks.get(inv.claimEntityId);
+          if (!bankInv) {
+            bankInv = new Map();
+            banks.set(inv.claimEntityId, bankInv);
           }
-          for (const pocket of inv.pockets ?? []) {
-            if (pocket?.contents) {
-              const c = pocket.contents;
-              // BitJita uses numeric itemType: 0 = Item, 1 = Cargo
-              const itemType = c.itemType === 1 ? "Cargo" : "Item";
-              const key = `${itemType}:${c.itemId}`;
-              const qty = c.quantity ?? 1;
-              const places = inventory.get(key) ?? [];
-              const existing = places.find((pl) => pl.name === invName);
-              if (existing) {
-                existing.quantity += qty;
-              } else {
-                places.push({ name: invName, quantity: qty });
+          target = bankInv;
+          // Include claim name in place name so tooltips identify which bank
+          placeName = inv.claimName
+            ? `${rawName} (${inv.claimName})`
+            : rawName!;
+          // Store label for the checkbox UI
+          if (!bankLabels.has(inv.claimEntityId)) {
+            bankLabels.set(inv.claimEntityId, placeName);
+          }
+        } else if (rawName !== null && TOOLBELT_NAME_RE.test(rawName)) {
+          // Toolbelt → equipment
+          target = equipment;
+          placeName = "Toolbelt";
+        } else if (rawName === null || !inv.claimEntityId) {
+          // Backpack (null name) or deployable (no claim) → personal
+          target = personal;
+          placeName = rawName ?? "Backpack";
+        } else {
+          // Claim building (has claimEntityId, not bank/chest) → skip
+          // These items are covered by the claim inventory subscription
+          continue;
+        }
+
+        for (const pocket of inv.pockets ?? []) {
+          if (pocket?.contents) {
+            const c = pocket.contents;
+            const itemType = c.itemType === 1 ? "Cargo" : "Item";
+            const key = `${itemType}:${c.itemId}`;
+            const qty = c.quantity ?? 1;
+            addToInventory(target, key, { name: placeName, quantity: qty });
+          }
+        }
+      }
+
+      // Add equipped items: active equipment + all preset slots
+      const allEquipmentSlots: unknown[] = [
+        ...(activeEquipment.equipment ?? []),
+        ...(equipmentPresets.presets ?? []).flatMap(
+          (p) => p.equipmentSlots ?? [],
+        ),
+      ];
+      for (const entry of allEquipmentSlots) {
+        const slot = entry as { item?: Record<string, unknown> | null };
+        if (!slot.item) continue;
+        const itemId = slot.item.id;
+        if (typeof itemId !== "number") continue;
+        const key = `Item:${itemId}`;
+        const qty =
+          typeof slot.item.quantity === "number" ? slot.item.quantity : 1;
+        addToInventory(equipment, key, { name: "Equipped", quantity: qty });
+      }
+
+      // Add house storage (chests inside the player's house)
+      try {
+        const houses = (await jita.getPlayerHousing(player.entityId)) as Array<{
+          buildingEntityId?: string;
+        }>;
+        if (Array.isArray(houses)) {
+          const details = await Promise.all(
+            houses
+              .filter((h) => h.buildingEntityId)
+              .map((h) =>
+                jita.getPlayersHousing(player.entityId, h.buildingEntityId!),
+              ),
+          );
+          for (const house of details) {
+            for (const inv of house.inventories ?? []) {
+              const storageInv = inv as {
+                buildingName?: string;
+                buildingNickname?: string | null;
+                inventory?: Array<{
+                  contents?: {
+                    item_id: number;
+                    item_type: string;
+                    quantity: number;
+                  } | null;
+                }>;
+              };
+              const label =
+                storageInv.buildingNickname ??
+                storageInv.buildingName ??
+                "House Storage";
+              for (const pocket of storageInv.inventory ?? []) {
+                if (!pocket.contents) continue;
+                const c = pocket.contents;
+                const itemType = c.item_type === "cargo" ? "Cargo" : "Item";
+                const key = `${itemType}:${c.item_id}`;
+                addToInventory(houseStorage, key, {
+                  name: label,
+                  quantity: c.quantity,
+                });
               }
-              inventory.set(key, places);
             }
           }
         }
-
-        try {
-          // Add items being crafted by this player (active crafts)
-          const { jitaCraftSchema } =
-            await import("../../common/claim-inventory");
-          const crafts = jitaCraftSchema.parse([
-            ...completedCrafts,
-            ...ongoingCrafts,
-          ]);
-          addCraftsToInventory(inventory, crafts);
-        } catch (error) {
-          console.error("Failed to parse player crafts:", error);
-        }
-
-        // Add completed passive crafts (looms, smelters, farms)
-        addPassiveCraftsToInventory(inventory, passiveCrafts.craftResults);
       } catch (error) {
-        console.error("Failed to retrieve player inventory:", error);
+        console.error("Failed to retrieve house storage:", error);
       }
+
+      // Add crafts to personal inventory
+      try {
+        const { jitaCraftSchema } =
+          await import("../../common/claim-inventory");
+        const crafts = jitaCraftSchema.parse([
+          ...completedCrafts,
+          ...ongoingCrafts,
+        ]);
+        addCraftsToInventory(personal, crafts);
+      } catch (error) {
+        console.error("Failed to parse player crafts:", error);
+      }
+
+      addPassiveCraftsToInventory(personal, passiveCrafts.craftResults);
+    } catch (error) {
+      console.error("Failed to retrieve player inventory:", error);
     }
-    return inventory;
+
+    return { personal, equipment, houseStorage, banks, bankLabels };
   },
 );
 
-// ─── Claim Inventory (subscription-based) ─────────────────────────────────────
-
-/** The claim ID to fetch inventory for (null when using player source) */
-const $activeClaimId = computed($inventorySource, (source) =>
-  source === "player" ? null : source,
+/** Equipped items only — used by playerCapabilities to determine active tool tiers */
+export const $equippedItems = computed(
+  $categorizedPlayerInventory,
+  (state): Map<string, ItemPlace[]> =>
+    state.state === "ready" ? state.value.equipment : new Map(),
 );
 
-/** Building inventories from Convex subscription */
-const $claimBuildingInventory = convexSub(
-  [$activeClaimId],
-  api.empireData.getClaimInventory,
-  (claimId) => (claimId ? { claimId } : null),
+// ─── All Claim Inventories (subscription-based) ─────────────────────────────
+
+const $allClaimInventoriesData = convexSub(
+  [],
+  api.empireData.getAllClaimInventories,
+  () => ({}),
 );
 
-/** Craft data from Convex subscription */
-const $claimCraftData = convexSub(
-  [$activeClaimId],
-  api.empireData.getClaimCrafts,
-  (claimId) => (claimId ? { claimId } : null),
-);
+// ─── Available Sources (for UI) ─────────────────────────────��────────────────
 
-/**
- * Build claim inventory Map from subscription data.
- * Combines building inventories with craft outputs (resolved via client-side codex).
- */
-const $claimInventory = computed(
-  [$claimBuildingInventory, $claimCraftData],
-  (buildingState, craftState): Map<string, ItemPlace[]> => {
-    if (buildingState.state !== "ready") return new Map();
+export interface InventorySourceOption {
+  key: string;
+  label: string;
+  icon: string;
+  group: "player" | "claim";
+}
 
-    const inventory = new Map<string, ItemPlace[]>();
-    const buildings = buildingState.value;
+export const $availableSources = computed(
+  [$categorizedPlayerInventory, $empireClaims],
+  (playerAsync, claims): InventorySourceOption[] => {
+    const sources: InventorySourceOption[] = [];
 
-    // Add building inventories
-    for (const item of buildings.items) {
-      for (const loc of item.locations) {
-        addToInventory(inventory, item.key, {
-          name: loc.name,
-          quantity: loc.quantity,
+    // Player personal is always available
+    sources.push({
+      key: "player",
+      label: "Player Inventory",
+      icon: "\uD83D\uDC64",
+      group: "player",
+    });
+
+    // Equipment, bank, and house storage options appear once player data loads
+    if (playerAsync.state === "ready") {
+      const inv = playerAsync.value;
+      if (inv.equipment.size > 0) {
+        sources.push({
+          key: "equipment",
+          label: "Equipment & Toolbelt",
+          icon: "\uD83D\uDEE1\uFE0F",
+          group: "player",
+        });
+      }
+      for (const [claimId, label] of inv.bankLabels) {
+        sources.push({
+          key: `bank:${claimId}`,
+          label,
+          icon: "\uD83C\uDFE6",
+          group: "player",
+        });
+      }
+      if (inv.houseStorage.size > 0) {
+        sources.push({
+          key: "house-storage",
+          label: "House Storage",
+          icon: "\uD83D\uDCE6",
+          group: "player",
         });
       }
     }
 
-    // Add craft outputs (resolved client-side via recipesCodex)
-    if (craftState.state === "ready") {
-      for (const craft of craftState.value) {
-        const recipe = recipesCodex.get(craft.recipeId);
-        if (!recipe) continue;
-
-        if (craft.isPassive) {
-          const place =
-            craft.progress >= craft.totalActionsRequired
-              ? "Crafted"
-              : "Being crafted";
-          for (const output of recipe.outputs) {
-            addToInventory(inventory, referenceKey(output), {
-              name: place,
-              quantity: output.quantity,
-            });
-          }
-        } else {
-          const isComplete = craft.progress >= craft.totalActionsRequired;
-          const place = isComplete ? "Crafted" : "Being crafted";
-          for (const output of recipe.outputs) {
-            addToInventory(inventory, referenceKey(output), {
-              name: place,
-              quantity: output.quantity * craft.craftCount,
-            });
-          }
-        }
-      }
+    // One checkbox per empire claim
+    for (const claim of claims) {
+      sources.push({
+        key: `claim:${claim.id}`,
+        label: claim.name,
+        icon: "\uD83C\uDFF0",
+        group: "claim",
+      });
     }
 
-    return inventory;
+    return sources;
   },
 );
 
 // ─── Combined Inventory ────────────────────────────────────────────────────────
 
-const $emptyInventory = atom(new Map<string, ItemPlace[]>());
+function mergeInto(
+  target: Map<string, ItemPlace[]>,
+  source: Map<string, ItemPlace[]>,
+) {
+  for (const [key, places] of source) {
+    for (const place of places) {
+      addToInventory(target, key, place);
+    }
+  }
+}
 
-export const $inventory = selectorAtom(
-  $inventorySource,
-  { player: asyncDefaultValue($playerInventory, $emptyInventory) },
-  computed($claimInventory, (v) => v),
+export const $inventory = computed(
+  [$inventorySources, $categorizedPlayerInventory, $allClaimInventoriesData],
+  (sources, playerAsync, claimDataAsync) => {
+    const merged = new Map<string, ItemPlace[]>();
+    const sourceSet = new Set(sources);
+
+    // Player categories
+    if (playerAsync.state === "ready") {
+      const inv = playerAsync.value;
+
+      if (sourceSet.has("player")) {
+        mergeInto(merged, inv.personal);
+      }
+
+      if (sourceSet.has("equipment")) {
+        mergeInto(merged, inv.equipment);
+      }
+
+      for (const [claimId, bankInv] of inv.banks) {
+        if (sourceSet.has(`bank:${claimId}`)) {
+          mergeInto(merged, bankInv);
+        }
+      }
+
+      if (sourceSet.has("house-storage")) {
+        mergeInto(merged, inv.houseStorage);
+      }
+    }
+
+    // Claim inventories
+    if (claimDataAsync.state === "ready") {
+      for (const claim of claimDataAsync.value) {
+        if (!sourceSet.has(`claim:${claim.claimId}`)) continue;
+
+        // Add building items
+        for (const item of claim.items) {
+          for (const loc of item.locations) {
+            addToInventory(merged, item.key, {
+              name: loc.name,
+              quantity: loc.quantity,
+            });
+          }
+        }
+
+        // Add craft outputs (resolved client-side via recipesCodex)
+        for (const craft of claim.crafts) {
+          const recipe = recipesCodex.get(craft.recipeId);
+          if (!recipe) continue;
+
+          if (craft.isPassive) {
+            const place =
+              craft.progress >= craft.totalActionsRequired
+                ? "Crafted"
+                : "Being crafted";
+            for (const output of recipe.outputs) {
+              addToInventory(merged, referenceKey(output), {
+                name: place,
+                quantity: output.quantity,
+              });
+            }
+          } else {
+            const isComplete = craft.progress >= craft.totalActionsRequired;
+            const place = isComplete ? "Crafted" : "Being crafted";
+            for (const output of recipe.outputs) {
+              addToInventory(merged, referenceKey(output), {
+                name: place,
+                quantity: output.quantity * craft.craftCount,
+              });
+            }
+          }
+        }
+      }
+    }
+
+    return merged;
+  },
 );
 
 /**

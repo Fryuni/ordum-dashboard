@@ -509,6 +509,74 @@ export const getClaimCrafts = query({
   },
 });
 
+export const getAllClaimInventories = query({
+  args: { empireId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const empireId = args.empireId ?? ORDUM_EMPIRE_ID;
+    const claims = await ctx.db
+      .query("empireClaims")
+      .withIndex("by_empireId", (q) => q.eq("empireId", empireId))
+      .collect();
+
+    const result = [];
+    for (const claim of claims) {
+      const buildings = await ctx.db
+        .query("buildingInventories")
+        .withIndex("by_claimId", (q) => q.eq("claimId", claim.claimId))
+        .collect();
+
+      const crafts = await ctx.db
+        .query("claimCrafts")
+        .withIndex("by_claimId", (q) => q.eq("claimId", claim.claimId))
+        .collect();
+
+      // Aggregate items across buildings (excluding personal storage)
+      const itemMap = new Map<
+        string,
+        { locations: Array<{ name: string; quantity: number }> }
+      >();
+
+      for (const building of buildings) {
+        if (BANK_BUILDING_IDS.has(building.buildingDescriptionId)) continue;
+        const label = building.buildingNickname ?? building.buildingName;
+        for (const item of building.items) {
+          if (item.quantity <= 0) continue;
+          const key = `${item.itemType}:${item.itemId}`;
+          let entry = itemMap.get(key);
+          if (!entry) {
+            entry = { locations: [] };
+            itemMap.set(key, entry);
+          }
+          const existingLoc = entry.locations.find((l) => l.name === label);
+          if (existingLoc) {
+            existingLoc.quantity += item.quantity;
+          } else {
+            entry.locations.push({ name: label, quantity: item.quantity });
+          }
+        }
+      }
+
+      result.push({
+        claimId: claim.claimId,
+        claimName: claim.name,
+        items: [...itemMap.entries()].map(([key, val]) => ({
+          key,
+          locations: val.locations,
+        })),
+        crafts: crafts.map((c) => ({
+          recipeId: c.recipeId,
+          craftCount: c.craftCount,
+          progress: c.progress,
+          totalActionsRequired: c.totalActionsRequired,
+          isPassive: c.isPassive,
+        })),
+      });
+    }
+
+    return result;
+  },
+});
+
 // ─── Internal Queries (for actions that need DB reads) ──────────────────────
 
 export const getAllMemberEntityIds = internalQuery({

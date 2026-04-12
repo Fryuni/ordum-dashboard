@@ -23,7 +23,7 @@ import { itemIndex, type IndexItem } from "../../common/itemIndex";
 import { buildCraftPlanAsync } from "../workers/craftPlannerClient";
 import type { ItemReference } from "../../common/gamedata/definition";
 import { z } from "zod";
-import { $inventoryTotals, $inventorySource } from "./craftSource";
+import { $inventoryTotals, setSourcesForClaim } from "./craftSource";
 import { $playerCapabilities } from "./playerCapabilities";
 import { convexQuery } from "../convex";
 import { api } from "../../../convex/_generated/api";
@@ -216,7 +216,7 @@ const $importedTargets = computedAsync(
       try {
         // Auto-select the claim inventory from the URL
         const claimId = claimParam;
-        $inventorySource.set(claimId);
+        setSourcesForClaim(claimId);
         const settlementData = await convexQuery(
           api.empireData.getSettlementData,
           { claimId },
