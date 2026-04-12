@@ -20,7 +20,7 @@ import { persistentAtom } from "@nanostores/persistent";
 import { atom, computed, onMount } from "nanostores";
 import { useCapitalAsDefaultArray } from "./craftSource";
 import { convexAction } from "../convex";
-import { convexSub, type SubState } from "./convexSub";
+import { convexSub } from "./convexSub";
 import { api } from "../../../convex/_generated/api";
 
 // ─── Types (matching the Convex query response) ────────────────────────────
