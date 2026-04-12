@@ -22,10 +22,19 @@
  * Given a list of target items and a player's current inventory,
  * recursively resolves the full crafting tree down to raw (gathered)
  * materials, showing every step needed.
+ *
+ * Performance: uses an incremental ledger so balance queries are O(1) per
+ * key and the hot loop never clones the inventory map (which can have
+ * thousands of entries). Branch exploration forks small maps only.
  */
 
 import { topologicalSort } from "./topological-sort";
-import { extractionsCodex, itemsCodex, recipesCodex } from "./gamedata/codex";
+import {
+  extractionsCodex,
+  itemsCodex,
+  recipeSelectionsCodex,
+  recipesCodex,
+} from "./gamedata/codex";
 import {
   parseReferenceKey,
   referenceKey,
@@ -52,12 +61,6 @@ const RARITY_RANK: Record<string, number> = {
   Mythic: 5,
 };
 
-/**
- * For a recipe that outputs multiple rarity variants of the same item,
- * compute the effective output per craft when targeting a specific rarity
- * "or higher". For example, if a recipe outputs 0.7 Common + 0.3 Uncommon,
- * targeting Common means any outcome is acceptable → effective output = 1.0.
- */
 function effectiveOutputPerCraft(
   recipe: CraftRecipe,
   targetKey: string,
@@ -71,7 +74,6 @@ function effectiveOutputPerCraft(
 
   const targetRank = RARITY_RANK[targetItem.rarity] ?? -1;
 
-  // Sum quantities of all outputs that are the same base item with equal or higher rarity
   let totalQuantity = 0;
   let foundTarget = false;
   for (const output of recipe.outputs) {
@@ -88,7 +90,6 @@ function effectiveOutputPerCraft(
     }
   }
 
-  // Fall back to exact match if we didn't find the target in our rarity scan
   if (!foundTarget || totalQuantity <= 0) {
     return (
       recipe.outputs.find((s) => referenceKey(s) === targetKey)?.quantity || 1
@@ -128,9 +129,7 @@ export interface CraftStep {
   inputs: StepInput[];
   outputs: StepOutput[];
   depth: number;
-  /** True if the player lacks the skill level for this recipe */
   missing_skill: boolean;
-  /** True if the player lacks the tool tier for this recipe */
   missing_tool: boolean;
 }
 
@@ -147,9 +146,7 @@ export interface RawMaterial {
   skill_requirements: { skill: string; level: number }[];
   tool_requirements: { tool: string; level: number }[];
   resource_sources: string[];
-  /** True if the player lacks the skill level for extraction */
   missing_skill: boolean;
-  /** True if the player lacks the tool tier for extraction */
   missing_tool: boolean;
 }
 
@@ -170,14 +167,36 @@ const MAX_DEPTH = 450;
 
 // ─── Main Function ─────────────────────────────────────────────────────────────
 
+function computePlayerTier(capabilities?: PlayerCapabilities): number {
+  if (!capabilities) return 10;
+  let tier = 10;
+  if (capabilities.hasSkillData) {
+    for (const level of capabilities.skills.values()) {
+      tier = Math.min(tier, Math.floor(level / 10));
+    }
+  }
+  if (capabilities.hasToolData) {
+    for (const t of capabilities.maxToolTiers.values()) {
+      tier = Math.min(tier, t);
+    }
+  }
+  return Math.max(0, Math.min(tier, 10));
+}
+
 export function buildCraftPlan(
   targets: CraftTarget[],
   inventory: Map<string, number>,
   capabilities?: PlayerCapabilities,
 ): CraftPlan {
   try {
-    const plan = buildPartialPlan(targets, inventory, 1, capabilities);
-    return plan.finalize(capabilities);
+    const playerTier = computePlayerTier(capabilities);
+    const builder = new PlanBuilder(
+      (key) => inventory.get(key) ?? 0,
+      capabilities,
+    );
+    for (const t of targets) builder.addTarget(t);
+    solve(builder, 1, playerTier);
+    return builder.finalize(inventory, capabilities);
   } catch (error) {
     console.error("Failed to build craft plan:", error);
     throw error;
@@ -189,142 +208,175 @@ export function buildPartialPlan(
   inventory: Map<string, number>,
   initialDepth = 1,
   capabilities?: PlayerCapabilities,
-): PartialPlan {
-  const plan = PartialPlan.empty(inventory, capabilities);
+): PlanBuilder {
+  const playerTier = computePlayerTier(capabilities);
+  const builder = new PlanBuilder(
+    (key) => inventory.get(key) ?? 0,
+    capabilities,
+  );
+  for (const t of targets) builder.addTarget(t);
+  solve(builder, initialDepth, playerTier);
+  return builder;
+}
 
-  for (const t of targets) {
-    plan.addTarget(t);
-  }
+// ─── Solver ───────────────────────────────────────────────────────────────────
 
-  let depth = initialDepth;
+function solve(
+  builder: PlanBuilder,
+  startDepth: number,
+  playerTier: number,
+): void {
+  let depth = startDepth;
+  let target: CraftTarget | null;
 
-  // Use delta() from the start so inventory is checked before resolving recipes.
-  // delta() subtracts targets from inventory, returning only unfulfilled items.
-  for (
-    let next = plan.delta(), [target, ...otherTargets] = next.targets;
-    ;
-    next = plan.delta(), [target, ...otherTargets] = next.targets
-  ) {
+  while ((target = builder.nextUnfulfilled()) !== null) {
     depth++;
-    if (!target) return plan;
 
-    if (depth > MAX_DEPTH) {
-      plan.addRaw(target.item_type, target.item_id, target.quantity);
+    if (depth > MAX_DEPTH || !Number.isSafeInteger(target.quantity)) {
+      builder.addRaw(target.item_type, target.item_id, target.quantity);
       continue;
     }
 
-    if (!Number.isSafeInteger(target.quantity)) {
-      plan.addRaw(target.item_type, target.item_id, target.quantity);
+    const targetKey = referenceKey(target);
+    const itemEntry = itemsCodex.get(targetKey);
+
+    if (!itemEntry || itemEntry.crafted_from.length === 0) {
+      builder.addRaw(target.item_type, target.item_id, target.quantity);
       continue;
     }
 
-    const key = referenceKey(target);
+    // Use precomputed recipe selection when available.
+    const selectedId =
+      recipeSelectionsCodex.get(targetKey)?.[Math.min(playerTier, 10)];
+    const recipe =
+      selectedId != null
+        ? recipesCodex.get(selectedId)
+        : itemEntry.crafted_from.length === 1
+          ? recipesCodex.get(itemEntry.crafted_from[0]!)
+          : null;
 
-    const itemEntry = itemsCodex.get(key);
-    if (!itemEntry) {
-      plan.addRaw(target.item_type, target.item_id, target.quantity);
+    if (recipe) {
+      const outputPerCraft = effectiveOutputPerCraft(recipe, targetKey);
+      builder.addRecipe(recipe, target.quantity / outputPerCraft, depth);
       continue;
     }
 
-    if (itemEntry.crafted_from.length === 0) {
-      plan.addRaw(target.item_type, target.item_id, target.quantity);
-      continue;
+    // Fallback: dynamic branch evaluation for items not in selections.
+    let cheapestBranch: PlanBuilder | null = null;
+    let cheapestEffort = Infinity;
+
+    for (const recipeId of itemEntry.crafted_from) {
+      const candidate = recipesCodex.get(recipeId)!;
+      const outputPerCraft = effectiveOutputPerCraft(candidate, targetKey);
+      const branch = builder.branchBuilder();
+      branch.addRecipe(candidate, target.quantity / outputPerCraft, depth);
+      solve(branch, depth, playerTier);
+      const effort = branch.totalEffort();
+      if (effort < cheapestEffort) {
+        cheapestEffort = effort;
+        cheapestBranch = branch;
+      }
     }
-    if (itemEntry.crafted_from.length === 1) {
-      const recipe = recipesCodex.get(itemEntry.crafted_from[0]!)!;
-      const outputPerCraft = effectiveOutputPerCraft(recipe, key);
 
-      plan.addRecipe(recipe, target.quantity / outputPerCraft, depth);
-
-      continue;
+    if (cheapestBranch) {
+      builder.mergeFrom(cheapestBranch);
     }
-
-    const branches = itemEntry.crafted_from.map((recipeId) => {
-      const recipe = recipesCodex.get(recipeId)!;
-      const outputPerCraft = effectiveOutputPerCraft(recipe, key);
-      const branchPlan = PartialPlan.empty(next.inventory, capabilities);
-
-      branchPlan.addRecipe(recipe, target.quantity / outputPerCraft, depth);
-
-      const branchNext = branchPlan.delta();
-      if (branchNext.targets.length === 0) return branchPlan;
-      branchPlan.addSubplan(
-        buildPartialPlan(
-          branchNext.targets,
-          branchNext.inventory,
-          depth + 1,
-          capabilities,
-        ),
-      );
-      return branchPlan;
-    });
-
-    const easiestPlan = branches.sort(
-      (a, b) => a.totalEffort() - b.totalEffort(),
-    )[0]!;
-    plan.addSubplan(easiestPlan);
   }
 }
 
-class PartialPlan {
-  targets = new Map<string, CraftTarget>();
-  recipes = new Map<
+// ─── PlanBuilder ──────────────────────────────────────────────────────────────
+
+type InventoryLookup = (key: string) => number;
+
+class PlanBuilder {
+  private readonly getInventory: InventoryLookup;
+  private readonly capabilities: PlayerCapabilities | undefined;
+
+  // Accumulated delta from the initial inventory. Positive = produced/gathered,
+  // negative = consumed. Only keys that have been touched are stored.
+  private ledger = new Map<string, number>();
+
+  // Items with a net-negative balance: key → deficit (positive number).
+  private queue = new Map<string, number>();
+
+  // Recipes committed to the plan.
+  private recipes = new Map<
     number,
-    {
-      recipe: CraftRecipe;
-      quantity: number;
-      depth: number;
-    }
+    { recipe: CraftRecipe; craftCount: number; depth: number }
   >();
-  rawMaterials = new Map<string, ItemStack>();
 
-  private constructor(
-    private inventory: ReadonlyMap<string, number>,
-    private capabilities: PlayerCapabilities | undefined,
-  ) {}
+  // Raw materials committed to the plan.
+  private rawMaterials = new Map<string, ItemStack>();
 
-  static empty(
-    inventory: ReadonlyMap<string, number>,
+  constructor(
+    getInventory: InventoryLookup,
     capabilities?: PlayerCapabilities,
-  ): PartialPlan {
-    return new this(inventory, capabilities);
+  ) {
+    this.getInventory = getInventory;
+    this.capabilities = capabilities;
   }
 
-  clone(): PartialPlan {
-    const other = PartialPlan.empty(this.inventory, this.capabilities);
-    other.targets = new Map(
-      this.targets.entries().map(([k, v]) => [k, { ...v }]),
-    );
-    other.recipes = new Map(
-      this.recipes.entries().map(([k, v]) => [k, { ...v }]),
-    );
-    other.rawMaterials = new Map(
-      this.rawMaterials.entries().map(([k, v]) => [k, { ...v }]),
-    );
-    return other;
+  private balance(key: string): number {
+    return this.getInventory(key) + (this.ledger.get(key) ?? 0);
   }
 
-  addTarget(target: CraftTarget) {
-    const key = referenceKey(target);
-    const existing = this.targets.get(key);
-    if (existing) {
-      existing.quantity += target.quantity;
+  private adjust(key: string, delta: number): void {
+    const newLedger = (this.ledger.get(key) ?? 0) + delta;
+    if (newLedger === 0) {
+      this.ledger.delete(key);
     } else {
-      this.targets.set(key, target);
+      this.ledger.set(key, newLedger);
+    }
+
+    const bal = this.getInventory(key) + newLedger;
+    if (bal < 0) {
+      this.queue.set(key, Math.ceil(-bal));
+    } else {
+      this.queue.delete(key);
     }
   }
 
-  addRecipe(recipe: CraftRecipe, quantity: number, depth: number) {
+  addTarget(target: CraftTarget): void {
+    this.adjust(referenceKey(target), -target.quantity);
+  }
+
+  addRecipe(recipe: CraftRecipe, quantity: number, depth: number): void {
+    const craftCount = Math.ceil(quantity);
     const existing = this.recipes.get(recipe.id);
+
     if (existing) {
-      existing.quantity += Math.ceil(quantity);
+      const oldCount = existing.craftCount;
+      existing.craftCount += craftCount;
       existing.depth = Math.max(existing.depth, depth);
+
+      for (const input of recipe.inputs) {
+        const oldDemand = Math.ceil(oldCount * input.quantity);
+        const newDemand = Math.ceil(existing.craftCount * input.quantity);
+        this.adjust(referenceKey(input), -(newDemand - oldDemand));
+      }
+      for (const output of recipe.outputs) {
+        const oldProd = Math.ceil(oldCount * output.quantity);
+        const newProd = Math.ceil(existing.craftCount * output.quantity);
+        this.adjust(referenceKey(output), newProd - oldProd);
+      }
     } else {
-      this.recipes.set(recipe.id, { recipe, quantity, depth });
+      this.recipes.set(recipe.id, { recipe, craftCount, depth });
+      for (const input of recipe.inputs) {
+        this.adjust(
+          referenceKey(input),
+          -Math.ceil(craftCount * input.quantity),
+        );
+      }
+      for (const output of recipe.outputs) {
+        this.adjust(
+          referenceKey(output),
+          Math.ceil(craftCount * output.quantity),
+        );
+      }
     }
   }
 
-  addRaw(itemType: ItemType, itemId: number, quantity: number) {
+  addRaw(itemType: ItemType, itemId: number, quantity: number): void {
     const key = `${itemType}:${itemId}`;
     const existing = this.rawMaterials.get(key);
     if (existing) {
@@ -337,108 +389,76 @@ class PartialPlan {
         quantity,
       });
     }
+    this.adjust(key, quantity);
   }
 
-  addSubplan(other: PartialPlan) {
-    for (const { recipe, quantity, depth } of other.recipes.values()) {
-      this.addRecipe(recipe, quantity, depth);
+  nextUnfulfilled(): CraftTarget | null {
+    for (const [key, deficit] of this.queue) {
+      return { ...parseReferenceKey(key), quantity: deficit };
     }
-    for (const material of other.rawMaterials.values()) {
+    return null;
+  }
+
+  branchBuilder(): PlanBuilder {
+    return new PlanBuilder(
+      (key) => Math.max(0, this.balance(key)),
+      this.capabilities,
+    );
+  }
+
+  mergeFrom(branch: PlanBuilder): void {
+    for (const { recipe, craftCount, depth } of branch.recipes.values()) {
+      this.addRecipe(recipe, craftCount, depth);
+    }
+    for (const material of branch.rawMaterials.values()) {
       this.addRaw(material.item_type, material.item_id, material.quantity);
     }
   }
 
-  delta(): {
-    inventory: Map<string, number>;
-    targets: CraftTarget[];
-  } {
-    const inv = new Map(this.inventory);
-    const add = (key: string, n: number) => {
-      inv.set(key, (inv.get(key) ?? 0) + n);
-    };
-
-    for (const [key, { quantity }] of this.targets.entries()) {
-      add(key, -quantity);
-    }
-
-    for (const { recipe, quantity } of this.recipes.values()) {
-      for (const input of recipe.inputs) {
-        add(referenceKey(input), -Math.ceil(quantity * input.quantity));
-      }
-      for (const output of recipe.outputs) {
-        add(referenceKey(output), Math.ceil(quantity * output.quantity));
-      }
-    }
-
-    for (const [key, { quantity }] of this.rawMaterials.entries()) {
-      add(key, Math.ceil(quantity));
-    }
-
-    const result = {
-      inventory: new Map<string, number>(),
-      targets: [] as CraftTarget[],
-    };
-
-    for (const [key, value] of inv.entries()) {
-      if (value < 0) {
-        result.targets.push({
-          ...parseReferenceKey(key),
-          quantity: Math.ceil(-value),
-        });
-      } else if (value > 0) {
-        result.inventory.set(key, value);
-      }
-    }
-
-    return result;
-  }
-
   totalEffort(): number {
-    let totalEffort = 0;
-    for (const { recipe, quantity } of this.recipes.values()) {
-      let effort = quantity * recipe.effort;
+    let total = 0;
+    for (const { recipe, craftCount } of this.recipes.values()) {
+      let effort = craftCount * recipe.effort;
       if (
         !canMeetSkillRequirements(this.capabilities, recipe.requiredSkills) ||
         !canMeetToolRequirements(this.capabilities, recipe.requiredTool)
       ) {
         effort *= 100;
       }
-      totalEffort += effort;
+      total += effort;
     }
     for (const material of this.rawMaterials.values()) {
       const key = referenceKey(material);
       const item = itemsCodex.get(key)!;
       const quantitiesPerStrike = item.extracted_from.map((recipeId) => {
         const recipe = extractionsCodex.get(recipeId)!;
-        const selfItem = recipe.outputs.find(
-          (output) => referenceKey(output) === key,
-        )!;
-        return selfItem.quantity;
+        return recipe.outputs.find((output) => referenceKey(output) === key)!
+          .quantity;
       });
-      const averageQuantityPerStrike =
+      const avgPerStrike =
         quantitiesPerStrike.length === 0
           ? 1
           : quantitiesPerStrike.reduce((a, b) => a + b) /
             quantitiesPerStrike.length;
-      let effort = material.quantity / averageQuantityPerStrike;
-      // Apply 100x penalty if any extraction recipe is unavailable
-      const anyExtractionUnavailable = item.extracted_from.some((recipeId) => {
+      let effort = material.quantity / avgPerStrike;
+      const anyUnavailable = item.extracted_from.some((recipeId) => {
         const recipe = extractionsCodex.get(recipeId)!;
         return (
           !canMeetSkillRequirements(this.capabilities, recipe.requiredSkills) ||
           !canMeetToolRequirements(this.capabilities, recipe.requiredTool)
         );
       });
-      if (anyExtractionUnavailable) {
-        effort *= 100;
-      }
-      totalEffort += effort;
+      if (anyUnavailable) effort *= 100;
+      total += effort;
     }
-    return totalEffort;
+    return total;
   }
 
-  finalize(capabilities?: PlayerCapabilities): CraftPlan {
-    const available = new Map(this.inventory);
+  finalize(
+    inventory: ReadonlyMap<string, number>,
+    capabilities?: PlayerCapabilities,
+  ): CraftPlan {
+    const available = new Map(inventory);
     const totalNeeded = new Map<string, number>();
     const plan: CraftPlan = {
       steps: [],
@@ -446,9 +466,9 @@ class PartialPlan {
       raw_materials: [],
     };
 
-    for (const { recipe, quantity, depth } of this.recipes.values()) {
+    for (const { recipe, craftCount, depth } of this.recipes.values()) {
       plan.steps.push({
-        craft_count: Math.ceil(quantity),
+        craft_count: craftCount,
         effort_per_craft: recipe.effort,
         recipe_id: recipe.id,
         recipe_name: recipe.name,
@@ -467,7 +487,7 @@ class PartialPlan {
         inputs: recipe.inputs.map((stack): StepInput => {
           const itemKey = referenceKey(stack);
           const totalAvailable = available.get(itemKey) ?? 0;
-          const needed = Math.ceil(stack.quantity * quantity);
+          const needed = Math.ceil(stack.quantity * craftCount);
           const used = Math.max(
             0,
             Math.min(Math.floor(totalAvailable), needed),
@@ -492,16 +512,12 @@ class PartialPlan {
       });
     }
 
-    // Topological sort: a step must come after all steps that produce its inputs.
-    // Uses the generic topologicalSort which handles cycles via Tarjan's SCC.
     plan.steps = topologicalSort(plan.steps, (a, b) => {
-      // Does a produce something b needs? → a before b
       for (const out of a.outputs) {
         for (const inp of b.inputs) {
           if (inp.item === out.item) return "a->b";
         }
       }
-      // Does b produce something a needs? → b before a
       for (const out of b.outputs) {
         for (const inp of a.inputs) {
           if (inp.item === out.item) return "b->a";
@@ -515,7 +531,7 @@ class PartialPlan {
     });
 
     for (const [key, material] of this.rawMaterials.entries()) {
-      const totalAvailable = this.inventory.get(key) ?? 0;
+      const totalAvailable = inventory.get(key) ?? 0;
       const needed = totalNeeded.get(key) ?? Math.ceil(material.quantity);
       const used = Math.max(0, Math.min(totalAvailable, needed));
       available.set(key, totalAvailable - needed);
@@ -523,12 +539,10 @@ class PartialPlan {
       const item = itemsCodex.get(key)!;
       const quantitiesPerStrike = item.extracted_from.map((recipeId) => {
         const recipe = extractionsCodex.get(recipeId)!;
-        const selfItem = recipe.outputs.find(
-          (output) => referenceKey(output) === key,
-        )!;
-        return selfItem.quantity;
+        return recipe.outputs.find((output) => referenceKey(output) === key)!
+          .quantity;
       });
-      const averageQuantityPerStrike =
+      const avgPerStrike =
         quantitiesPerStrike.length === 0
           ? 1
           : quantitiesPerStrike.reduce((a, b) => a + b) /
@@ -540,7 +554,7 @@ class PartialPlan {
         name: item.name,
         tier: item.tier,
         tag: item.tag || "",
-        likely_effort: Math.ceil(material.quantity / averageQuantityPerStrike),
+        likely_effort: Math.ceil(material.quantity / avgPerStrike),
         available: used,
         total_needed: needed,
         source: firstExtraction?.verb || "Obtain",
@@ -569,7 +583,7 @@ class PartialPlan {
           item_type: item.item_type,
           item_id: item.item_id,
           name: item.name,
-          quantity: this.inventory.get(inputKey) ?? 0,
+          quantity: inventory.get(inputKey) ?? 0,
         });
       }
     }

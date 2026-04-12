@@ -322,12 +322,156 @@ console.log(`${recipes.size} craft recipes`);
 console.log(`${extractions.size} extraction recipes`);
 console.log(`${toolItems.size} tool items`);
 
+// ─── Precompute recipe selections per tier ────────────────────────────────────
+
+const RARITY_RANK: Record<string, number> = {
+  Common: 0,
+  Uncommon: 1,
+  Rare: 2,
+  Epic: 3,
+  Legendary: 4,
+  Mythic: 5,
+};
+
+function computeRecipeTier(recipe: CraftRecipe): number {
+  let tier = recipe.requiredBuildingTier;
+  for (const s of recipe.requiredSkills)
+    tier = Math.max(tier, Math.floor(s.level / 10));
+  for (const t of recipe.requiredTool) tier = Math.max(tier, t.level);
+  return tier;
+}
+
+function localEffectiveOutput(recipe: CraftRecipe, targetKey: string): number {
+  const targetItem = items.get(targetKey);
+  if (!targetItem) {
+    return (
+      recipe.outputs.find((s) => referenceKey(s) === targetKey)?.quantity || 1
+    );
+  }
+  const targetRank = RARITY_RANK[targetItem.rarity] ?? -1;
+  let total = 0;
+  let found = false;
+  for (const output of recipe.outputs) {
+    const outItem = items.get(referenceKey(output));
+    if (
+      outItem &&
+      outItem.name === targetItem.name &&
+      (RARITY_RANK[outItem.rarity] ?? -1) >= targetRank
+    ) {
+      total += output.quantity;
+      if (referenceKey(output) === targetKey) found = true;
+    }
+  }
+  if (!found || total <= 0) {
+    return (
+      recipe.outputs.find((s) => referenceKey(s) === targetKey)?.quantity || 1
+    );
+  }
+  return total;
+}
+
+function chainEffort(
+  itemKey: string,
+  playerTier: number,
+  memo: Map<string, number>,
+): number {
+  const cached = memo.get(itemKey);
+  if (cached !== undefined) return cached;
+
+  const item = items.get(itemKey);
+  if (!item) {
+    memo.set(itemKey, 0);
+    return 0;
+  }
+
+  if (item.crafted_from.length === 0) {
+    let effort = 1;
+    for (const rid of item.extracted_from) {
+      const ext = extractions.get(rid);
+      if (!ext) continue;
+      let extTier = 0;
+      for (const s of ext.requiredSkills)
+        extTier = Math.max(extTier, Math.floor(s.level / 10));
+      for (const t of ext.requiredTool) extTier = Math.max(extTier, t.level);
+      if (extTier > playerTier) {
+        effort = 100;
+        break;
+      }
+    }
+    memo.set(itemKey, effort);
+    return effort;
+  }
+
+  // Guard against cycles
+  memo.set(itemKey, Infinity);
+
+  let best = Infinity;
+  for (const recipeId of item.crafted_from) {
+    const recipe = recipes.get(recipeId)!;
+    const recipeTier = computeRecipeTier(recipe);
+    const penalty = recipeTier > playerTier ? 100 : 1;
+    let effort = recipe.effort * penalty;
+    const outputPerCraft = localEffectiveOutput(recipe, itemKey);
+    for (const input of recipe.inputs) {
+      effort +=
+        (input.quantity / outputPerCraft) *
+        chainEffort(referenceKey(input), playerTier, memo);
+    }
+    best = Math.min(best, effort);
+  }
+
+  memo.set(itemKey, best);
+  return best;
+}
+
+// For each multi-recipe item, select the cheapest recipe at each tier 0-10.
+const recipeSelections = new Map<string, number[]>();
+let multiCount = 0;
+
+for (const [itemKey, item] of items.entries()) {
+  if (item.crafted_from.length <= 1) continue;
+  multiCount++;
+
+  const selections: number[] = [];
+  for (let tier = 0; tier <= 10; tier++) {
+    const memo = new Map<string, number>();
+    let bestId = item.crafted_from[0]!;
+    let bestEffort = Infinity;
+    for (const recipeId of item.crafted_from) {
+      const recipe = recipes.get(recipeId)!;
+      const recipeTier = computeRecipeTier(recipe);
+      const penalty = recipeTier > tier ? 100 : 1;
+      let effort = recipe.effort * penalty;
+      const outputPerCraft = localEffectiveOutput(recipe, itemKey);
+      for (const input of recipe.inputs) {
+        effort +=
+          (input.quantity / outputPerCraft) *
+          chainEffort(referenceKey(input), tier, memo);
+      }
+      if (effort < bestEffort) {
+        bestEffort = effort;
+        bestId = recipeId;
+      }
+    }
+    selections.push(bestId);
+  }
+
+  recipeSelections.set(itemKey, selections);
+}
+
+console.log(
+  `${multiCount} multi-recipe items → ${recipeSelections.size} recipe selections`,
+);
+
+// ─── Write codex ──────────────────────────────────────────────────────────────
+
 await Bun.file(encodedCodexFile).write(
   JSON.stringify({
     items: Array.from(items.entries()),
     recipes: Array.from(recipes.entries()),
     extractions: Array.from(extractions.entries()),
     toolItems: Array.from(toolItems.entries()),
+    recipeSelections: Array.from(recipeSelections.entries()),
   }),
 );
 
@@ -340,5 +484,6 @@ export const itemsCodex: Map<string, ItemEntry> = new Map((codex as any).items);
 export const recipesCodex: Map<number, CraftRecipe> = new Map((codex as any).recipes);
 export const extractionsCodex: Map<number, ExtractionRecipe> = new Map((codex as any).extractions);
 export const toolItemsCodex: Map<number, ToolItemEntry> = new Map((codex as any).toolItems ?? []);
+export const recipeSelectionsCodex: Map<string, number[]> = new Map((codex as any).recipeSelections ?? []);
 `.trim(),
 );

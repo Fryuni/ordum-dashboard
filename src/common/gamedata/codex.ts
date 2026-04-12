@@ -34,3 +34,6 @@ export const extractionsCodex: Map<number, ExtractionRecipe> = new Map(
 export const toolItemsCodex: Map<number, ToolItemEntry> = new Map(
   (codex as any).toolItems ?? [],
 );
+export const recipeSelectionsCodex: Map<string, number[]> = new Map(
+  (codex as any).recipeSelections ?? [],
+);
