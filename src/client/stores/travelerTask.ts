@@ -20,7 +20,7 @@ import { atom, computed, effect, onMount } from "nanostores";
 import { computedAsync } from "@nanostores/async";
 import { jita } from "../../common/api";
 import { getItemName, getSkillName } from "../../common/gamedata";
-import { buildCraftPlan } from "../../common/craft-planner";
+import { buildCraftPlanAsync } from "../workers/craftPlannerClient";
 import { $inventoryTotals } from "./craftSource";
 import { $playerInfo } from "./player";
 import { $updateTimer } from "../util-store";
@@ -197,6 +197,6 @@ export const $travelerCraftPlan = computedAsync(
   [$travelerTargets, $inventoryTotals],
   (targets, inventory) => {
     if (!targets || targets.length === 0) return null;
-    return buildCraftPlan(targets, inventory);
+    return buildCraftPlanAsync(targets, inventory);
   },
 );

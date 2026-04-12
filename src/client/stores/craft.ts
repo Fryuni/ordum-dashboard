@@ -20,7 +20,7 @@ import { atom, computed, effect, onMount } from "nanostores";
 import { computedAsync, type AsyncValue } from "@nanostores/async";
 import { persistentAtom } from "@nanostores/persistent";
 import { itemIndex, type IndexItem } from "../../common/itemIndex";
-import { buildCraftPlan } from "../../common/craft-planner";
+import { buildCraftPlanAsync } from "../workers/craftPlannerClient";
 import type { ItemReference } from "../../common/gamedata/definition";
 import { z } from "zod";
 import { $inventoryTotals, $inventorySource } from "./craftSource";
@@ -92,7 +92,9 @@ export const $canAdd = computed($selectedItem, (item) => item !== null);
 export const $craftPlan = computedAsync(
   [$targets, $inventoryTotals, $playerCapabilities],
   (targets, inventory, capabilities) =>
-    !targets.length ? null : buildCraftPlan(targets, inventory, capabilities),
+    !targets.length
+      ? null
+      : buildCraftPlanAsync(targets, inventory, capabilities),
 );
 
 // Re-export the AsyncValue type for components

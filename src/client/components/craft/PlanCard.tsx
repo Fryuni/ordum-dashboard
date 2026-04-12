@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { useState, useMemo } from "preact/hooks";
+import { useState, useMemo, useEffect } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
 import RawMaterials from "./RawMaterials";
 import CraftingSteps from "./CraftingSteps";
@@ -40,9 +40,15 @@ export default function PlanCard({
   const capabilities =
     capabilitiesAsync.state === "ready" ? capabilitiesAsync.value : undefined;
   const [nameFilter, setNameFilter] = useState("");
+  const [debouncedName, setDebouncedName] = useState("");
   const [tierFilter, setTierFilter] = useState("");
 
-  const hasFilters = nameFilter.trim().length > 0 || tierFilter !== "";
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedName(nameFilter), 150);
+    return () => clearTimeout(t);
+  }, [nameFilter]);
+
+  const hasFilters = debouncedName.trim().length > 0 || tierFilter !== "";
 
   // Collect all unique tiers from raw materials + step outputs
   const availableTiers = useMemo(() => {

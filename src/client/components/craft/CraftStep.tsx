@@ -16,11 +16,12 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
+import { memo } from "preact/compat";
 import type { CraftStep as Step } from "../../../common/craft-planner";
 import { nameWithRarity } from "../../../common/gamedata/helpers";
 import type { PlayerCapabilities } from "../../../common/player-capabilities";
 
-export default function CraftStep({
+function CraftStep({
   step,
   capabilities,
 }: {
@@ -121,3 +122,5 @@ export default function CraftStep({
     </div>
   );
 }
+
+export default memo(CraftStep);

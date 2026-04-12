@@ -36,11 +36,7 @@ import type {
   FunctionArgs,
   FunctionReturnType,
 } from "convex/server";
-
-export type SubState<T> =
-  | { state: "loading"; value?: undefined }
-  | { state: "ready"; value: T }
-  | { state: "failed"; value?: undefined; error: Error };
+import type { AsyncValue } from "@nanostores/async";
 
 /**
  * Subscribe to a Convex query with reactive arguments derived from
@@ -61,8 +57,8 @@ export function convexSub<
   deps: ReadableAtom[],
   queryFn: F,
   computeArgs: (...values: any[]) => FunctionArgs<F> | null,
-): ReadableAtom<SubState<T>> {
-  const $store: WritableAtom<SubState<T>> = atom({ state: "loading" });
+): ReadableAtom<AsyncValue<T>> {
+  const $store: WritableAtom<AsyncValue<T>> = atom({ state: "loading" });
 
   // A derived atom that serialises the current args (or null to skip)
   const $args = computed(deps, (...values) => computeArgs(...values));
@@ -71,11 +67,7 @@ export function convexSub<
     let unsub: (() => void) | null = null;
 
     const unwatch = $args.subscribe((args) => {
-      // Tear down previous subscription
-      if (unsub) {
-        unsub();
-        unsub = null;
-      }
+      unsub?.();
 
       if (args === null) {
         $store.set({ state: "loading" });
@@ -88,17 +80,17 @@ export function convexSub<
         queryFn,
         args,
         (result) => {
-          $store.set({ state: "ready", value: result as T });
+          $store.set({ state: "ready", value: result as T, changing: false });
         },
         (error) => {
-          $store.set({ state: "failed", error });
+          $store.set({ state: "failed", error, changing: false });
         },
       );
     });
 
     return () => {
       unwatch();
-      if (unsub) unsub();
+      unsub?.();
     };
   });
 

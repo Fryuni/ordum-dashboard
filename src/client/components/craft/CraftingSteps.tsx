@@ -33,8 +33,12 @@ export default function CraftingSteps({
     <div class="timeline-section">
       <h4>📋 Crafting Steps</h4>
       <div class="timeline">
-        {steps.map((step, i) => (
-          <CraftStep key={i} step={step} capabilities={capabilities} />
+        {steps.map((step) => (
+          <CraftStep
+            key={step.recipe_id}
+            step={step}
+            capabilities={capabilities}
+          />
         ))}
       </div>
     </div>
