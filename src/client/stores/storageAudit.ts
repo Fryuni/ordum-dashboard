@@ -22,6 +22,7 @@ import { useCapitalAsDefaultArray } from "./craftSource";
 import { convexAction } from "../convex";
 import { convexSub } from "./convexSub";
 import { api } from "../../../convex/_generated/api";
+import { computedAsync } from "@nanostores/async";
 
 // ─── Types (matching the Convex query response) ────────────────────────────
 
@@ -107,12 +108,7 @@ onMount($auditPage, () => {
 
 // ─── Data Store (real-time Convex subscription) ─────────────────────────────
 
-export const $auditData: ReturnType<
-  typeof convexSub<
-    typeof api.storageAudit.queryAudit,
-    StorageAuditResponse | null
-  >
-> = convexSub(
+export const $auditPageData = convexSub(
   [
     $auditClaims,
     $auditPlayers,
@@ -132,6 +128,21 @@ export const $auditData: ReturnType<
       to: dateTo || undefined,
       page,
       pageSize: PAGE_SIZE,
+    };
+  },
+);
+
+export const $auditChartData = convexSub(
+  [$auditClaims, $auditPlayers, $auditItems, $auditDateFrom, $auditDateTo],
+  api.storageAudit.auditChart,
+  (claims, players, items, dateFrom, dateTo) => {
+    if (!claims || claims.length === 0) return null;
+    return {
+      claimIds: claims,
+      playerEntityIds: players.length > 0 ? players : undefined,
+      itemKeys: items.length > 0 ? items : undefined,
+      from: dateFrom || undefined,
+      to: dateTo || undefined,
     };
   },
 );
@@ -158,16 +169,16 @@ export async function triggerSync() {
 
 // ─── Derived ────────────────────────────────────────────────────────────────
 
-export const $auditTotalPages = computed($auditData, (state) => {
-  if (state.state !== "ready" || !state.value) return 0;
-  return Math.ceil(state.value.totalCount / PAGE_SIZE);
+export const $auditTotalPages = computedAsync($auditPageData, (state) => {
+  return Math.ceil(state.totalCount / PAGE_SIZE);
 });
 
 /** Combined view state to minimize useStore calls in the component. */
-export const $auditView = computed(
-  [$auditData, $auditPage, $auditTotalPages],
-  (dataAsync, page, totalPages) => ({
-    dataAsync,
+export const $auditView = computedAsync(
+  [$auditPageData, $auditChartData, $auditPage, $auditTotalPages],
+  (pageData, chartData, page, totalPages) => ({
+    pageData,
+    chartData,
     page,
     totalPages,
   }),

@@ -251,7 +251,7 @@ export default function StorageAuditPage() {
   const selectedItems = useStore($auditItems);
   const dateFrom = useStore($auditDateFrom);
   const dateTo = useStore($auditDateTo);
-  const { dataAsync, page, totalPages } = useStore($auditView);
+  const viewDataAsync = useStore($auditView);
 
   const claimNameMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -259,9 +259,15 @@ export default function StorageAuditPage() {
     return m;
   }, [claims]);
 
-  const loading = dataAsync.state === "loading";
-  const error = dataAsync.state === "failed" ? String(dataAsync.error) : null;
-  const data = dataAsync.state === "ready" ? dataAsync.value : null;
+  const loading = viewDataAsync.state === "loading";
+  const error =
+    viewDataAsync.state === "failed" ? String(viewDataAsync.error) : null;
+  const {
+    pageData = null,
+    chartData = [],
+    page = 1,
+    totalPages = 1,
+  } = viewDataAsync.state === "ready" ? viewDataAsync.value : {};
 
   return (
     <div>
@@ -323,7 +329,7 @@ export default function StorageAuditPage() {
           <MultiSelect
             label="Player"
             placeholder="All Players"
-            options={(data?.players ?? []).map((p) => ({
+            options={(pageData?.players ?? []).map((p) => ({
               value: p.entityId,
               label: p.name,
             }))}
@@ -334,7 +340,7 @@ export default function StorageAuditPage() {
           <MultiSelect
             label="Item"
             placeholder="All Items"
-            options={(data?.items ?? []).map((item) => ({
+            options={(pageData?.items ?? []).map((item) => ({
               value: `${item.type}:${item.id}`,
               label: item.name,
             }))}
@@ -353,18 +359,18 @@ export default function StorageAuditPage() {
 
       {/* Chart */}
       <div class="planner-card" style="margin-bottom: 16px">
-        <StorageChart data={data?.chartData ?? []} />
+        <StorageChart data={chartData} />
       </div>
 
       {/* Table */}
-      {loading && !data ? (
+      {loading && !pageData ? (
         <div class="loading-container">
           <div class="spinner-wrap">
             <div class="spinner" />
             <span class="loading-text">Loading storage audit...</span>
           </div>
         </div>
-      ) : data ? (
+      ) : pageData ? (
         <>
           <div class="table-wrapper">
             <table class="modern-table">
@@ -381,7 +387,7 @@ export default function StorageAuditPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.logs.length === 0 && (
+                {pageData.logs.length === 0 && (
                   <tr>
                     <td
                       colSpan={8}
@@ -391,7 +397,7 @@ export default function StorageAuditPage() {
                     </td>
                   </tr>
                 )}
-                {data.logs.map((log) => (
+                {pageData.logs.map((log) => (
                   <tr key={log.id}>
                     <td style="color: var(--text-muted)">
                       {claimNameMap.get(log.claim_id) ?? log.claim_id}

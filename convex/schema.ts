@@ -35,6 +35,14 @@ export default defineSchema({
       "timestamp",
     ]),
 
+  storageAggregate: defineTable({
+    claimId: v.string(),
+    hour: v.string(),
+    playerEntityId: v.string(),
+    volume: v.number(),
+    net: v.number(),
+  }),
+
   // Tracks ingestion progress per building (migrated from D1 storage_fetch_state)
   storageFetchState: defineTable({
     claimId: v.string(),

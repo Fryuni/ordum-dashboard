@@ -26,13 +26,13 @@ export const queryAudit = query({
   handler: async (ctx, args) => {
     const { claimIds, playerEntityIds, itemKeys, from, to, page, pageSize } =
       args;
+
     if (claimIds.length === 0) {
       return {
         logs: [],
         totalCount: 0,
         page,
         pageSize,
-        chartData: [],
         players: [],
         items: [],
       };
@@ -126,40 +126,6 @@ export const queryAudit = query({
       timestamp: l.timestamp,
     }));
 
-    // Chart data: hourly aggregates (value = quantity × unit_value)
-    const bucketMap = new Map<
-      string,
-      { deposits: number; withdrawals: number }
-    >();
-    for (const l of filtered) {
-      const bucket = l.timestamp.slice(0, 13); // "YYYY-MM-DDTHH"
-      const entry = bucketMap.get(bucket) ?? { deposits: 0, withdrawals: 0 };
-      const value = l.quantity * l.unitValue;
-      if (l.action === "deposit") entry.deposits += value;
-      else entry.withdrawals += value;
-      bucketMap.set(bucket, entry);
-    }
-
-    const sortedBuckets = [...bucketMap.entries()].sort((a, b) =>
-      a[0].localeCompare(b[0]),
-    );
-    let cumulative = 0;
-    const chartData = sortedBuckets.map(
-      ([bucket, { deposits, withdrawals }]) => {
-        const net = deposits - withdrawals;
-        const cumOpen = cumulative;
-        cumulative += net;
-        return {
-          bucket,
-          deposits,
-          withdrawals,
-          net,
-          cumOpen,
-          cumClose: cumulative,
-        };
-      },
-    );
-
     // Distinct players for filter dropdown
     const playerMap = new Map<string, string>();
     for (const l of allLogs) {
@@ -195,10 +161,61 @@ export const queryAudit = query({
       totalCount,
       page,
       pageSize,
-      chartData,
       players,
       items,
     };
+  },
+});
+
+export const auditChart = query({
+  args: {
+    claimIds: v.array(v.string()),
+    playerEntityIds: v.optional(v.array(v.string())),
+    itemKeys: v.optional(v.array(v.string())),
+    from: v.optional(v.string()),
+    to: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { claimIds, playerEntityIds, itemKeys, from, to } = args;
+
+    console.log("TO be implemented");
+
+    // Chart data: hourly aggregates (value = quantity × unit_value)
+    const bucketMap = new Map<
+      string,
+      { deposits: number; withdrawals: number }
+    >();
+    for (const l of filtered) {
+      const bucket = l.timestamp.slice(0, 13); // "YYYY-MM-DDTHH"
+      const entry = bucketMap.get(bucket) ?? { deposits: 0, withdrawals: 0 };
+      const value = l.quantity * l.unitValue;
+      if (l.action === "deposit") entry.deposits += value;
+      else entry.withdrawals += value;
+      bucketMap.set(bucket, entry);
+    }
+
+    const sortedBuckets = [...bucketMap.entries()].sort((a, b) =>
+      a[0].localeCompare(b[0]),
+    );
+
+    let cumulative = 0;
+    const chartData = sortedBuckets.map(
+      ([bucket, { deposits, withdrawals }]) => {
+        const net = deposits - withdrawals;
+        const cumOpen = cumulative;
+        cumulative += net;
+        return {
+          bucket,
+          deposits,
+          withdrawals,
+          net,
+          cumOpen,
+          cumClose: cumulative,
+        };
+      },
+    );
+
+    return [];
   },
 });
 
