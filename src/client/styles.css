@@ -1201,6 +1201,20 @@ body {
   color: var(--text-muted);
   font-weight: 600;
 }
+.input-group input[type="date"] {
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  color-scheme: dark;
+  font-size: 13px;
+  min-height: 38px;
+  padding: 4px 8px;
+}
+.input-group input[type="date"]:focus {
+  border-color: var(--accent);
+  outline: none;
+}
 .player-search-container {
   position: relative;
   min-width: 200px;

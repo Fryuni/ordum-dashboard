@@ -35,13 +35,19 @@ export default defineSchema({
       "timestamp",
     ]),
 
-  storageAggregate: defineTable({
+  storageAuditAggregate: defineTable({
     claimId: v.string(),
-    hour: v.string(),
+    hour: v.string(), // "YYYY-MM-DDTHH" format
     playerEntityId: v.string(),
-    volume: v.number(),
-    net: v.number(),
-  }),
+    deposits: v.number(), // sum of (quantity * unitValue) for deposits
+    withdrawals: v.number(), // sum of (quantity * unitValue) for withdrawals
+  })
+    .index("by_claimId_and_hour", ["claimId", "hour"])
+    .index("by_claimId_and_playerEntityId_and_hour", [
+      "claimId",
+      "playerEntityId",
+      "hour",
+    ]),
 
   // Tracks ingestion progress per building (migrated from D1 storage_fetch_state)
   storageFetchState: defineTable({

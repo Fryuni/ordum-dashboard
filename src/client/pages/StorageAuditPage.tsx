@@ -37,6 +37,7 @@ import {
   $auditDateTo,
   $auditCursorStack,
   $auditView,
+  auditItemOptions,
   goToNextPage,
   goToPrevPage,
   goToFirstPage,
@@ -347,12 +348,10 @@ export default function StorageAuditPage() {
           <MultiSelect
             label="Item"
             placeholder="All Items"
-            options={(filterOptions?.items ?? []).map(
-              (item: { id: number; type: string; name: string }) => ({
-                value: `${item.type}:${item.id}`,
-                label: item.name,
-              }),
-            )}
+            options={auditItemOptions.map((item) => ({
+              value: `${item.type}:${item.id}`,
+              label: item.name,
+            }))}
             selected={selectedItems}
             onChange={(v) => $auditItems.set(v)}
           />

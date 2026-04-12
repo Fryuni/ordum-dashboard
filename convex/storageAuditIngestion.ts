@@ -293,6 +293,9 @@ async function doIngestForClaim(
     });
   }
 
+  // 8. Aggregate chart data for this claim
+  await ctx.runMutation(internal.storageAudit.aggregateChartData, { claimId });
+
   return true; // may have more stale buildings
 }
 

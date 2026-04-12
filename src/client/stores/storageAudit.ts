@@ -23,6 +23,7 @@ import { convexAction } from "../convex";
 import { convexSub } from "./convexSub";
 import { api } from "../../../convex/_generated/api";
 import { computedAsync } from "@nanostores/async";
+import { itemIndex } from "../../common/itemIndex";
 
 // ─── Types (matching the Convex query response) ────────────────────────────
 
@@ -58,7 +59,6 @@ export interface StorageAuditPageResponse {
 
 export interface StorageAuditFilterOptions {
   players: Array<{ entityId: string; name: string }>;
-  items: Array<{ id: number; type: string; name: string }>;
 }
 
 // ─── JSON persistent atom helper ────────────────────────────────────────────
@@ -166,17 +166,22 @@ export const $auditPageData = convexSub(
 );
 
 export const $auditFilterOptions = convexSub(
-  [$auditClaims, $auditDateFrom, $auditDateTo],
+  [$auditClaims],
   api.storageAudit.queryAuditFilterOptions,
-  (claims, dateFrom, dateTo) => {
+  (claims) => {
     if (!claims || claims.length === 0) return null;
-    return {
-      claimIds: claims,
-      from: dateFrom || undefined,
-      to: dateTo || undefined,
-    };
+    return { claimIds: claims };
   },
 );
+
+/** All game items for the item filter dropdown (static client-side data). */
+export const auditItemOptions = itemIndex
+  .map((item) => ({
+    id: item.item_id,
+    type: item.item_type,
+    name: item.name,
+  }))
+  .sort((a, b) => a.name.localeCompare(b.name));
 
 export const $auditChartData = convexSub(
   [$auditClaims, $auditPlayers, $auditItems, $auditDateFrom, $auditDateTo],
