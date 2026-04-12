@@ -17,7 +17,7 @@
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
 import { persistentAtom } from "@nanostores/persistent";
-import { atom, computed, onMount } from "nanostores";
+import { atom, onMount } from "nanostores";
 import { useCapitalAsDefaultArray } from "./craftSource";
 import { convexAction } from "../convex";
 import { convexSub } from "./convexSub";
@@ -50,12 +50,13 @@ export interface StorageAuditChartPoint {
   cumClose: number;
 }
 
-export interface StorageAuditResponse {
-  logs: StorageAuditLogRow[];
-  totalCount: number;
-  page: number;
-  pageSize: number;
-  chartData: StorageAuditChartPoint[];
+export interface StorageAuditPageResponse {
+  page: StorageAuditLogRow[];
+  isDone: boolean;
+  continueCursor: string;
+}
+
+export interface StorageAuditFilterOptions {
   players: Array<{ entityId: string; name: string }>;
   items: Array<{ id: number; type: string; name: string }>;
 }
@@ -90,35 +91,65 @@ export const $auditItems = persistentJsonAtom<string[]>("auditItems", []);
 export const $auditDateFrom = persistentAtom<string>("auditDateFrom", "");
 export const $auditDateTo = persistentAtom<string>("auditDateTo", "");
 
-export const $auditPage = atom(1);
+// ─── Cursor-based Pagination State ──────────────────────────────────────────
 
 export const PAGE_SIZE = 50;
 
-// Reset page to 1 when any filter changes
-onMount($auditPage, () => {
+/** Current page cursor (null = first page). */
+export const $auditCursor = atom<string | null>(null);
+
+/** Stack of previous cursors for back-navigation. */
+export const $auditCursorStack = atom<(string | null)[]>([]);
+
+// Reset cursor when any filter changes
+onMount($auditCursor, () => {
   const unsubs = [
     $auditClaims,
     $auditPlayers,
     $auditItems,
     $auditDateFrom,
     $auditDateTo,
-  ].map((store) => store.listen(() => $auditPage.set(1)));
+  ].map((store) =>
+    store.listen(() => {
+      $auditCursor.set(null);
+      $auditCursorStack.set([]);
+    }),
+  );
   return () => unsubs.forEach((u) => u());
 });
 
-// ─── Data Store (real-time Convex subscription) ─────────────────────────────
+// ─── Navigation ─────────────────────────────────────────────────────────────
+
+export function goToNextPage(continueCursor: string) {
+  $auditCursorStack.set([...$auditCursorStack.get(), $auditCursor.get()]);
+  $auditCursor.set(continueCursor);
+}
+
+export function goToPrevPage() {
+  const stack = $auditCursorStack.get();
+  if (stack.length === 0) return;
+  $auditCursor.set(stack[stack.length - 1]!);
+  $auditCursorStack.set(stack.slice(0, -1));
+}
+
+export function goToFirstPage() {
+  $auditCursor.set(null);
+  $auditCursorStack.set([]);
+}
+
+// ─── Data Stores (real-time Convex subscriptions) ─────────────────────────
 
 export const $auditPageData = convexSub(
   [
     $auditClaims,
     $auditPlayers,
     $auditItems,
-    $auditPage,
+    $auditCursor,
     $auditDateFrom,
     $auditDateTo,
   ],
-  api.storageAudit.queryAudit,
-  (claims, players, items, page, dateFrom, dateTo) => {
+  api.storageAudit.queryAuditPage,
+  (claims, players, items, cursor, dateFrom, dateTo) => {
     if (!claims || claims.length === 0) return null;
     return {
       claimIds: claims,
@@ -126,8 +157,23 @@ export const $auditPageData = convexSub(
       itemKeys: items.length > 0 ? items : undefined,
       from: dateFrom || undefined,
       to: dateTo || undefined,
-      page,
-      pageSize: PAGE_SIZE,
+      paginationOpts: {
+        numItems: PAGE_SIZE,
+        cursor,
+      },
+    };
+  },
+);
+
+export const $auditFilterOptions = convexSub(
+  [$auditClaims, $auditDateFrom, $auditDateTo],
+  api.storageAudit.queryAuditFilterOptions,
+  (claims, dateFrom, dateTo) => {
+    if (!claims || claims.length === 0) return null;
+    return {
+      claimIds: claims,
+      from: dateFrom || undefined,
+      to: dateTo || undefined,
     };
   },
 );
@@ -169,17 +215,12 @@ export async function triggerSync() {
 
 // ─── Derived ────────────────────────────────────────────────────────────────
 
-export const $auditTotalPages = computedAsync($auditPageData, (state) => {
-  return Math.ceil(state.totalCount / PAGE_SIZE);
-});
-
 /** Combined view state to minimize useStore calls in the component. */
 export const $auditView = computedAsync(
-  [$auditPageData, $auditChartData, $auditPage, $auditTotalPages],
-  (pageData, chartData, page, totalPages) => ({
+  [$auditPageData, $auditChartData, $auditFilterOptions],
+  (pageData, chartData, filterOptions) => ({
     pageData,
     chartData,
-    page,
-    totalPages,
+    filterOptions,
   }),
 );

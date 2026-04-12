@@ -10,159 +10,272 @@ import {
   internalAction,
 } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { paginationOptsValidator } from "convex/server";
+import type { Doc } from "./_generated/dataModel";
 
-// ─── Query: Paginated storage audit logs with chart data ────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────
 
-export const queryAudit = query({
+function transformLog(l: Doc<"storageLogs">) {
+  return {
+    id: l.logId,
+    claim_id: l.claimId,
+    player_entity_id: l.playerEntityId,
+    player_name: l.playerName,
+    building_name: l.buildingName,
+    item_type: l.itemType,
+    item_id: l.itemId,
+    item_name: l.itemName,
+    quantity: l.quantity,
+    unit_value: l.unitValue,
+    action: l.action,
+    timestamp: l.timestamp,
+  };
+}
+
+// ─── Query: Cursor-paginated storage audit logs ─────────────────────────────
+
+export const queryAuditPage = query({
   args: {
     claimIds: v.array(v.string()),
     playerEntityIds: v.optional(v.array(v.string())),
     itemKeys: v.optional(v.array(v.string())),
     from: v.optional(v.string()),
     to: v.optional(v.string()),
-    page: v.number(),
-    pageSize: v.number(),
+    paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    const { claimIds, playerEntityIds, itemKeys, from, to, page, pageSize } =
+    const { claimIds, playerEntityIds, itemKeys, from, to, paginationOpts } =
       args;
 
     if (claimIds.length === 0) {
       return {
-        logs: [],
-        totalCount: 0,
-        page,
-        pageSize,
-        players: [],
-        items: [],
+        page: [] as ReturnType<typeof transformLog>[],
+        isDone: true,
+        continueCursor: "",
       };
     }
 
-    // Query per-claim using index range bounds on timestamp to avoid
-    // unbounded table scans, then merge results across claims.
-    const MAX_LOGS_PER_CLAIM = 10_000;
     const fromTs = from ? from + "T00:00:00" : undefined;
     const toTs = to ? to + "T00:00:00" : undefined;
-    const allLogs: any[] = [];
+    const numItems = paginationOpts.numItems;
 
-    for (const claimId of claimIds) {
-      // Use the most specific index available, with timestamp bounds.
-      // Enumerate range combos explicitly for Convex's progressive type narrowing.
-      const useSinglePlayer =
-        playerEntityIds &&
-        playerEntityIds.length === 1 &&
-        (!itemKeys || itemKeys.length === 0);
+    // Pick the most specific index for the active filters.
+    const useSinglePlayer =
+      playerEntityIds != null && playerEntityIds.length === 1;
+    const useSingleItem =
+      itemKeys != null && itemKeys.length === 1 && !useSinglePlayer;
 
-      let q;
+    let singleItemType: string | undefined;
+    let singleItemId: number | undefined;
+    if (useSingleItem) {
+      const parts = itemKeys![0]!.split(":");
+      singleItemType = parts[0]!;
+      singleItemId = Number(parts[1]);
+    }
+
+    // Apply filters that the chosen index doesn't cover.
+    function applyInMemoryFilters(logs: Doc<"storageLogs">[]) {
+      let filtered = logs;
+      if (playerEntityIds && playerEntityIds.length > 0 && !useSinglePlayer) {
+        const playerSet = new Set(playerEntityIds);
+        filtered = filtered.filter((l) => playerSet.has(l.playerEntityId));
+      }
+      if (itemKeys && itemKeys.length > 0 && !useSingleItem) {
+        const parsed = itemKeys
+          .map((k) => k.split(":"))
+          .filter((parts): parts is [string, string] => parts.length === 2);
+        if (parsed.length > 0) {
+          filtered = filtered.filter((l) =>
+            parsed.some(
+              ([type, id]) => l.itemType === type && l.itemId === Number(id),
+            ),
+          );
+        }
+      }
+      return filtered;
+    }
+
+    // Build an indexed query for one claim, optionally capping the upper
+    // timestamp bound (used for multi-claim timestamp-based cursors).
+    function queryForClaim(claimId: string, upperTs?: string) {
+      const effectiveUpper =
+        upperTs && (!toTs || upperTs < toTs) ? upperTs : toTs;
+
       if (useSinglePlayer) {
-        q = ctx.db
+        return ctx.db
           .query("storageLogs")
           .withIndex("by_claimId_and_playerEntityId_and_timestamp", (idx) => {
             const base = idx
               .eq("claimId", claimId)
               .eq("playerEntityId", playerEntityIds![0]!);
-            if (fromTs && toTs)
-              return base.gte("timestamp", fromTs).lt("timestamp", toTs);
+            if (fromTs && effectiveUpper)
+              return base
+                .gte("timestamp", fromTs)
+                .lt("timestamp", effectiveUpper);
             if (fromTs) return base.gte("timestamp", fromTs);
-            if (toTs) return base.lt("timestamp", toTs);
-            return base;
-          });
-      } else {
-        q = ctx.db
-          .query("storageLogs")
-          .withIndex("by_claimId_and_timestamp", (idx) => {
-            const base = idx.eq("claimId", claimId);
-            if (fromTs && toTs)
-              return base.gte("timestamp", fromTs).lt("timestamp", toTs);
-            if (fromTs) return base.gte("timestamp", fromTs);
-            if (toTs) return base.lt("timestamp", toTs);
+            if (effectiveUpper) return base.lt("timestamp", effectiveUpper);
             return base;
           });
       }
 
-      const logs = await q.order("desc").take(MAX_LOGS_PER_CLAIM);
+      if (useSingleItem) {
+        return ctx.db
+          .query("storageLogs")
+          .withIndex(
+            "by_claimId_and_itemType_and_itemId_and_timestamp",
+            (idx) => {
+              const base = idx
+                .eq("claimId", claimId)
+                .eq("itemType", singleItemType!)
+                .eq("itemId", singleItemId!);
+              if (fromTs && effectiveUpper)
+                return base
+                  .gte("timestamp", fromTs)
+                  .lt("timestamp", effectiveUpper);
+              if (fromTs) return base.gte("timestamp", fromTs);
+              if (effectiveUpper) return base.lt("timestamp", effectiveUpper);
+              return base;
+            },
+          );
+      }
+
+      return ctx.db
+        .query("storageLogs")
+        .withIndex("by_claimId_and_timestamp", (idx) => {
+          const base = idx.eq("claimId", claimId);
+          if (fromTs && effectiveUpper)
+            return base
+              .gte("timestamp", fromTs)
+              .lt("timestamp", effectiveUpper);
+          if (fromTs) return base.gte("timestamp", fromTs);
+          if (effectiveUpper) return base.lt("timestamp", effectiveUpper);
+          return base;
+        });
+    }
+
+    // ── Single claim — use Convex .paginate() for precise cursors ──────
+    if (claimIds.length === 1) {
+      const claimId = claimIds[0]!;
+
+      // Unwrap cursor: we wrap the Convex opaque cursor in a JSON envelope
+      // so both single-claim and multi-claim cursors share the same string
+      // type at the API boundary.
+      let innerCursor: string | null = null;
+      if (paginationOpts.cursor !== null) {
+        innerCursor = JSON.parse(paginationOpts.cursor).c;
+      }
+
+      const result = await queryForClaim(claimId)
+        .order("desc")
+        .paginate({ numItems, cursor: innerCursor });
+
+      const filtered = applyInMemoryFilters(result.page);
+
+      return {
+        page: filtered.map(transformLog),
+        isDone: result.isDone,
+        continueCursor: JSON.stringify({ c: result.continueCursor }),
+      };
+    }
+
+    // ── Multi claim — timestamp-based cursor with .take() ─────────────
+    // For multiple claims we use the timestamp of the last displayed item
+    // as a sliding upper bound. This avoids the data-loss problem that
+    // would occur with opaque per-claim cursors (items from less-active
+    // claims would be permanently skipped when their cursor advances past
+    // items that weren't included in the merged page).
+    let lastTs: string | undefined;
+    if (paginationOpts.cursor !== null) {
+      lastTs = JSON.parse(paginationOpts.cursor).ts;
+    }
+
+    const allLogs: Doc<"storageLogs">[] = [];
+    let allExhausted = true;
+
+    for (const claimId of claimIds) {
+      const logs = await queryForClaim(claimId, lastTs)
+        .order("desc")
+        .take(numItems);
+      if (logs.length >= numItems) allExhausted = false;
       allLogs.push(...logs);
     }
 
-    // Apply in-memory filters for dimensions not covered by the index
-    let filtered = allLogs;
-
-    if (playerEntityIds && playerEntityIds.length > 0) {
-      const playerSet = new Set(playerEntityIds);
-      filtered = filtered.filter((l) => playerSet.has(l.playerEntityId));
-    }
-    if (itemKeys && itemKeys.length > 0) {
-      const parsed = itemKeys
-        .map((k) => k.split(":"))
-        .filter((parts): parts is [string, string] => parts.length === 2);
-      if (parsed.length > 0) {
-        filtered = filtered.filter((l) =>
-          parsed.some(
-            ([type, id]) => l.itemType === type && l.itemId === Number(id),
-          ),
-        );
-      }
-    }
-
-    // Sort by timestamp desc (may already be sorted per-claim, but not across claims)
+    let filtered = applyInMemoryFilters(allLogs);
     filtered.sort((a, b) => (b.timestamp > a.timestamp ? 1 : -1));
+    const pageItems = filtered.slice(0, numItems);
 
-    const totalCount = filtered.length;
+    const isDone = allExhausted && filtered.length <= numItems;
+    const lastItem = pageItems[pageItems.length - 1];
 
-    // Paginate
-    const offset = (page - 1) * pageSize;
-    const pagedLogs = filtered.slice(offset, offset + pageSize).map((l) => ({
-      id: l.logId,
-      claim_id: l.claimId,
-      player_entity_id: l.playerEntityId,
-      player_name: l.playerName,
-      building_name: l.buildingName,
-      item_type: l.itemType,
-      item_id: l.itemId,
-      item_name: l.itemName,
-      quantity: l.quantity,
-      unit_value: l.unitValue,
-      action: l.action,
-      timestamp: l.timestamp,
-    }));
+    return {
+      page: pageItems.map(transformLog),
+      isDone,
+      continueCursor: lastItem
+        ? JSON.stringify({ ts: lastItem.timestamp })
+        : "",
+    };
+  },
+});
 
-    // Distinct players for filter dropdown
-    const playerMap = new Map<string, string>();
-    for (const l of allLogs) {
-      if (!playerMap.has(l.playerEntityId)) {
-        playerMap.set(l.playerEntityId, l.playerName);
-      }
+// ─── Query: Filter-option data for dropdowns (decoupled from pagination) ──
+
+export const queryAuditFilterOptions = query({
+  args: {
+    claimIds: v.array(v.string()),
+    from: v.optional(v.string()),
+    to: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const { claimIds, from, to } = args;
+
+    if (claimIds.length === 0) {
+      return { players: [], items: [] };
     }
-    const players = [...playerMap.entries()]
-      .map(([entityId, name]) => ({ entityId, name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
 
-    // Distinct items for filter dropdown
+    const fromTs = from ? from + "T00:00:00" : undefined;
+    const toTs = to ? to + "T00:00:00" : undefined;
+    const SCAN_LIMIT = 10_000;
+
+    const playerMap = new Map<string, string>();
     const itemMap = new Map<
       string,
       { id: number; type: string; name: string }
     >();
-    for (const l of allLogs) {
-      const key = `${l.itemType}:${l.itemId}`;
-      if (!itemMap.has(key)) {
-        itemMap.set(key, {
-          id: l.itemId,
-          type: l.itemType,
-          name: l.itemName,
-        });
+
+    for (const claimId of claimIds) {
+      const logs = await ctx.db
+        .query("storageLogs")
+        .withIndex("by_claimId_and_timestamp", (idx) => {
+          const base = idx.eq("claimId", claimId);
+          if (fromTs && toTs)
+            return base.gte("timestamp", fromTs).lt("timestamp", toTs);
+          if (fromTs) return base.gte("timestamp", fromTs);
+          if (toTs) return base.lt("timestamp", toTs);
+          return base;
+        })
+        .order("desc")
+        .take(SCAN_LIMIT);
+
+      for (const l of logs) {
+        if (!playerMap.has(l.playerEntityId)) {
+          playerMap.set(l.playerEntityId, l.playerName);
+        }
+        const key = `${l.itemType}:${l.itemId}`;
+        if (!itemMap.has(key)) {
+          itemMap.set(key, {
+            id: l.itemId,
+            type: l.itemType,
+            name: l.itemName,
+          });
+        }
       }
     }
-    const items = [...itemMap.values()].sort((a, b) =>
-      a.name.localeCompare(b.name),
-    );
 
     return {
-      logs: pagedLogs,
-      totalCount,
-      page,
-      pageSize,
-      players,
-      items,
+      players: [...playerMap.entries()]
+        .map(([entityId, name]) => ({ entityId, name }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+      items: [...itemMap.values()].sort((a, b) => a.name.localeCompare(b.name)),
     };
   },
 });
@@ -175,46 +288,8 @@ export const auditChart = query({
     from: v.optional(v.string()),
     to: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
-    const { claimIds, playerEntityIds, itemKeys, from, to } = args;
-
-    console.log("TO be implemented");
-
-    // Chart data: hourly aggregates (value = quantity × unit_value)
-    const bucketMap = new Map<
-      string,
-      { deposits: number; withdrawals: number }
-    >();
-    for (const l of filtered) {
-      const bucket = l.timestamp.slice(0, 13); // "YYYY-MM-DDTHH"
-      const entry = bucketMap.get(bucket) ?? { deposits: 0, withdrawals: 0 };
-      const value = l.quantity * l.unitValue;
-      if (l.action === "deposit") entry.deposits += value;
-      else entry.withdrawals += value;
-      bucketMap.set(bucket, entry);
-    }
-
-    const sortedBuckets = [...bucketMap.entries()].sort((a, b) =>
-      a[0].localeCompare(b[0]),
-    );
-
-    let cumulative = 0;
-    const chartData = sortedBuckets.map(
-      ([bucket, { deposits, withdrawals }]) => {
-        const net = deposits - withdrawals;
-        const cumOpen = cumulative;
-        cumulative += net;
-        return {
-          bucket,
-          deposits,
-          withdrawals,
-          net,
-          cumOpen,
-          cumClose: cumulative,
-        };
-      },
-    );
-
+  handler: async (_ctx, _args) => {
+    // TODO: implement chart aggregation
     return [];
   },
 });

@@ -28,10 +28,10 @@ export default defineSchema({
       "playerEntityId",
       "timestamp",
     ])
-    .index("by_claimId_and_item_and_timestamp", [
+    .index("by_claimId_and_itemType_and_itemId_and_timestamp", [
       "claimId",
-      "itemId",
       "itemType",
+      "itemId",
       "timestamp",
     ]),
 

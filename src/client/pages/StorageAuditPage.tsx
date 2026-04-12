@@ -35,8 +35,11 @@ import {
   $auditItems,
   $auditDateFrom,
   $auditDateTo,
-  $auditPage,
+  $auditCursorStack,
   $auditView,
+  goToNextPage,
+  goToPrevPage,
+  goToFirstPage,
 } from "../stores/storageAudit";
 import { MultiSelect } from "../components/MultiSelect";
 
@@ -252,6 +255,7 @@ export default function StorageAuditPage() {
   const dateFrom = useStore($auditDateFrom);
   const dateTo = useStore($auditDateTo);
   const viewDataAsync = useStore($auditView);
+  const cursorStack = useStore($auditCursorStack);
 
   const claimNameMap = useMemo(() => {
     const m = new Map<string, string>();
@@ -265,9 +269,10 @@ export default function StorageAuditPage() {
   const {
     pageData = null,
     chartData = [],
-    page = 1,
-    totalPages = 1,
+    filterOptions = null,
   } = viewDataAsync.state === "ready" ? viewDataAsync.value : {};
+
+  const pageNumber = cursorStack.length + 1;
 
   return (
     <div>
@@ -329,10 +334,12 @@ export default function StorageAuditPage() {
           <MultiSelect
             label="Player"
             placeholder="All Players"
-            options={(pageData?.players ?? []).map((p) => ({
-              value: p.entityId,
-              label: p.name,
-            }))}
+            options={(filterOptions?.players ?? []).map(
+              (p: { entityId: string; name: string }) => ({
+                value: p.entityId,
+                label: p.name,
+              }),
+            )}
             selected={selectedPlayers}
             onChange={(v) => $auditPlayers.set(v)}
           />
@@ -340,10 +347,12 @@ export default function StorageAuditPage() {
           <MultiSelect
             label="Item"
             placeholder="All Items"
-            options={(pageData?.items ?? []).map((item) => ({
-              value: `${item.type}:${item.id}`,
-              label: item.name,
-            }))}
+            options={(filterOptions?.items ?? []).map(
+              (item: { id: number; type: string; name: string }) => ({
+                value: `${item.type}:${item.id}`,
+                label: item.name,
+              }),
+            )}
             selected={selectedItems}
             onChange={(v) => $auditItems.set(v)}
           />
@@ -387,7 +396,7 @@ export default function StorageAuditPage() {
                 </tr>
               </thead>
               <tbody>
-                {pageData.logs.length === 0 && (
+                {pageData.page.length === 0 && (
                   <tr>
                     <td
                       colSpan={8}
@@ -397,7 +406,7 @@ export default function StorageAuditPage() {
                     </td>
                   </tr>
                 )}
-                {pageData.logs.map((log) => (
+                {pageData.page.map((log) => (
                   <tr key={log.id}>
                     <td style="color: var(--text-muted)">
                       {claimNameMap.get(log.claim_id) ?? log.claim_id}
@@ -430,38 +439,29 @@ export default function StorageAuditPage() {
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
+          {(pageNumber > 1 || !pageData.isDone) && (
             <div class="pagination">
               <button
                 class="pagination-btn"
-                disabled={page <= 1}
-                onClick={() => $auditPage.set(1)}
+                disabled={pageNumber <= 1}
+                onClick={() => goToFirstPage()}
               >
                 «
               </button>
               <button
                 class="pagination-btn"
-                disabled={page <= 1}
-                onClick={() => $auditPage.set(Math.max(1, page - 1))}
+                disabled={pageNumber <= 1}
+                onClick={() => goToPrevPage()}
               >
                 ‹
               </button>
-              <span class="pagination-info">
-                Page {page} of {totalPages}
-              </span>
+              <span class="pagination-info">Page {pageNumber}</span>
               <button
                 class="pagination-btn"
-                disabled={page >= totalPages}
-                onClick={() => $auditPage.set(Math.min(totalPages, page + 1))}
+                disabled={pageData.isDone}
+                onClick={() => goToNextPage(pageData.continueCursor)}
               >
                 ›
-              </button>
-              <button
-                class="pagination-btn"
-                disabled={page >= totalPages}
-                onClick={() => $auditPage.set(totalPages)}
-              >
-                »
               </button>
             </div>
           )}
