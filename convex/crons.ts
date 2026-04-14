@@ -6,7 +6,7 @@ const crons = cronJobs();
 // Storage audit ingestion — every 5 minutes
 crons.interval(
   "storage audit ingestion",
-  { minutes: 5 },
+  { minutes: 30 },
   internal.storageAuditIngestion.ingestAll,
   {},
 );
