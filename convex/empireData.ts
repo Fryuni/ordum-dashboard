@@ -358,6 +358,7 @@ export const getDashboardData = query({
         total_buildings: totalBuildings,
         total_tiles: totalTiles,
       },
+      empireId: info?.empireId ?? empireId,
       empireName: info?.name ?? "Unknown empire",
       hexite_reserve: info?.hexiteReserve ?? 0,
       capital_claim_entity_id: info?.capitalClaimId ?? null,

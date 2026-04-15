@@ -10,7 +10,6 @@
 
 import type * as auth from "../auth.js";
 import type * as crons from "../crons.js";
-import type * as empire from "../empire.js";
 import type * as empireData from "../empireData.js";
 import type * as empireSync from "../empireSync.js";
 import type * as http from "../http.js";
@@ -29,7 +28,6 @@ import type {
 declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   crons: typeof crons;
-  empire: typeof empire;
   empireData: typeof empireData;
   empireSync: typeof empireSync;
   http: typeof http;

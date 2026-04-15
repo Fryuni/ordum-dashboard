@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 
 const crons = cronJobs();
 
-// Storage audit ingestion — every 5 minutes
+// Storage audit ingestion
 crons.interval(
   "storage audit ingestion",
   { minutes: 30 },
@@ -11,7 +11,7 @@ crons.interval(
   {},
 );
 
-// Empire data sync — every 5 minutes
+// Empire data sync
 crons.interval(
   "empire data sync",
   { minutes: 30 },

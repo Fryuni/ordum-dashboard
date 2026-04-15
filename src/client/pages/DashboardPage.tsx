@@ -16,12 +16,12 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
-import { useEffect, useState } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
 import StatCard from "../components/StatCard";
-import { convexAction } from "../convex";
 import { convexSub } from "../stores/convexSub";
 import { api } from "../../../convex/_generated/api";
+import { computedAsync } from "@nanostores/async";
+import { computed } from "nanostores";
 
 const $dashboardData = convexSub(
   [],
@@ -29,16 +29,20 @@ const $dashboardData = convexSub(
   () => ({}),
 );
 
+const $onlineUsersAsync = computedAsync($dashboardData, async (data) => {
+  // TODO: Find an efficient way to get the number of online players.
+  //   BitJita has it on the UI, but not on the API:
+  //   https://bitjita.com/empires/379564/overview
+  return null;
+});
+
+const $onlineUsers = computed($onlineUsersAsync, (data) =>
+  data.state === "ready" ? data.value : null,
+);
+
 export default function DashboardPage() {
   const dataState = useStore($dashboardData);
-  const [onlineCount, setOnlineCount] = useState<number | null>(null);
-
-  // Fetch online count (the only live BitJita data)
-  useEffect(() => {
-    convexAction(api.empire.getOnlineCount, {})
-      .then((r) => setOnlineCount(r.onlineCount))
-      .catch((e) => console.error("Failed to fetch online count:", e));
-  }, []);
+  const onlineCount = useStore($onlineUsers);
 
   if (dataState.state === "failed") {
     return (
