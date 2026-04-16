@@ -4,6 +4,11 @@ import { v } from "convex/values";
 
 export default defineSchema({
   ...authTables,
+  userGameAccounts: defineTable({
+    userId: v.id("users"),
+    playerEntityId: v.string(),
+  }),
+
   // ─── Storage Audit ──────────────────────────────────────────────────────────
   // Migrated from D1 storage_logs table
   storageLogs: defineTable({
@@ -136,6 +141,66 @@ export default defineSchema({
     isPassive: v.boolean(),
     syncedAt: v.number(),
   }).index("by_claimId", ["claimId"]),
+
+  // ─── Bounty Board ───────────────────────────────────────────────────────────
+
+  // Empire-wide goals (managed by capital officers)
+  empireGoals: defineTable({
+    empireId: v.string(),
+    title: v.string(),
+    description: v.optional(v.string()),
+    items: v.array(
+      v.object({
+        itemType: v.string(), // "Item" | "Cargo"
+        itemId: v.number(),
+        quantity: v.number(),
+      }),
+    ),
+    createdBy: v.id("users"),
+    status: v.string(), // "open" | "completed"
+    createdAt: v.number(),
+  })
+    .index("by_empireId_and_status", ["empireId", "status"])
+    .index("by_empireId", ["empireId"]),
+
+  // Claim-specific goals (managed by claim officers)
+  claimGoals: defineTable({
+    claimId: v.string(),
+    title: v.string(),
+    description: v.optional(v.string()),
+    items: v.array(
+      v.object({
+        itemType: v.string(),
+        itemId: v.number(),
+        quantity: v.number(),
+      }),
+    ),
+    createdBy: v.id("users"),
+    status: v.string(), // "open" | "completed"
+    createdAt: v.number(),
+  })
+    .index("by_claimId_and_status", ["claimId", "status"])
+    .index("by_claimId", ["claimId"]),
+
+  // Player-posted bounties with hex coin rewards
+  bountyEntries: defineTable({
+    userId: v.id("users"),
+    playerName: v.string(),
+    title: v.string(),
+    description: v.optional(v.string()),
+    items: v.array(
+      v.object({
+        itemType: v.string(),
+        itemId: v.number(),
+        quantity: v.number(),
+      }),
+    ),
+    priceHex: v.number(),
+    status: v.string(), // "open" | "closed"
+    createdAt: v.number(),
+  })
+    .index("by_status", ["status"])
+    .index("by_userId_and_status", ["userId", "status"]),
 
   // Active construction projects in a claim
   constructionProjects: defineTable({

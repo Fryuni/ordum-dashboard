@@ -23,7 +23,11 @@ import { itemIndex, type IndexItem } from "../../common/itemIndex";
 import { buildCraftPlanAsync } from "../workers/craftPlannerClient";
 import type { ItemReference } from "../../common/gamedata/definition";
 import { z } from "zod";
-import { $inventoryTotals, setSourcesForClaim } from "./craftSource";
+import {
+  $inventoryTotals,
+  setSourcesForClaim,
+  clearSources,
+} from "./craftSource";
 import { $playerCapabilities } from "./playerCapabilities";
 import { convexQuery } from "../convex";
 import { api } from "../../../convex/_generated/api";
@@ -189,6 +193,10 @@ const $importedTargets = computedAsync(
     if (route?.route !== "craft") {
       $loadedTargets.set(false);
       return;
+    }
+
+    if (route.search.inv === "none") {
+      clearSources();
     }
 
     const { targets } = route.search;

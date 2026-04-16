@@ -30,6 +30,9 @@ import TravelerTaskPage from "./pages/TravelerTaskPage";
 import ConstructionPage from "./pages/ConstructionPage";
 import StorageAuditPage from "./pages/StorageAuditPage";
 import InventorySearchPage from "./pages/InventorySearchPage";
+import BountyBoardPage from "./pages/BountyBoardPage";
+import ManageEmpireGoalsPage from "./pages/ManageEmpireGoalsPage";
+import ManageClaimGoalsPage from "./pages/ManageClaimGoalsPage";
 
 // ─── Sign-In Page ──────────────────────────────────────────────────────────
 
@@ -221,6 +224,9 @@ type RouteName =
   | "travelerTask"
   | "storageAudit"
   | "inventorySearch"
+  | "bountyBoard"
+  | "manageEmpireGoals"
+  | "manageClaimGoals"
   | "signIn";
 
 function PageContent({ route }: { route: RouteName | null }) {
@@ -239,6 +245,12 @@ function PageContent({ route }: { route: RouteName | null }) {
       return <StorageAuditPage />;
     case "inventorySearch":
       return <InventorySearchPage />;
+    case "bountyBoard":
+      return <BountyBoardPage />;
+    case "manageEmpireGoals":
+      return <ManageEmpireGoalsPage />;
+    case "manageClaimGoals":
+      return <ManageClaimGoalsPage />;
     case "signIn":
       return <SignInPage />;
     default:
@@ -280,6 +292,12 @@ const NAV_ITEMS = [
     label: "Traveler Tasks",
   },
   {
+    route: "bountyBoard" as const,
+    href: "/bounty-board",
+    icon: "📜",
+    label: "Bounty Board",
+  },
+  {
     route: "storageAudit" as const,
     href: "/storage-audit",
     icon: "🔍",
@@ -294,6 +312,58 @@ const NAV_ITEMS = [
 ];
 
 // ─── App ───────────────────────────────────────────────────────────────────
+
+function ManagementNav({ currentRoute }: { currentRoute: string | null }) {
+  const { isAuthenticated } = useConvexAuth();
+  const permissions = isAuthenticated
+    ? useQuery(api.bountyBoard.getUserPermissions)
+    : null;
+
+  if (!permissions) return null;
+
+  const items: Array<{
+    route: string;
+    href: string;
+    icon: string;
+    label: string;
+  }> = [];
+
+  if (permissions.isCapitalOfficer) {
+    items.push({
+      route: "manageEmpireGoals",
+      href: "/manage/empire-goals",
+      icon: "🎯",
+      label: "Empire Goals",
+    });
+  }
+
+  if (permissions.officerClaims.length > 0) {
+    items.push({
+      route: "manageClaimGoals",
+      href: "/manage/claim-goals",
+      icon: "🎯",
+      label: "Claim Goals",
+    });
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <div class="nav-section">
+      <div class="nav-section-label">Management</div>
+      {items.map((item) => (
+        <a
+          key={item.route}
+          href={item.href}
+          class={currentRoute === item.route ? "active" : ""}
+        >
+          <span class="icon">{item.icon}</span>
+          {item.label}
+        </a>
+      ))}
+    </div>
+  );
+}
 
 export default function App() {
   const page = useStore($router);
@@ -313,6 +383,7 @@ export default function App() {
               {item.label}
             </a>
           ))}
+          <ManagementNav currentRoute={page?.route ?? null} />
         </nav>
         <div class="sidebar-footer">
           <a

@@ -27,6 +27,9 @@ export const $router = createRouter({
   travelerTask: "/traveler-task",
   storageAudit: "/storage-audit",
   inventorySearch: "/inventory-search",
+  bountyBoard: "/bounty-board",
+  manageEmpireGoals: "/manage/empire-goals",
+  manageClaimGoals: "/manage/claim-goals",
   signIn: "/sign-in",
 });
 

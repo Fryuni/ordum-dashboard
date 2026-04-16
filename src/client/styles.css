@@ -102,6 +102,9 @@ body {
   flex-direction: column;
   padding: 12px 0;
   gap: 4px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 .nav a {
   display: flex;
@@ -2636,4 +2639,512 @@ button.profile-icon.authenticated:hover {
 .profile-dropdown-item:hover {
   background: var(--bg-surface-2);
   color: var(--text);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Bounty Board & Goals
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Nav Section (Management) ───────────────────────────────────────────── */
+.nav-section {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.nav-section-label {
+  padding: 4px 16px;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  font-weight: 700;
+  opacity: 0.6;
+}
+
+/* ─── Goals on Dashboard ─────────────────────────────────────────────────── */
+.goals-section {
+  margin-bottom: 16px;
+}
+.goals-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.goals-header h3 {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.goals-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+.goal-card {
+  background: linear-gradient(
+    135deg,
+    rgba(108, 140, 255, 0.08),
+    rgba(26, 31, 46, 0.6)
+  );
+  border: 1px solid rgba(108, 140, 255, 0.15);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.goal-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.goal-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+.goal-description {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.goal-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.goal-item-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.7rem;
+  color: var(--text);
+}
+.goal-item-qty {
+  color: var(--accent);
+  font-weight: 600;
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* ─── Craft Link Button ──────────────────────────────────────────────────── */
+.craft-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent-2);
+  background: rgba(255, 140, 108, 0.08);
+  border: 1px solid rgba(255, 140, 108, 0.2);
+  border-radius: 6px;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+.craft-link:hover {
+  background: rgba(255, 140, 108, 0.15);
+  border-color: rgba(255, 140, 108, 0.4);
+}
+
+/* ─── Pagination ─────────────────────────────────────────────────────────── */
+.pagination {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.pagination-btn {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 8px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.pagination-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--bg-surface-3);
+  border-color: var(--border-hover);
+}
+.pagination-btn.active {
+  background: var(--accent-glow);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 700;
+}
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ─── Inline Claim Goals (inside claim-bar) ──────────────────────────────── */
+.claim-goals-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.claim-goal-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.claim-goal-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-right: 4px;
+}
+
+/* ─── Bounty Board & Management Pages ────────────────────────────────────── */
+
+/* Shared dark-theme form input (used by bounty/goal forms & item picker) */
+.bb-input,
+.bb-textarea {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.8rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.bb-input:focus,
+.bb-textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.bb-textarea {
+  min-height: 64px;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+/* Section wrapper — matches planner-card style */
+.bb-section {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.bb-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.bb-section-header h2 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.bounty-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.bounty-card {
+  background: linear-gradient(145deg, var(--bg-surface), var(--bg-surface-2));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color 0.2s;
+}
+.bounty-card:hover {
+  border-color: var(--border-hover);
+}
+.bounty-card-closed {
+  opacity: 0.6;
+}
+.my-bounty-card {
+  border-color: rgba(108, 140, 255, 0.2);
+}
+
+.bounty-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.bounty-card-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.bounty-card-price {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(251, 191, 36, 0.1);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--accent-4);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.hex-icon {
+  font-size: 0.8rem;
+}
+.bounty-card-desc {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.bounty-card-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bounty-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.bounty-card-poster {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bounty-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.empty-state {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 24px;
+}
+
+.closed-bounties-details {
+  margin-top: 16px;
+}
+.closed-bounties-summary {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 8px 0;
+  user-select: none;
+}
+.closed-bounties-summary:hover {
+  color: var(--text);
+}
+
+/* ─── Buttons ────────────────────────────────────────────────────────────── */
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 7px 16px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+.btn-primary:hover {
+  opacity: 0.85;
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-secondary {
+  background: var(--bg-surface-3);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-secondary:hover {
+  border-color: var(--border-hover);
+  background: var(--bg-surface-2);
+}
+.btn-danger {
+  background: transparent;
+  color: var(--red);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-danger:hover {
+  background: rgba(248, 113, 113, 0.1);
+}
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ─── Forms ──────────────────────────────────────────────────────────────── */
+.bounty-form {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.form-field label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+.form-error {
+  color: var(--red);
+  font-size: 0.75rem;
+}
+.form-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+/* ─── Item Picker ────────────────────────────────────────────────────────── */
+.item-picker {
+  position: relative;
+}
+.item-picker-search {
+  position: relative;
+}
+.item-picker-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border-hover);
+  border-radius: 8px;
+  margin-top: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+.item-picker-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-align: left;
+}
+.item-picker-option:hover {
+  background: var(--bg-surface-3);
+}
+.item-picker-option-name {
+  flex: 1;
+}
+.item-picker-option-meta {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-left: 8px;
+}
+.item-picker-selected {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.item-picker-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+.item-picker-tag-name {
+  font-size: 0.75rem;
+  color: var(--text);
+}
+.item-picker-qty {
+  width: 50px;
+  background: var(--bg-surface-3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 0.7rem;
+  color: var(--text);
+  text-align: center;
+}
+.item-picker-qty:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+.item-picker-remove {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  padding: 0 2px;
+  line-height: 1;
+}
+.item-picker-remove:hover {
+  color: var(--red);
 }

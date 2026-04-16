@@ -63,6 +63,10 @@ export function setSourcesForClaim(claimId: string) {
   $inventorySources.set([`claim:${claimId}`]);
 }
 
+export function clearSources() {
+  $inventorySources.set([]);
+}
+
 // ─── Empire Claims (subscription-based) ──────────────────────────────────���─────
 
 const $empireClaimsData = convexSub(

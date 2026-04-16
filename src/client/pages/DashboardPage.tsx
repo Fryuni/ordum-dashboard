@@ -22,10 +22,19 @@ import { convexSub } from "../stores/convexSub";
 import { api } from "../../../convex/_generated/api";
 import { computedAsync } from "@nanostores/async";
 import { computed } from "nanostores";
+import { getItemName } from "../../common/gamedata";
+import type { ItemType } from "../../common/gamedata/definition";
+import CraftLink from "../components/CraftLink";
 
 const $dashboardData = convexSub(
   [],
   api.empireData.getDashboardData,
+  () => ({}),
+);
+
+const $dashboardGoals = convexSub(
+  [],
+  api.bountyBoard.getDashboardGoals,
   () => ({}),
 );
 
@@ -42,6 +51,7 @@ const $onlineUsers = computed($onlineUsersAsync, (data) =>
 
 export default function DashboardPage() {
   const dataState = useStore($dashboardData);
+  const goalsState = useStore($dashboardGoals);
   const onlineCount = useStore($onlineUsers);
 
   if (dataState.state === "failed") {
@@ -65,6 +75,7 @@ export default function DashboardPage() {
   }
 
   const empire = dataState.value;
+  const goals = goalsState.state === "ready" ? goalsState.value : null;
 
   return (
     <>
@@ -120,20 +131,75 @@ export default function DashboardPage() {
         />
       </div>
 
+      {goals && goals.empireGoals.length > 0 && (
+        <GoalsList title="Empire Goals" icon="🎯" goals={goals.empireGoals} />
+      )}
+
       {empire.claims.map((c: any) => (
         <ClaimSection
           key={c.entity_id}
           claim={c}
           isCapital={String(c.entity_id) === empire.capital_claim_entity_id}
+          goals={goals?.claimGoals[c.entity_id]}
         />
       ))}
     </>
   );
 }
 
+interface GoalItem {
+  _id: string;
+  title: string;
+  description?: string;
+  items: Array<{ itemType: string; itemId: number; quantity: number }>;
+}
+
+function GoalsList({
+  title,
+  icon,
+  goals,
+}: {
+  title: string;
+  icon: string;
+  goals: GoalItem[];
+}) {
+  return (
+    <div class="goals-section">
+      <div class="goals-header">
+        <span>{icon}</span>
+        <h3>{title}</h3>
+      </div>
+      <div class="goals-list">
+        {goals.map((goal) => (
+          <div key={goal._id} class="goal-card">
+            <div class="goal-card-header">
+              <div class="goal-title">{goal.title}</div>
+              <CraftLink items={goal.items} />
+            </div>
+            {goal.description && (
+              <div class="goal-description">{goal.description}</div>
+            )}
+            {goal.items.length > 0 && (
+              <div class="goal-items">
+                {goal.items.map((item, i) => (
+                  <span key={i} class="goal-item-tag">
+                    {getItemName(item.itemType as ItemType, item.itemId)}{" "}
+                    <span class="goal-item-qty">x{item.quantity}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ClaimSection({
   claim: c,
   isCapital,
+  goals,
 }: {
   claim: {
     entity_id: string;
@@ -147,6 +213,7 @@ function ClaimSection({
     member_count: number;
   };
   isCapital: boolean;
+  goals?: GoalItem[];
 }) {
   return (
     <div class="claim-section">
@@ -176,6 +243,22 @@ function ClaimSection({
             👥 <span>{c.member_count} members</span>
           </div>
         </div>
+        {goals && goals.length > 0 && (
+          <div class="claim-goals-inline">
+            {goals.map((goal) => (
+              <div key={goal._id} class="claim-goal-row">
+                <span class="claim-goal-label">🎯 {goal.title}</span>
+                <CraftLink items={goal.items} />
+                {goal.items.map((item, i) => (
+                  <span key={i} class="goal-item-tag">
+                    {getItemName(item.itemType as ItemType, item.itemId)}{" "}
+                    <span class="goal-item-qty">x{item.quantity}</span>
+                  </span>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

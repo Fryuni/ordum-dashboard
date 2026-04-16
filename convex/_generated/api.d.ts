@@ -8,7 +8,9 @@
  * @module
  */
 
+import type * as aggregates from "../aggregates.js";
 import type * as auth from "../auth.js";
+import type * as bountyBoard from "../bountyBoard.js";
 import type * as crons from "../crons.js";
 import type * as empireData from "../empireData.js";
 import type * as empireSync from "../empireSync.js";
@@ -26,7 +28,9 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  aggregates: typeof aggregates;
   auth: typeof auth;
+  bountyBoard: typeof bountyBoard;
   crons: typeof crons;
   empireData: typeof empireData;
   empireSync: typeof empireSync;
@@ -64,4 +68,7 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  openBountiesAggregate: import("@convex-dev/aggregate/_generated/component.js").ComponentApi<"openBountiesAggregate">;
+  myClosedBountiesAggregate: import("@convex-dev/aggregate/_generated/component.js").ComponentApi<"myClosedBountiesAggregate">;
+};
