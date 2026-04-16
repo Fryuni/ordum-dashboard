@@ -30,6 +30,7 @@ export const $router = createRouter({
   bountyBoard: "/bounty-board",
   manageEmpireGoals: "/manage/empire-goals",
   manageClaimGoals: "/manage/claim-goals",
+  manageUsers: "/manage/users",
   signIn: "/sign-in",
 });
 

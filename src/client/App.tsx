@@ -33,8 +33,13 @@ import InventorySearchPage from "./pages/InventorySearchPage";
 import BountyBoardPage from "./pages/BountyBoardPage";
 import ManageEmpireGoalsPage from "./pages/ManageEmpireGoalsPage";
 import ManageClaimGoalsPage from "./pages/ManageClaimGoalsPage";
+import UserManagementPage from "./pages/UserManagementPage";
 
 // ─── Sign-In Page ──────────────────────────────────────────────────────────
+
+// Email/password sign-in is only available in development; production users
+// all sign in via Discord so they can be linked to a Discord identity.
+const EMAIL_SIGN_IN_ENABLED = (import.meta as any).env?.DEV === true;
 
 function SignInPage() {
   const { signIn } = useAuthActions();
@@ -58,45 +63,57 @@ function SignInPage() {
         <div class="sign-in-brand">ORDUM</div>
         <p class="sign-in-subtitle">Empire Management Dashboard</p>
 
-        <form onSubmit={handleSubmit}>
-          <input
-            name="email"
-            type="email"
-            placeholder="Email"
-            required
-            class="sign-in-input"
-          />
-          <input
-            name="password"
-            type="password"
-            placeholder="Password"
-            required
-            class="sign-in-input"
-          />
-          <input name="flow" type="hidden" value={flow} />
-          <button type="submit" class="sign-in-btn primary" disabled={loading}>
-            {loading ? "..." : flow === "signIn" ? "Sign in" : "Create account"}
-          </button>
-        </form>
+        {EMAIL_SIGN_IN_ENABLED && (
+          <>
+            <form onSubmit={handleSubmit}>
+              <input
+                name="email"
+                type="email"
+                placeholder="Email"
+                required
+                class="sign-in-input"
+              />
+              <input
+                name="password"
+                type="password"
+                placeholder="Password"
+                required
+                class="sign-in-input"
+              />
+              <input name="flow" type="hidden" value={flow} />
+              <button
+                type="submit"
+                class="sign-in-btn primary"
+                disabled={loading}
+              >
+                {loading
+                  ? "..."
+                  : flow === "signIn"
+                    ? "Sign in"
+                    : "Create account"}
+              </button>
+            </form>
 
-        {error && <p class="sign-in-error">{error}</p>}
+            {error && <p class="sign-in-error">{error}</p>}
 
-        <button
-          type="button"
-          class="sign-in-toggle"
-          onClick={() => {
-            setFlow((f) => (f === "signIn" ? "signUp" : "signIn"));
-            setError(null);
-          }}
-        >
-          {flow === "signIn"
-            ? "Need an account? Sign up"
-            : "Already have an account? Sign in"}
-        </button>
+            <button
+              type="button"
+              class="sign-in-toggle"
+              onClick={() => {
+                setFlow((f) => (f === "signIn" ? "signUp" : "signIn"));
+                setError(null);
+              }}
+            >
+              {flow === "signIn"
+                ? "Need an account? Sign up"
+                : "Already have an account? Sign in"}
+            </button>
 
-        <div class="sign-in-divider">
-          <span>or</span>
-        </div>
+            <div class="sign-in-divider">
+              <span>or</span>
+            </div>
+          </>
+        )}
 
         <button
           type="button"
@@ -227,6 +244,7 @@ type RouteName =
   | "bountyBoard"
   | "manageEmpireGoals"
   | "manageClaimGoals"
+  | "manageUsers"
   | "signIn";
 
 function PageContent({ route }: { route: RouteName | null }) {
@@ -251,6 +269,8 @@ function PageContent({ route }: { route: RouteName | null }) {
       return <ManageEmpireGoalsPage />;
     case "manageClaimGoals":
       return <ManageClaimGoalsPage />;
+    case "manageUsers":
+      return <UserManagementPage />;
     case "signIn":
       return <SignInPage />;
     default:
@@ -343,6 +363,15 @@ function ManagementNav({ currentRoute }: { currentRoute: string | null }) {
       href: "/manage/claim-goals",
       icon: "🎯",
       label: "Claim Goals",
+    });
+  }
+
+  if (permissions.isAdmin) {
+    items.push({
+      route: "manageUsers",
+      href: "/manage/users",
+      icon: "👥",
+      label: "User Management",
     });
   }
 

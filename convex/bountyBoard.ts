@@ -79,12 +79,16 @@ export const getUserPermissions = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) return null;
 
+    const user = await ctx.db.get(userId);
+    const isAdmin = user?.isAdmin === true;
+
     const playerEntityIds = await getPlayerEntityIds(ctx, userId);
     if (playerEntityIds.length === 0)
       return {
         isEmpireMember: false,
         officerClaims: [],
         isCapitalOfficer: false,
+        isAdmin,
       };
 
     const memberships = [];
@@ -101,6 +105,7 @@ export const getUserPermissions = query({
         isEmpireMember: false,
         officerClaims: [],
         isCapitalOfficer: false,
+        isAdmin,
       };
     }
 
@@ -121,6 +126,7 @@ export const getUserPermissions = query({
       isEmpireMember: true,
       officerClaims: [...officerClaimsSet],
       isCapitalOfficer,
+      isAdmin,
     };
   },
 });

@@ -20,6 +20,7 @@ import type * as lib_compare from "../lib/compare.js";
 import type * as storageAudit from "../storageAudit.js";
 import type * as storageAuditIngestion from "../storageAuditIngestion.js";
 import type * as sync from "../sync.js";
+import type * as userManagement from "../userManagement.js";
 
 import type {
   ApiFromModules,
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   storageAudit: typeof storageAudit;
   storageAuditIngestion: typeof storageAuditIngestion;
   sync: typeof sync;
+  userManagement: typeof userManagement;
 }>;
 
 /**

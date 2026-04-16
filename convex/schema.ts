@@ -4,6 +4,21 @@ import { v } from "convex/values";
 
 export default defineSchema({
   ...authTables,
+  // Override the auth users table to add an isAdmin flag. Admins can manage
+  // user→in-game-character links on the User Management page.
+  users: defineTable({
+    name: v.optional(v.string()),
+    image: v.optional(v.string()),
+    email: v.optional(v.string()),
+    emailVerificationTime: v.optional(v.number()),
+    phone: v.optional(v.string()),
+    phoneVerificationTime: v.optional(v.number()),
+    isAnonymous: v.optional(v.boolean()),
+    isAdmin: v.optional(v.boolean()),
+  })
+    .index("email", ["email"])
+    .index("phone", ["phone"]),
+
   userGameAccounts: defineTable({
     userId: v.id("users"),
     playerEntityId: v.string(),
