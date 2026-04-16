@@ -1,6 +1,6 @@
 post_create:
   - "direnv allow || true"
   - bun install
-  - scripts/update-gamedata.sh || true
-  - bun run scripts/add-license-header.ts || true
-  - bun format || true
+  - scripts/update-gamedata.sh
+  - bun run scripts/add-license-headers.ts
+  - bun format
