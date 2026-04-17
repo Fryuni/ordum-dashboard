@@ -71,7 +71,10 @@ const FIXTURES = {
   // cost should dominate the plan's total effort.
   beginnersStudyJournal: lookupByName("Beginner's Study Journal"),
   beginnersStoneCarvings: lookupByName("Beginner's Stone Carvings"),
-  beginnersStoneDiagrams: lookupByName("Beginner's Stone Diagrams", "Legendary"),
+  beginnersStoneDiagrams: lookupByName(
+    "Beginner's Stone Diagrams",
+    "Legendary",
+  ),
   roughPlank: lookupByName("Rough Plank"),
   hexiteWoodFragment: lookupByName("Hexite Wood Fragment", "Rare"),
   waterBucket: lookupByName("Water Bucket"),
@@ -558,7 +561,9 @@ describe("buildCraftPlan: effort-aware recipe selection", () => {
   }
 
   function rawItemIds(plan: CraftPlan): Set<string> {
-    return new Set(plan.raw_materials.map((r) => `${r.item_type}:${r.item_id}`));
+    return new Set(
+      plan.raw_materials.map((r) => `${r.item_type}:${r.item_id}`),
+    );
   }
 
   test("Beginner's Study Journal uses Beginner's Stone Carvings, not Stone Diagrams", () => {

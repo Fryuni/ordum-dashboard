@@ -10,7 +10,7 @@ import Pagination from "../components/Pagination";
 export default function BountyBoardPage() {
   const { isAuthenticated } = useConvexAuth();
   const permissions = isAuthenticated
-    ? useQuery(api.bountyBoard.getUserPermissions)
+    ? useQuery(api.bountyBoard.getUserPermissions, {})
     : null;
   const myOpenBounties = isAuthenticated
     ? useQuery(api.bountyBoard.listMyOpenBounties)

@@ -30,11 +30,7 @@
  */
 
 import { topologicalSort } from "./topological-sort";
-import {
-  extractionsCodex,
-  itemsCodex,
-  recipesCodex,
-} from "./gamedata/codex";
+import { extractionsCodex, itemsCodex, recipesCodex } from "./gamedata/codex";
 import {
   referenceKey,
   type CraftRecipe,
@@ -267,20 +263,16 @@ const RARE_RANK_THRESHOLD = RARITY_RANK["Rare"]!; // Rare and above
  * the baseline acquisition cost — always cheaper than gathering fresh,
  * but still discouraging casual consumption of hard-to-get ingredients.
  */
-function resupplyCostPerUnit(
-  item: ItemEntry,
-  baseline: BaselineCache,
-): number {
+function resupplyCostPerUnit(item: ItemEntry, baseline: BaselineCache): number {
   const rank = RARITY_RANK[item.rarity] ?? 0;
   if (rank < RARE_RANK_THRESHOLD) return 0;
   return Math.max(0, baseline.effortPerUnit(referenceKey(item)) - 1);
 }
 
-function extractionRate(
-  recipe: ExtractionRecipe,
-  targetKey: string,
-): number {
-  return recipe.outputs.find((o) => referenceKey(o) === targetKey)?.quantity ?? 0;
+function extractionRate(recipe: ExtractionRecipe, targetKey: string): number {
+  return (
+    recipe.outputs.find((o) => referenceKey(o) === targetKey)?.quantity ?? 0
+  );
 }
 
 function extractionEffortPerUnit(
@@ -606,12 +598,11 @@ export function buildCraftPlan(
   const trees: PlanNode[] = [];
   for (const target of targets) {
     if (!Number.isFinite(target.quantity) || target.quantity <= 0) continue;
-    const tree = buildTree(
-      referenceKey(target),
-      target.quantity,
-      workingInv,
-      { baseline, capabilities, depth: 0 },
-    );
+    const tree = buildTree(referenceKey(target), target.quantity, workingInv, {
+      baseline,
+      capabilities,
+      depth: 0,
+    });
     trees.push(tree);
   }
   return linearize(trees, inventory, capabilities);
@@ -751,8 +742,7 @@ function linearize(
   const rawKeys = new Set<string>();
 
   for (const key of allDemandKeys) {
-    const demand =
-      (stepDemand.get(key) ?? 0) + (targetDemand.get(key) ?? 0);
+    const demand = (stepDemand.get(key) ?? 0) + (targetDemand.get(key) ?? 0);
     if (demand <= 0) continue;
     const produced = stepProduction.get(key) ?? 0;
     const netNeeded = Math.max(0, demand - produced);
@@ -784,7 +774,8 @@ function linearize(
       ? Math.ceil(Math.max(bestStrikesPerUnit, chosen.strikesPerUnit) * demand)
       : demand * PURCHASE_EFFORT_PER_UNIT;
 
-    const source = chosen?.recipe?.verb ?? (chosen?.recipe ? "Obtain" : "Obtain");
+    const source =
+      chosen?.recipe?.verb ?? (chosen?.recipe ? "Obtain" : "Obtain");
 
     rawMaterials.push({
       item_id: item.item_id,
@@ -931,4 +922,3 @@ function fallbackItem(stack: {
     extracted_from: [],
   };
 }
-

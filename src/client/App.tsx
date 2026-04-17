@@ -336,7 +336,7 @@ const NAV_ITEMS = [
 function ManagementNav({ currentRoute }: { currentRoute: string | null }) {
   const { isAuthenticated } = useConvexAuth();
   const permissions = isAuthenticated
-    ? useQuery(api.bountyBoard.getUserPermissions)
+    ? useQuery(api.bountyBoard.getUserPermissions, {})
     : null;
 
   if (!permissions) return null;

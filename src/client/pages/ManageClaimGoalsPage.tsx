@@ -32,7 +32,7 @@ export default function ManageClaimGoalsPage() {
   const completedState = useStore($completedClaimGoals);
   const { isAuthenticated } = useConvexAuth();
   const permissions = isAuthenticated
-    ? useQuery(api.bountyBoard.getUserPermissions)
+    ? useQuery(api.bountyBoard.getUserPermissions, {})
     : null;
 
   const [showForm, setShowForm] = useState(false);

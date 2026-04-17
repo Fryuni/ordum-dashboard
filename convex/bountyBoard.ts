@@ -63,10 +63,13 @@ async function isClaimOfficer(
   return false;
 }
 
-async function getCapitalClaimId(ctx: QueryCtx): Promise<string | null> {
+async function getCapitalClaimId(
+  ctx: QueryCtx,
+  empireId: string,
+): Promise<string | null> {
   const info = await ctx.db
     .query("empireInfo")
-    .withIndex("by_empireId", (q) => q.eq("empireId", ORDUM_EMPIRE_ID))
+    .withIndex("by_empireId", (q) => q.eq("empireId", empireId))
     .unique();
   return info?.capitalClaimId ?? null;
 }
@@ -74,8 +77,9 @@ async function getCapitalClaimId(ctx: QueryCtx): Promise<string | null> {
 // ─── User Permissions ─────────────────────────────────────────────────────────
 
 export const getUserPermissions = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { empireId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const empireId = args.empireId ?? ORDUM_EMPIRE_ID;
     const userId = await getAuthUserId(ctx);
     if (!userId) return null;
 
@@ -109,7 +113,7 @@ export const getUserPermissions = query({
       };
     }
 
-    const capitalClaimId = await getCapitalClaimId(ctx);
+    const capitalClaimId = await getCapitalClaimId(ctx, empireId);
     const officerClaimsSet = new Set<string>();
     let isCapitalOfficer = false;
 
@@ -164,13 +168,17 @@ export const getMyGameAccounts = query({
 // ─── Empire Goals ─────────────────────────────────────────────────────────────
 
 export const listEmpireGoals = query({
-  args: { status: v.optional(v.string()) },
+  args: {
+    empireId: v.optional(v.string()),
+    status: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
+    const empireId = args.empireId ?? ORDUM_EMPIRE_ID;
     const status = args.status ?? "open";
     return await ctx.db
       .query("empireGoals")
       .withIndex("by_empireId_and_status", (q) =>
-        q.eq("empireId", ORDUM_EMPIRE_ID).eq("status", status),
+        q.eq("empireId", empireId).eq("status", status),
       )
       .collect();
   },
@@ -178,6 +186,7 @@ export const listEmpireGoals = query({
 
 export const createEmpireGoal = mutation({
   args: {
+    empireId: v.optional(v.string()),
     title: v.string(),
     description: v.optional(v.string()),
     items: v.array(
@@ -189,13 +198,14 @@ export const createEmpireGoal = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    const empireId = args.empireId ?? ORDUM_EMPIRE_ID;
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
     const playerEntityIds = await getPlayerEntityIds(ctx, userId);
     if (playerEntityIds.length === 0) throw new Error("No game account linked");
 
-    const capitalClaimId = await getCapitalClaimId(ctx);
+    const capitalClaimId = await getCapitalClaimId(ctx, empireId);
     if (!capitalClaimId) throw new Error("No capital claim found");
 
     if (!(await isClaimOfficer(ctx, playerEntityIds, capitalClaimId))) {
@@ -203,7 +213,7 @@ export const createEmpireGoal = mutation({
     }
 
     return await ctx.db.insert("empireGoals", {
-      empireId: ORDUM_EMPIRE_ID,
+      empireId,
       title: args.title,
       description: args.description,
       items: args.items,
@@ -237,15 +247,15 @@ export const updateEmpireGoal = mutation({
     const playerEntityIds = await getPlayerEntityIds(ctx, userId);
     if (playerEntityIds.length === 0) throw new Error("No game account linked");
 
-    const capitalClaimId = await getCapitalClaimId(ctx);
+    const goal = await ctx.db.get(args.goalId);
+    if (!goal) throw new Error("Goal not found");
+
+    const capitalClaimId = await getCapitalClaimId(ctx, goal.empireId);
     if (!capitalClaimId) throw new Error("No capital claim found");
 
     if (!(await isClaimOfficer(ctx, playerEntityIds, capitalClaimId))) {
       throw new Error("Must be a capital officer to manage empire goals");
     }
-
-    const goal = await ctx.db.get(args.goalId);
-    if (!goal) throw new Error("Goal not found");
 
     const { goalId, ...updates } = args;
     const patch: Record<string, unknown> = {};
@@ -268,7 +278,10 @@ export const deleteEmpireGoal = mutation({
     const playerEntityIds = await getPlayerEntityIds(ctx, userId);
     if (playerEntityIds.length === 0) throw new Error("No game account linked");
 
-    const capitalClaimId = await getCapitalClaimId(ctx);
+    const goal = await ctx.db.get(args.goalId);
+    if (!goal) throw new Error("Goal not found");
+
+    const capitalClaimId = await getCapitalClaimId(ctx, goal.empireId);
     if (!capitalClaimId) throw new Error("No capital claim found");
 
     if (!(await isClaimOfficer(ctx, playerEntityIds, capitalClaimId))) {
@@ -645,19 +658,20 @@ export const backfillAggregates = internalMutation({
 // ─── Dashboard Goals (for embedding in dashboard) ─────────────────────────────
 
 export const getDashboardGoals = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { empireId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const empireId = args.empireId ?? ORDUM_EMPIRE_ID;
     const empireGoals = await ctx.db
       .query("empireGoals")
       .withIndex("by_empireId_and_status", (q) =>
-        q.eq("empireId", ORDUM_EMPIRE_ID).eq("status", "open"),
+        q.eq("empireId", empireId).eq("status", "open"),
       )
       .collect();
 
     // Get all claims for this empire to fetch claim goals
     const claims = await ctx.db
       .query("empireClaims")
-      .withIndex("by_empireId", (q) => q.eq("empireId", ORDUM_EMPIRE_ID))
+      .withIndex("by_empireId", (q) => q.eq("empireId", empireId))
       .collect();
 
     const claimGoalsMap: Record<
