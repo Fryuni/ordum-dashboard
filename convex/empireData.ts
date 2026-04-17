@@ -250,7 +250,7 @@ async function deleteByClaimId(
   const rows = await ctx.db
     .query(table)
     .withIndex("by_claimId", (q) => q.eq("claimId", claimId))
-    .collect();
+    .take(2000);
   for (const row of rows) {
     await ctx.db.delete(row._id);
   }

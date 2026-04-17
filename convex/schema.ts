@@ -122,6 +122,9 @@ export default defineSchema({
     syncedAt: v.number(),
   })
     .index("by_claimId", ["claimId"])
+    .searchIndex("by_userName", {
+      searchField: "userName",
+    })
     .index("by_claimId_and_playerEntityId", ["claimId", "playerEntityId"]),
 
   // Building inventories (one doc per building, excluding bank buildings)
