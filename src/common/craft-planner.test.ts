@@ -65,6 +65,18 @@ const FIXTURES = {
   // 0.7× Common + 0.3× Uncommon per craft, so 1 craft covers 1 Common target
   // via rarity promotion.
   astraliteAxeCommon: lookupByName("Astralite Axe", "Common"),
+
+  // Multi-recipe items that exercise effort-aware branch selection: the
+  // cheap-looking recipe uses a rare/legendary ingredient whose gathering
+  // cost should dominate the plan's total effort.
+  beginnersStudyJournal: lookupByName("Beginner's Study Journal"),
+  beginnersStoneCarvings: lookupByName("Beginner's Stone Carvings"),
+  beginnersStoneDiagrams: lookupByName("Beginner's Stone Diagrams", "Legendary"),
+  roughPlank: lookupByName("Rough Plank"),
+  hexiteWoodFragment: lookupByName("Hexite Wood Fragment", "Rare"),
+  waterBucket: lookupByName("Water Bucket"),
+  emptyBucket: lookupByName("Empty Bucket"),
+  winterSnow: lookupByName("Winter Snow"),
 };
 
 function key(ref: { item_type: ItemType; item_id: number }): string {
@@ -452,13 +464,16 @@ function assertPlanStructure(
   inventory: Map<string, number>,
   plan: CraftPlan,
 ) {
-  // 1. Every raw material is an un-craftable item.
+  // 1. Every raw material is gatherable: it must have at least one
+  //    extraction recipe. (It may ALSO have craft recipes — the planner
+  //    is free to prefer extraction when gathering is cheaper than the
+  //    crafting chain.)
   for (const raw of plan.raw_materials) {
     const entry = itemsCodex.get(key(raw));
     if (!entry) throw new Error(`raw material not in codex: ${key(raw)}`);
-    if (entry.crafted_from.length > 0) {
+    if (entry.extracted_from.length === 0 && entry.crafted_from.length > 0) {
       throw new Error(
-        `raw material ${entry.name} is craftable (has ${entry.crafted_from.length} recipes)`,
+        `raw material ${entry.name} has no extraction path but is craftable`,
       );
     }
   }
@@ -528,6 +543,172 @@ function assertPlanStructure(
     for (const out of step.outputs) seenOutputs.add(key(out.item));
   }
 }
+
+// ─── Effort-aware recipe selection ────────────────────────────────────────────
+
+/**
+ * These tests assert the planner's central new capability: when an item has
+ * multiple recipes, the chosen recipe must minimize *total* effort, not
+ * just the recipe's own effort. A cheap-looking recipe that pulls in a
+ * legendary-rarity ingredient should lose to a common alternative.
+ */
+describe("buildCraftPlan: effort-aware recipe selection", () => {
+  function stepRecipeIds(plan: CraftPlan): Set<number> {
+    return new Set(plan.steps.map((s) => s.recipe_id));
+  }
+
+  function rawItemIds(plan: CraftPlan): Set<string> {
+    return new Set(plan.raw_materials.map((r) => `${r.item_type}:${r.item_id}`));
+  }
+
+  test("Beginner's Study Journal uses Beginner's Stone Carvings, not Stone Diagrams", () => {
+    // Two recipes exist: one consumes common Stone Carvings (1.234/strike,
+    // Common), the other consumes legendary Stone Diagrams (0.008/strike,
+    // Legendary). The Diagram recipe has lower own-effort and a higher
+    // rarity-promoted output, but its Legendary input is prohibitively
+    // expensive to gather.
+    const targets = [asTarget(FIXTURES.beginnersStudyJournal, 1)];
+    const plan = buildCraftPlan(targets, new Map());
+
+    const raws = plan.raw_materials.map((r) => r.name);
+    expect(raws).toContain("Beginner's Stone Carvings");
+    expect(raws).not.toContain("Beginner's Stone Diagrams");
+
+    assertValidPlan(targets, new Map(), plan);
+  });
+
+  test("Stone Diagrams in inventory are used when available", () => {
+    // When the player already has the legendary ingredient, using it is
+    // cheaper than gathering common carvings from scratch.
+    const inv = new Map([[key(FIXTURES.beginnersStoneDiagrams), 1]]);
+    const targets = [asTarget(FIXTURES.beginnersStudyJournal, 1)];
+    const plan = buildCraftPlan(targets, inv);
+
+    assertValidPlan(targets, inv, plan);
+  });
+
+  test("Journal with both Stone Carvings and Stone Diagrams in inventory prefers Carvings", () => {
+    // Even when both options are on hand, consuming the Legendary Diagram
+    // carries a high resupply cost (baseline - 1 ≈ 6249) while the Common
+    // Carving has zero resupply cost. The planner should use the Carving.
+    const inv = new Map([
+      [key(FIXTURES.beginnersStoneCarvings), 5],
+      [key(FIXTURES.beginnersStoneDiagrams), 5],
+    ]);
+    const targets = [asTarget(FIXTURES.beginnersStudyJournal, 1)];
+    const plan = buildCraftPlan(targets, inv);
+
+    const raws = plan.raw_materials.map((r) => r.name);
+    expect(raws).not.toContain("Beginner's Stone Carvings");
+    expect(raws).not.toContain("Beginner's Stone Diagrams");
+
+    // Should have consumed Carvings, not Diagrams
+    const haveNames = plan.already_have.map((h) => h.name);
+    expect(haveNames).toContain("Beginner's Stone Carvings");
+
+    assertValidPlan(targets, inv, plan);
+  });
+
+  test("Rough Plank uses the Stripped Wood recipe and avoids Hexite Wood Fragment", () => {
+    // Two recipes: one outputs 1 Plank from Stripped Wood alone; the other
+    // outputs 2 Planks from Stripped Wood + 2 Rare Hexite Fragments. The
+    // Hexite recipe's lower effort-per-Plank looks tempting, but Hexite
+    // is dungeon-sourced and the rarity factor makes it prohibitive.
+    const targets = [asTarget(FIXTURES.roughPlank, 1)];
+    const plan = buildCraftPlan(targets, new Map());
+
+    expect(rawItemIds(plan).has(key(FIXTURES.hexiteWoodFragment))).toBe(false);
+    const stepNames = plan.steps.map((s) => s.recipe_name);
+    expect(stepNames).toContain("Craft Rough Plank");
+    assertValidPlan(targets, new Map(), plan);
+  });
+
+  test("Rough Plank with Hexite in inventory can use the Hexite recipe", () => {
+    // When the expensive ingredient is already on hand, its gathering
+    // cost vanishes — using it becomes the cheaper path per plank.
+    const inv = new Map([[key(FIXTURES.hexiteWoodFragment), 10]]);
+    const targets = [asTarget(FIXTURES.roughPlank, 1)];
+    const plan = buildCraftPlan(targets, inv);
+
+    // The plan should use inventory-covered Hexite, not gather fresh.
+    expect(rawItemIds(plan).has(key(FIXTURES.hexiteWoodFragment))).toBe(false);
+    assertValidPlan(targets, inv, plan);
+  });
+
+  test("Water Bucket uses Fill Water Bucket (Empty Bucket), not Boil Water Bucket (Winter Snow)", () => {
+    // Boil requires 3 Winter Snow per bucket. Snow's extraction rate is
+    // ~0.04/strike, so 3 Snow ≈ 70 strikes for a single bucket. Fill
+    // requires 1 Empty Bucket; even when the planner has to craft a full
+    // 10-bucket batch of Empty Buckets for just one Water Bucket, the
+    // amortized per-bucket cost still beats Boiling snow.
+    const targets = [asTarget(FIXTURES.waterBucket, 1)];
+    const plan = buildCraftPlan(targets, new Map());
+
+    const stepNames = plan.steps.map((s) => s.recipe_name);
+    expect(stepNames).toContain("Fill Water Bucket");
+    expect(stepNames).not.toContain("Boil Water Bucket");
+
+    const raws = plan.raw_materials.map((r) => r.name);
+    expect(raws).not.toContain("Winter Snow");
+    assertValidPlan(targets, new Map(), plan);
+  });
+
+  test("Water Bucket with Winter Snow in inventory uses Boil (cheaper when snow is free)", () => {
+    // When snow is already gathered, Boil (5 effort + free snow) beats
+    // Fill (1 effort + full bucket-crafting chain).
+    const inv = new Map([[key(FIXTURES.winterSnow), 10]]);
+    const targets = [asTarget(FIXTURES.waterBucket, 1)];
+    const plan = buildCraftPlan(targets, inv);
+
+    const stepNames = plan.steps.map((s) => s.recipe_name);
+    expect(stepNames).toContain("Boil Water Bucket");
+    assertValidPlan(targets, inv, plan);
+  });
+});
+
+// ─── Tree shape preservation ──────────────────────────────────────────────────
+
+describe("buildCraftPlan: plan.trees (tree preservation)", () => {
+  test("no targets produces no trees", () => {
+    const plan = buildCraftPlan([], new Map());
+    expect(plan.trees).toEqual([]);
+  });
+
+  test("one tree per target, in target order", () => {
+    const targets = [
+      asTarget(FIXTURES.flintAxe, 1),
+      asTarget(FIXTURES.simpleCharcoal, 1),
+    ];
+    const plan = buildCraftPlan(targets, new Map());
+    expect(plan.trees).toHaveLength(2);
+    // Each tree's root item should match the target (via ref key).
+    const rootKey = (n: unknown): string => {
+      const node = n as { kind: string; item: ItemEntry; sub?: unknown };
+      if (node.kind === "composite") return rootKey(node.sub);
+      return `${node.item.item_type}:${node.item.item_id}`;
+    };
+    expect(rootKey(plan.trees[0])).toBe(key(FIXTURES.flintAxe));
+    expect(rootKey(plan.trees[1])).toBe(key(FIXTURES.simpleCharcoal));
+  });
+
+  test("target in inventory produces a 'have' tree (no acquisition work)", () => {
+    const targets = [asTarget(FIXTURES.flintAxe, 1)];
+    const inv = new Map([[key(FIXTURES.flintAxe), 5]]);
+    const plan = buildCraftPlan(targets, inv);
+    expect(plan.trees).toHaveLength(1);
+    const root = plan.trees[0]! as { kind: string };
+    expect(root.kind).toBe("have");
+  });
+
+  test("craft tree roots have integer craftCount", () => {
+    const targets = [asTarget(FIXTURES.flintAxe, 1)];
+    const plan = buildCraftPlan(targets, new Map());
+    const root = plan.trees[0]! as { kind: string; craftCount?: number };
+    expect(root.kind).toBe("craft");
+    expect(Number.isInteger(root.craftCount)).toBe(true);
+    expect(root.craftCount!).toBeGreaterThanOrEqual(1);
+  });
+});
 
 describe("buildCraftPlan: Astralite Axe (Common) stress test", () => {
   const targets = [asTarget(FIXTURES.astraliteAxeCommon, 1)];
