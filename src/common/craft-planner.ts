@@ -139,12 +139,17 @@ export interface FulfilledItem extends ItemReference {
 
 // ─── Tree node types ──────────────────────────────────────────────────────────
 
-/** Quantity drawn from existing inventory — no acquisition work required. */
+/**
+ * Quantity drawn from existing inventory. For Rare+ items the effort is
+ * nonzero — it represents the resupply cost the player would eventually
+ * pay to replace what they're consuming, discounted by 1 so that
+ * inventory items are always preferred over fresh acquisition.
+ */
 export interface HaveNode {
   kind: "have";
   item: ItemEntry;
   quantity: number;
-  effort: 0;
+  effort: number;
 }
 
 /** Gather `quantity` of `item` via a single extraction recipe. */
@@ -252,6 +257,23 @@ function effectiveOutputPerCraft(
     );
   }
   return total;
+}
+
+const RARE_RANK_THRESHOLD = RARITY_RANK["Rare"]!; // Rare and above
+
+/**
+ * Cost of consuming an item from inventory. For Common/Uncommon items the
+ * cost is 0 (easily replaced). For Rare+ items the cost is one less than
+ * the baseline acquisition cost — always cheaper than gathering fresh,
+ * but still discouraging casual consumption of hard-to-get ingredients.
+ */
+function resupplyCostPerUnit(
+  item: ItemEntry,
+  baseline: BaselineCache,
+): number {
+  const rank = RARITY_RANK[item.rarity] ?? 0;
+  if (rank < RARE_RANK_THRESHOLD) return 0;
+  return Math.max(0, baseline.effortPerUnit(referenceKey(item)) - 1);
 }
 
 function extractionRate(
@@ -392,7 +414,8 @@ function buildTree(
   if (have > 0) inventory.set(itemKey, onHand - have);
 
   if (have >= amount) {
-    return { kind: "have", item, quantity: amount, effort: 0 };
+    const resupply = resupplyCostPerUnit(item, ctx.baseline) * amount;
+    return { kind: "have", item, quantity: amount, effort: resupply };
   }
 
   const missing = amount - have;
@@ -441,16 +464,20 @@ function buildTree(
     if (!isFinite(perUnit)) continue;
 
     // First-level inventory discount: if any direct input is on hand,
-    // subtract the savings from the amortized cost.
+    // replace its acquisition cost with the (cheaper) resupply cost.
     const outputPerCraft = effectiveOutputPerCraft(recipe, itemKey);
     if (outputPerCraft > 0) {
       for (const input of recipe.inputs) {
         const inputKey = referenceKey(input);
         const onHandInput = inventory.get(inputKey) ?? 0;
         if (onHandInput > 0) {
+          const inputItem = itemsCodex.get(inputKey);
+          if (!inputItem) continue;
           const needed = input.quantity / outputPerCraft;
-          const saved = Math.min(onHandInput, needed * missing);
-          perUnit -= (saved / missing) * ctx.baseline.effortPerUnit(inputKey);
+          const covered = Math.min(onHandInput, needed * missing);
+          const fullCost = ctx.baseline.effortPerUnit(inputKey);
+          const invCost = resupplyCostPerUnit(inputItem, ctx.baseline);
+          perUnit -= (covered / missing) * (fullCost - invCost);
         }
       }
     }
