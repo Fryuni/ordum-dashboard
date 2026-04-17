@@ -587,6 +587,28 @@ describe("buildCraftPlan: effort-aware recipe selection", () => {
     assertValidPlan(targets, inv, plan);
   });
 
+  test("Journal with both Stone Carvings and Stone Diagrams in inventory prefers Carvings", () => {
+    // Even when both options are on hand, consuming the Legendary Diagram
+    // carries a high resupply cost (baseline - 1 ≈ 6249) while the Common
+    // Carving has zero resupply cost. The planner should use the Carving.
+    const inv = new Map([
+      [key(FIXTURES.beginnersStoneCarvings), 5],
+      [key(FIXTURES.beginnersStoneDiagrams), 5],
+    ]);
+    const targets = [asTarget(FIXTURES.beginnersStudyJournal, 1)];
+    const plan = buildCraftPlan(targets, inv);
+
+    const raws = plan.raw_materials.map((r) => r.name);
+    expect(raws).not.toContain("Beginner's Stone Carvings");
+    expect(raws).not.toContain("Beginner's Stone Diagrams");
+
+    // Should have consumed Carvings, not Diagrams
+    const haveNames = plan.already_have.map((h) => h.name);
+    expect(haveNames).toContain("Beginner's Stone Carvings");
+
+    assertValidPlan(targets, inv, plan);
+  });
+
   test("Rough Plank uses the Stripped Wood recipe and avoids Hexite Wood Fragment", () => {
     // Two recipes: one outputs 1 Plank from Stripped Wood alone; the other
     // outputs 2 Planks from Stripped Wood + 2 Rare Hexite Fragments. The
