@@ -362,22 +362,14 @@ interface TreeContext {
   depth: number;
 }
 
-function cloneInventory(inv: Map<string, number>): Map<string, number> {
-  return new Map(inv);
-}
-
-function applyInventory(
-  target: Map<string, number>,
-  source: Map<string, number>,
-): void {
-  target.clear();
-  for (const [k, v] of source) target.set(k, v);
-}
-
 /**
  * Build a tree that satisfies `amount` of `itemKey`, consuming from and
- * writing surplus back into `inventory`. Mutates `inventory` with the chosen
- * branch's net effect.
+ * writing surplus back into `inventory`. Mutates `inventory` with the
+ * chosen branch's net effect.
+ *
+ * Recipe selection is O(candidates) per item via BaselineCache lookups;
+ * full sub-tree construction is only done for the winning candidate. This
+ * keeps the overall complexity linear in the plan size.
  */
 function buildTree(
   itemKey: string,
@@ -415,19 +407,77 @@ function buildTree(
     return have > 0 ? wrapPartial(item, have, node) : node;
   }
 
-  const alternatives: Array<{
-    node: PlanNode;
-    inventoryAfter: Map<string, number>;
-  }> = [];
+  // ── Phase 1: pick the cheapest acquisition path via BaselineCache ──
+  //
+  // Comparing recipes via their memoized amortized per-unit cost is O(1)
+  // per candidate. We select the winner here and only recurse into *its*
+  // sub-tree in Phase 2, avoiding the exponential blowup that would
+  // result from building full sub-trees for every candidate.
+  //
+  // Inventory discount: if a recipe's direct input is already on hand,
+  // that shaves off its gathering cost, potentially flipping the winner.
 
-  // Extraction branches — no sub-trees, byproducts go into inventory.
+  type Candidate =
+    | { kind: "extract"; eid: number; effort: number }
+    | { kind: "craft"; rid: number; effort: number };
+
+  let bestCandidate: Candidate | null = null;
+
   for (const eid of item.extracted_from) {
     const recipe = extractionsCodex.get(eid);
     if (!recipe) continue;
-    const rate = extractionRate(recipe, itemKey);
-    if (rate <= 0) continue;
+    const effort = extractionEffortPerUnit(item, recipe, ctx.capabilities);
+    if (!isFinite(effort)) continue;
+    const total = effort * missing;
+    if (!bestCandidate || total < bestCandidate.effort) {
+      bestCandidate = { kind: "extract", eid, effort: total };
+    }
+  }
 
-    const branchInv = cloneInventory(inventory);
+  for (const rid of item.crafted_from) {
+    const recipe = recipesCodex.get(rid);
+    if (!recipe) continue;
+    let perUnit = ctx.baseline.recipePerUnit(recipe, itemKey);
+    if (!isFinite(perUnit)) continue;
+
+    // First-level inventory discount: if any direct input is on hand,
+    // subtract the savings from the amortized cost.
+    const outputPerCraft = effectiveOutputPerCraft(recipe, itemKey);
+    if (outputPerCraft > 0) {
+      for (const input of recipe.inputs) {
+        const inputKey = referenceKey(input);
+        const onHandInput = inventory.get(inputKey) ?? 0;
+        if (onHandInput > 0) {
+          const needed = input.quantity / outputPerCraft;
+          const saved = Math.min(onHandInput, needed * missing);
+          perUnit -= (saved / missing) * ctx.baseline.effortPerUnit(inputKey);
+        }
+      }
+    }
+
+    const total = perUnit * missing;
+    if (!bestCandidate || total < bestCandidate.effort) {
+      bestCandidate = { kind: "craft", rid, effort: total };
+    }
+  }
+
+  if (!bestCandidate) {
+    const node: AcquireTreeNode = {
+      kind: "acquire",
+      item,
+      quantity: missing,
+      effort: missing * PURCHASE_EFFORT_PER_UNIT,
+    };
+    return have > 0 ? wrapPartial(item, have, node) : node;
+  }
+
+  // ── Phase 2: build the tree for the winning candidate only ──
+
+  let resultNode: PlanNode;
+
+  if (bestCandidate.kind === "extract") {
+    const recipe = extractionsCodex.get(bestCandidate.eid)!;
+    const rate = extractionRate(recipe, itemKey);
     const rf = rarityFactor(item);
     const strikes = Math.max(missing / rate, missing * rf);
     const missingSkill = !canMeetSkillRequirements(
@@ -441,68 +491,46 @@ function buildTree(
     let effort = strikes * rf;
     if (missingSkill || missingTool) effort *= CAPABILITY_PENALTY;
 
-    // Byproducts at other keys come along for the ride.
     for (const out of recipe.outputs) {
       const outKey = referenceKey(out);
       if (outKey === itemKey) continue;
       const produced = out.quantity * strikes;
       if (produced > 0) {
-        branchInv.set(outKey, (branchInv.get(outKey) ?? 0) + produced);
+        inventory.set(outKey, (inventory.get(outKey) ?? 0) + produced);
       }
     }
 
-    alternatives.push({
-      node: {
-        kind: "extract",
-        item,
-        recipe,
-        strikes,
-        quantity: missing,
-        effort,
-        missing_skill: missingSkill,
-        missing_tool: missingTool,
-      },
-      inventoryAfter: branchInv,
-    });
-  }
-
-  // Crafting branches. Player-visible crafts are always integer; surplus
-  // output beyond `missing` is banked in `branchInv` for sibling targets.
-  //
-  // Branch selection, however, uses the recipe's *amortized* per-unit
-  // cost (surplus counted as reusable) — this is what lets "Fill Water
-  // Bucket" win over "Boil Water Bucket" for a single-bucket request,
-  // even though a full 10-bucket batch of Empty Buckets has to be made.
-  for (const rid of item.crafted_from) {
-    const recipe = recipesCodex.get(rid);
-    if (!recipe) continue;
+    resultNode = {
+      kind: "extract",
+      item,
+      recipe,
+      strikes,
+      quantity: missing,
+      effort,
+      missing_skill: missingSkill,
+      missing_tool: missingTool,
+    };
+  } else {
+    const recipe = recipesCodex.get(bestCandidate.rid)!;
     const outputPerCraft = effectiveOutputPerCraft(recipe, itemKey);
-    if (outputPerCraft <= 0) continue;
     const craftCount = Math.max(1, Math.ceil(missing / outputPerCraft));
 
-    const branchInv = cloneInventory(inventory);
     const inputs: PlanNode[] = [];
-    let subEffort = 0;
     for (const input of recipe.inputs) {
       const inputNeeded = input.quantity * craftCount;
-      const subNode = buildTree(referenceKey(input), inputNeeded, branchInv, {
+      const subNode = buildTree(referenceKey(input), inputNeeded, inventory, {
         ...ctx,
         depth: ctx.depth + 1,
       });
       inputs.push(subNode);
-      subEffort += subNode.effort;
     }
 
-    // Deposit surplus outputs — both non-target byproducts and overflow of
-    // the target item itself (e.g. a 10-bucket batch when we only needed
-    // one). Rarity-promoted outputs that were already folded into
-    // `outputPerCraft` are credited against `missing`.
     for (const out of recipe.outputs) {
       const outKey = referenceKey(out);
       const produced = out.quantity * craftCount;
       const toBank = outKey === itemKey ? produced - missing : produced;
       if (toBank > 0) {
-        branchInv.set(outKey, (branchInv.get(outKey) ?? 0) + toBank);
+        inventory.set(outKey, (inventory.get(outKey) ?? 0) + toBank);
       }
     }
 
@@ -515,48 +543,20 @@ function buildTree(
       recipe.requiredTool,
     );
 
-    // Selection effort: amortized per-unit cost times demand. Treats the
-    // batch's surplus as reusable, so a 10-output recipe isn't penalized
-    // for producing 9 extras when we only needed one. (The capability
-    // penalty is already folded into `recipePerUnit`.)
-    const selectionEffort =
-      ctx.baseline.recipePerUnit(recipe, itemKey) * missing;
-
-    alternatives.push({
-      node: {
-        kind: "craft",
-        item,
-        recipe,
-        craftCount,
-        quantity: missing,
-        inputs,
-        effort: selectionEffort,
-        missing_skill: missingSkill,
-        missing_tool: missingTool,
-      },
-      inventoryAfter: branchInv,
-    });
-  }
-
-  if (alternatives.length === 0) {
-    const node: AcquireTreeNode = {
-      kind: "acquire",
+    resultNode = {
+      kind: "craft",
       item,
+      recipe,
+      craftCount,
       quantity: missing,
-      effort: missing * PURCHASE_EFFORT_PER_UNIT,
+      inputs,
+      effort: bestCandidate.effort,
+      missing_skill: missingSkill,
+      missing_tool: missingTool,
     };
-    return have > 0 ? wrapPartial(item, have, node) : node;
   }
 
-  let best = alternatives[0]!;
-  for (let i = 1; i < alternatives.length; i++) {
-    if (alternatives[i]!.node.effort < best.node.effort) {
-      best = alternatives[i]!;
-    }
-  }
-  applyInventory(inventory, best.inventoryAfter);
-
-  return have > 0 ? wrapPartial(item, have, best.node) : best.node;
+  return have > 0 ? wrapPartial(item, have, resultNode) : resultNode;
 }
 
 function wrapPartial(
@@ -575,7 +575,7 @@ export function buildCraftPlan(
   capabilities?: PlayerCapabilities,
 ): CraftPlan {
   const baseline = new BaselineCache(capabilities);
-  const workingInv = cloneInventory(inventory);
+  const workingInv = new Map(inventory);
   const trees: PlanNode[] = [];
   for (const target of targets) {
     if (!Number.isFinite(target.quantity) || target.quantity <= 0) continue;

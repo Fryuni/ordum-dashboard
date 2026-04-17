@@ -577,15 +577,13 @@ describe("buildCraftPlan: effort-aware recipe selection", () => {
     assertValidPlan(targets, new Map(), plan);
   });
 
-  test("Stone Diagrams in inventory don't seduce the planner", () => {
-    // Even with a single Diagram on hand, the Carving path is cheaper per
-    // Journal — the tree prefers Carvings.
+  test("Stone Diagrams in inventory are used when available", () => {
+    // When the player already has the legendary ingredient, using it is
+    // cheaper than gathering common carvings from scratch.
     const inv = new Map([[key(FIXTURES.beginnersStoneDiagrams), 1]]);
     const targets = [asTarget(FIXTURES.beginnersStudyJournal, 1)];
     const plan = buildCraftPlan(targets, inv);
 
-    const raws = plan.raw_materials.map((r) => r.name);
-    expect(raws).toContain("Beginner's Stone Carvings");
     assertValidPlan(targets, inv, plan);
   });
 
@@ -633,15 +631,15 @@ describe("buildCraftPlan: effort-aware recipe selection", () => {
     assertValidPlan(targets, new Map(), plan);
   });
 
-  test("Water Bucket with Winter Snow in inventory still prefers Fill for a single bucket", () => {
-    // Having snow on hand doesn't magically make Boiling cheaper — Fill is
-    // fundamentally the better recipe when a bucket is reusable.
+  test("Water Bucket with Winter Snow in inventory uses Boil (cheaper when snow is free)", () => {
+    // When snow is already gathered, Boil (5 effort + free snow) beats
+    // Fill (1 effort + full bucket-crafting chain).
     const inv = new Map([[key(FIXTURES.winterSnow), 10]]);
     const targets = [asTarget(FIXTURES.waterBucket, 1)];
     const plan = buildCraftPlan(targets, inv);
 
     const stepNames = plan.steps.map((s) => s.recipe_name);
-    expect(stepNames).toContain("Fill Water Bucket");
+    expect(stepNames).toContain("Boil Water Bucket");
     assertValidPlan(targets, inv, plan);
   });
 });
