@@ -58,7 +58,11 @@ async function isClaimOfficer(
         q.eq("claimId", claimId).eq("playerEntityId", pid),
       )
       .unique();
-    if (member !== null && member.officerPermission) return true;
+    if (
+      member !== null &&
+      (member.officerPermission || member.coOwnerPermission)
+    )
+      return true;
   }
   return false;
 }
@@ -84,7 +88,19 @@ export const getUserPermissions = query({
     if (!userId) return null;
 
     const user = await ctx.db.get(userId);
-    const isAdmin = user?.isAdmin === true;
+    if (user?.isAdmin === true) {
+      const claims = await ctx.db
+        .query("empireClaims")
+        .withIndex("by_empireId", (q) => q.eq("empireId", empireId))
+        .collect();
+
+      return {
+        isEmpireMember: true,
+        officerClaims: claims.map((c) => c.claimId),
+        isCapitalOfficer: true,
+        isAdmin: true,
+      };
+    }
 
     const playerEntityIds = await getPlayerEntityIds(ctx, userId);
     if (playerEntityIds.length === 0)
@@ -92,7 +108,7 @@ export const getUserPermissions = query({
         isEmpireMember: false,
         officerClaims: [],
         isCapitalOfficer: false,
-        isAdmin,
+        isAdmin: false,
       };
 
     const memberships = [];
@@ -109,7 +125,7 @@ export const getUserPermissions = query({
         isEmpireMember: false,
         officerClaims: [],
         isCapitalOfficer: false,
-        isAdmin,
+        isAdmin: false,
       };
     }
 
@@ -118,7 +134,7 @@ export const getUserPermissions = query({
     let isCapitalOfficer = false;
 
     for (const m of memberships) {
-      if (m.officerPermission) {
+      if (m.officerPermission || m.coOwnerPermission) {
         officerClaimsSet.add(m.claimId);
         if (m.claimId === capitalClaimId) {
           isCapitalOfficer = true;
@@ -130,7 +146,7 @@ export const getUserPermissions = query({
       isEmpireMember: true,
       officerClaims: [...officerClaimsSet],
       isCapitalOfficer,
-      isAdmin,
+      isAdmin: false,
     };
   },
 });
