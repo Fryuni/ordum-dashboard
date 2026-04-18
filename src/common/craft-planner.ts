@@ -86,7 +86,20 @@ export interface CraftTarget extends ItemReference {
 export interface StepInput {
   item: ItemEntry;
   quantity_per_craft: number;
+  /**
+   * Total units the player can cover for this step without further gathering,
+   * drawn from starting inventory plus upstream step outputs (and, for raw
+   * inputs, the raw-material gather budget). Equals `available_from_inventory`
+   * plus the amount produced in-plan.
+   */
   available: number;
+  /**
+   * Portion of `available` that comes from the player's starting inventory
+   * at the time this step's predecessors have already drawn their share.
+   * The rest of `available` is produced in-plan: by an upstream step for
+   * intermediates, or by gathering for `is_raw` inputs.
+   */
+  available_from_inventory: number;
   is_raw: boolean;
 }
 
@@ -797,11 +810,15 @@ function linearize(
     });
   }
 
-  // Phase 3: build CraftStep entries with per-input "available from
-  // inventory" by replaying consumption in topological order. Raw materials
-  // are treated as pre-gathered up to their `total_needed`, matching how
-  // the simulator in tests walks the plan.
+  // Phase 3: build CraftStep entries by replaying consumption in topological
+  // order. `consumption` is the full pool (inventory + pre-gathered raws +
+  // step outputs) and feeds the `available` figure. `inventoryRemaining`
+  // only ever starts with the player's stock and is never topped up — it
+  // attributes the inventory-sourced portion of each input separately from
+  // amounts produced in-plan. `steps` iterates leaves-first because `walk`
+  // recurses into children before inserting the parent.
   const consumption = new Map<string, number>(originalInventory);
+  const inventoryRemaining = new Map<string, number>(originalInventory);
   for (const raw of rawMaterials) {
     const k = `${raw.item_type}:${raw.item_id}`;
     const current = consumption.get(k) ?? 0;
@@ -817,10 +834,14 @@ function linearize(
       const current = consumption.get(key) ?? 0;
       const used = Math.max(0, Math.min(current, needed));
       consumption.set(key, current - needed);
+      const invCurrent = inventoryRemaining.get(key) ?? 0;
+      const fromInventory = Math.max(0, Math.min(invCurrent, needed));
+      inventoryRemaining.set(key, invCurrent - fromInventory);
       return {
         item: itemsCodex.get(key) ?? fallbackItem(stack),
         quantity_per_craft: Math.floor(stack.quantity),
         available: used,
+        available_from_inventory: fromInventory,
         is_raw: rawKeys.has(key),
       };
     });

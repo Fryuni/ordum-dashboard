@@ -102,18 +102,30 @@ function CraftStep({
           {step.inputs.map((inp) => {
             const total = inp.quantity_per_craft * step.craft_count;
             const available = inp.available || 0;
-            const deficit = Math.max(0, total - available);
-            const d = deficit > 0;
+            const fromInventory = inp.available_from_inventory || 0;
+            const fromPlan = Math.max(0, available - fromInventory);
+            const shortfall = Math.max(0, total - available);
+            const state =
+              fromInventory >= total
+                ? "ok"
+                : fromInventory > 0
+                  ? "partial"
+                  : "deficit";
+            const planLabel = inp.is_raw ? "to gather" : "from earlier step";
             return (
-              <div
-                class={`input-card ${d ? "deficit" : "ok"}`}
-                key={inp.item.name}
-              >
+              <div class={`input-card ${state}`} key={inp.item.name}>
                 <span class="input-name">{nameWithRarity(inp.item)}</span>
-                <span class={`input-qty ${d ? "deficit" : "ok"}`}>
-                  {available} / {total}
-                  {d ? ` (need ${deficit})` : ""}
-                </span>
+                <div class="input-qty-group">
+                  <span class={`input-qty ${state}`}>
+                    {fromInventory} / {total}
+                    {shortfall > 0 ? ` (short ${shortfall})` : ""}
+                  </span>
+                  {fromPlan > 0 && (
+                    <span class="input-breakdown">
+                      plus {fromPlan} {planLabel}
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })}
