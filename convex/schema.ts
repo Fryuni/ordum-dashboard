@@ -146,20 +146,6 @@ export default defineSchema({
     .index("by_claimId", ["claimId"])
     .index("by_claimId_and_buildingEntityId", ["claimId", "buildingEntityId"]),
 
-  // Active/passive crafts in a claim
-  claimCrafts: defineTable({
-    claimId: v.string(),
-    recipeId: v.number(),
-    buildingName: v.string(),
-    craftCount: v.number(),
-    progress: v.number(),
-    totalActionsRequired: v.number(),
-    ownerEntityId: v.string(),
-    ownerUsername: v.string(),
-    isPassive: v.boolean(),
-    syncedAt: v.number(),
-  }).index("by_claimId", ["claimId"]),
-
   // ─── Bounty Board ───────────────────────────────────────────────────────────
 
   // Empire-wide goals (managed by capital officers)

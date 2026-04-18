@@ -152,35 +152,6 @@ export const syncBuildingInventories = internalMutation({
   },
 });
 
-export const syncClaimCrafts = internalMutation({
-  args: {
-    claimId: v.string(),
-    crafts: v.array(
-      v.object({
-        recipeId: v.number(),
-        buildingName: v.string(),
-        craftCount: v.number(),
-        progress: v.number(),
-        totalActionsRequired: v.number(),
-        ownerEntityId: v.string(),
-        ownerUsername: v.string(),
-        isPassive: v.boolean(),
-      }),
-    ),
-  },
-  handler: async (ctx, args) => {
-    await deleteByClaimId(ctx, "claimCrafts", args.claimId);
-    const now = Date.now();
-    for (const c of args.crafts) {
-      await ctx.db.insert("claimCrafts", {
-        claimId: args.claimId,
-        ...c,
-        syncedAt: now,
-      });
-    }
-  },
-});
-
 export const syncConstructionProjects = internalMutation({
   args: {
     claimId: v.string(),
@@ -228,7 +199,6 @@ export const removeStaleClaimData = internalMutation({
       if (!active.has(claim.claimId)) {
         await deleteByClaimId(ctx, "claimMembers", claim.claimId);
         await deleteByClaimId(ctx, "buildingInventories", claim.claimId);
-        await deleteByClaimId(ctx, "claimCrafts", claim.claimId);
         await deleteByClaimId(ctx, "constructionProjects", claim.claimId);
         await ctx.db.delete(claim._id);
       }
@@ -238,13 +208,14 @@ export const removeStaleClaimData = internalMutation({
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+type PurgeableClaimTable =
+  | "claimMembers"
+  | "buildingInventories"
+  | "constructionProjects";
+
 async function deleteByClaimId(
   ctx: MutationCtx,
-  table:
-    | "claimMembers"
-    | "buildingInventories"
-    | "claimCrafts"
-    | "constructionProjects",
+  table: PurgeableClaimTable,
   claimId: string,
 ) {
   const rows = await ctx.db
@@ -486,95 +457,6 @@ export const getConstructionData = query({
         depositedItems: p.depositedItems,
       })),
     };
-  },
-});
-
-export const getClaimCrafts = query({
-  args: { claimId: v.string() },
-  handler: async (ctx, args) => {
-    const crafts = await ctx.db
-      .query("claimCrafts")
-      .withIndex("by_claimId", (q) => q.eq("claimId", args.claimId))
-      .collect();
-
-    return crafts.map((c) => ({
-      recipeId: c.recipeId,
-      buildingName: c.buildingName,
-      craftCount: c.craftCount,
-      progress: c.progress,
-      totalActionsRequired: c.totalActionsRequired,
-      ownerEntityId: c.ownerEntityId,
-      ownerUsername: c.ownerUsername,
-      isPassive: c.isPassive,
-    }));
-  },
-});
-
-export const getAllClaimInventories = query({
-  args: { empireId: v.optional(v.string()) },
-  handler: async (ctx, args) => {
-    const empireId = args.empireId ?? ORDUM_EMPIRE_ID;
-    const claims = await ctx.db
-      .query("empireClaims")
-      .withIndex("by_empireId", (q) => q.eq("empireId", empireId))
-      .collect();
-
-    const result = [];
-    for (const claim of claims) {
-      const buildings = await ctx.db
-        .query("buildingInventories")
-        .withIndex("by_claimId", (q) => q.eq("claimId", claim.claimId))
-        .collect();
-
-      const crafts = await ctx.db
-        .query("claimCrafts")
-        .withIndex("by_claimId", (q) => q.eq("claimId", claim.claimId))
-        .collect();
-
-      // Aggregate items across buildings (excluding personal storage)
-      const itemMap = new Map<
-        string,
-        { locations: Array<{ name: string; quantity: number }> }
-      >();
-
-      for (const building of buildings) {
-        if (BANK_BUILDING_IDS.has(building.buildingDescriptionId)) continue;
-        const label = building.buildingNickname ?? building.buildingName;
-        for (const item of building.items) {
-          if (item.quantity <= 0) continue;
-          const key = `${item.itemType}:${item.itemId}`;
-          let entry = itemMap.get(key);
-          if (!entry) {
-            entry = { locations: [] };
-            itemMap.set(key, entry);
-          }
-          const existingLoc = entry.locations.find((l) => l.name === label);
-          if (existingLoc) {
-            existingLoc.quantity += item.quantity;
-          } else {
-            entry.locations.push({ name: label, quantity: item.quantity });
-          }
-        }
-      }
-
-      result.push({
-        claimId: claim.claimId,
-        claimName: claim.name,
-        items: [...itemMap.entries()].map(([key, val]) => ({
-          key,
-          locations: val.locations,
-        })),
-        crafts: crafts.map((c) => ({
-          recipeId: c.recipeId,
-          craftCount: c.craftCount,
-          progress: c.progress,
-          totalActionsRequired: c.totalActionsRequired,
-          isPassive: c.isPassive,
-        })),
-      });
-    }
-
-    return result;
   },
 });
 

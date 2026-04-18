@@ -68,6 +68,7 @@ export function convexSub<
 
     const unwatch = $args.subscribe((args) => {
       unsub?.();
+      unsub = null;
 
       if (args === null) {
         $store.set({ state: "loading" });

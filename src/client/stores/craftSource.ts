@@ -26,6 +26,8 @@ import {
   addCraftsToInventory,
   addPassiveCraftsToInventory,
   addToInventory,
+  aggregateClaimBuildings,
+  type AggregatedClaimItem,
   type ItemPlace,
 } from "../../common/claim-inventory";
 import { recipesCodex } from "../../common/gamedata/codex";
@@ -335,12 +337,77 @@ export const $equippedItems = computed(
     state.state === "ready" ? state.value.equipment : new Map(),
 );
 
-// ─── All Claim Inventories (subscription-based) ─────────────────────────────
+// ─── Selected Claim Inventories (live-polled from BitJita) ──────────────────
 
-const $allClaimInventoriesData = convexSub(
-  [],
-  api.empireData.getAllClaimInventories,
-  () => ({}),
+// Stable comma-joined key so identical selections dedupe (nanostores compares
+// with ===) and don't retrigger fetches when unrelated sources toggle.
+const $selectedClaimIdsKey = computed($inventorySources, (sources) => {
+  const ids: string[] = [];
+  for (const source of sources) {
+    if (source.startsWith("claim:")) {
+      ids.push(source.slice("claim:".length));
+    }
+  }
+  ids.sort();
+  return ids.join(",");
+});
+
+interface SelectedClaimInventory {
+  claimId: string;
+  items: AggregatedClaimItem[];
+  crafts: Array<{
+    recipeId: number;
+    craftCount: number;
+    progress: number;
+    totalActionsRequired: number;
+    isPassive: boolean;
+  }>;
+}
+
+/**
+ * Per-claim inventory and active crafts, fetched directly from BitJita on
+ * demand. Re-runs when the selected claims change and on the shared update
+ * timer so the planner reflects in-game changes within seconds instead of
+ * waiting for a Convex cron sync.
+ */
+const $allClaimInventoriesData = computedAsync(
+  [$selectedClaimIdsKey, $updateTimer],
+  async (key): Promise<SelectedClaimInventory[]> => {
+    if (!key) return [];
+    const claimIds = key.split(",");
+
+    return Promise.all(
+      claimIds.map(async (claimId): Promise<SelectedClaimInventory> => {
+        try {
+          const [invData, completedCrafts, ongoingCrafts] = await Promise.all([
+            jita.getClaimInventories(claimId),
+            jita.listCrafts({ claimEntityId: claimId, completed: true }),
+            jita.listCrafts({ claimEntityId: claimId, completed: false }),
+          ]);
+
+          const items = aggregateClaimBuildings(invData.buildings ?? []);
+          const crafts = [
+            ...completedCrafts.craftResults,
+            ...ongoingCrafts.craftResults,
+          ].map((c) => ({
+            recipeId: c.recipeId,
+            craftCount: c.craftCount ?? 1,
+            progress: c.progress ?? 0,
+            totalActionsRequired: c.totalActionsRequired ?? 0,
+            isPassive: false,
+          }));
+
+          return { claimId, items, crafts };
+        } catch (error) {
+          console.error(
+            `Failed to fetch BitJita data for claim ${claimId}:`,
+            error,
+          );
+          return { claimId, items: [], crafts: [] };
+        }
+      }),
+    );
+  },
 );
 
 // ─── Available Sources (for UI) ─────────────────────────────��────────────────

@@ -168,81 +168,10 @@ async function syncClaimData(
     buildings,
   });
 
-  // Sync active crafts
-  const crafts: Array<{
-    recipeId: number;
-    buildingName: string;
-    craftCount: number;
-    progress: number;
-    totalActionsRequired: number;
-    ownerEntityId: string;
-    ownerUsername: string;
-    isPassive: boolean;
-  }> = [];
-
-  try {
-    const [{ craftResults: completed }, { craftResults: ongoing }] =
-      await Promise.all([
-        jita.listCrafts({
-          claimEntityId: claim.entityId,
-          regionId: claim.regionId,
-          completed: true,
-        }),
-        jita.listCrafts({
-          claimEntityId: claim.entityId,
-          regionId: claim.regionId,
-          completed: false,
-        }),
-      ]);
-
-    for (const craft of [...completed, ...ongoing]) {
-      crafts.push({
-        recipeId: craft.recipeId,
-        buildingName: craft.buildingName ?? "Unknown",
-        craftCount: craft.craftCount ?? 1,
-        progress: craft.progress ?? 0,
-        totalActionsRequired: craft.totalActionsRequired ?? 0,
-        ownerEntityId: String(craft.ownerEntityId),
-        ownerUsername: craft.ownerUsername ?? "Unknown",
-        isPassive: false,
-      });
-    }
-  } catch (err) {
-    console.error(`[empire-sync] Failed to fetch crafts for ${claimId}:`, err);
-  }
-
-  // Sync passive crafts for all members
-  for (const member of members) {
-    try {
-      const passiveData = await jita.getPlayerPassiveCrafts(
-        member.playerEntityId,
-      );
-      for (const craft of passiveData.craftResults ?? []) {
-        // Only include passive crafts belonging to this claim
-        if (craft.claimEntityId !== claimId) continue;
-        crafts.push({
-          recipeId: craft.recipeId,
-          buildingName: craft.buildingName ?? "Unknown",
-          craftCount: 1,
-          progress: craft.status === "complete" ? 1 : 0,
-          totalActionsRequired: 1,
-          ownerEntityId: String(craft.ownerEntityId),
-          ownerUsername: member.userName,
-          isPassive: true,
-        });
-      }
-    } catch (err) {
-      console.error(
-        `[empire-sync] Failed to fetch passive crafts for ${member.playerEntityId}:`,
-        err,
-      );
-    }
-  }
-
-  await ctx.runMutation(internal.empireData.syncClaimCrafts, {
-    claimId,
-    crafts,
-  });
+  // Active and passive crafts are not synced — the craft planner fetches them
+  // directly from BitJita so it sees near-real-time progress. Keeping them in
+  // Convex forced a 5+ minute sync lag and required storing thousands of
+  // transient craft rows per claim.
 
   // Sync construction projects
   try {

@@ -25,7 +25,10 @@
  */
 
 import z from "zod";
-import type { JitaPassiveCraft } from "./bitjita-client";
+import type {
+  JitaClaimBuildingInventory,
+  JitaPassiveCraft,
+} from "./bitjita-client";
 import { referenceKey } from "./gamedata/definition";
 import { recipesCodex } from "./gamedata/codex";
 
@@ -55,6 +58,60 @@ export const jitaCraftSchema = z.array(
 );
 
 export type JitaCraft = z.infer<typeof jitaCraftSchema>[number];
+
+export interface AggregatedClaimItem {
+  key: string;
+  itemType: "Item" | "Cargo";
+  itemId: number;
+  totalQuantity: number;
+  locations: ItemPlace[];
+}
+
+/**
+ * Aggregate a BitJita claim's building inventories into per-item totals and
+ * per-building locations. Bank buildings are skipped — their contents are
+ * personal storage owned by individual players, not the claim.
+ */
+export function aggregateClaimBuildings(
+  buildings: JitaClaimBuildingInventory[],
+): AggregatedClaimItem[] {
+  const byKey = new Map<string, AggregatedClaimItem>();
+
+  for (const building of buildings) {
+    if (BANK_BUILDING_IDS.has(building.buildingDescriptionId)) continue;
+    const label =
+      building.buildingNickname ?? building.buildingName ?? "Unknown Building";
+
+    for (const pocket of building.inventory ?? []) {
+      const contents = pocket?.contents;
+      if (!contents || contents.quantity <= 0) continue;
+
+      const itemType: "Item" | "Cargo" =
+        contents.item_type === "cargo" ? "Cargo" : "Item";
+      const key = `${itemType}:${contents.item_id}`;
+      let entry = byKey.get(key);
+      if (!entry) {
+        entry = {
+          key,
+          itemType,
+          itemId: contents.item_id,
+          totalQuantity: 0,
+          locations: [],
+        };
+        byKey.set(key, entry);
+      }
+      entry.totalQuantity += contents.quantity;
+      const existing = entry.locations.find((l) => l.name === label);
+      if (existing) {
+        existing.quantity += contents.quantity;
+      } else {
+        entry.locations.push({ name: label, quantity: contents.quantity });
+      }
+    }
+  }
+
+  return [...byKey.values()];
+}
 
 export function addToInventory(
   inventory: Map<string, ItemPlace[]>,
