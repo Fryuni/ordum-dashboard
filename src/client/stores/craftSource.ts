@@ -580,3 +580,108 @@ export const $inventoryTotals = computed($inventory, (inv) => {
   }
   return totals;
 });
+
+// ─── Virtual Inventory (manual adjustments) ────────────────────────────────────
+
+/**
+ * User-controlled adjustments layered on top of the real inventory.
+ * Keys match referenceKey() ("Item:id" / "Cargo:id"); place quantities are
+ * signed so negatives cancel real stock (pretend you don't have it) and
+ * positives pretend you do. Merged with `$inventory` into `$effectiveInventory`.
+ */
+export const $virtualInventory = persistentAtom<Map<string, ItemPlace[]>>(
+  "craftVirtualInventory",
+  new Map(),
+  {
+    encode: (m) => JSON.stringify([...m]),
+    decode: (s) => {
+      try {
+        const entries = JSON.parse(s) as Array<[string, ItemPlace[]]>;
+        return new Map(entries);
+      } catch (error) {
+        console.warn("Failed to decode virtual inventory, resetting:", error);
+        return new Map();
+      }
+    },
+  },
+);
+
+function mergeInventories(
+  real: Map<string, ItemPlace[]>,
+  virtual: Map<string, ItemPlace[]>,
+): Map<string, ItemPlace[]> {
+  const result = new Map<string, ItemPlace[]>();
+  const keys = new Set<string>([...real.keys(), ...virtual.keys()]);
+  for (const key of keys) {
+    const byName = new Map<string, number>();
+    for (const p of real.get(key) ?? []) {
+      byName.set(p.name, (byName.get(p.name) ?? 0) + p.quantity);
+    }
+    for (const p of virtual.get(key) ?? []) {
+      byName.set(p.name, (byName.get(p.name) ?? 0) + p.quantity);
+    }
+    const places: ItemPlace[] = [];
+    for (const [name, qty] of byName) {
+      if (qty > 0) places.push({ name, quantity: qty });
+    }
+    if (places.length > 0) result.set(key, places);
+  }
+  return result;
+}
+
+/** Inventory after applying virtual adjustments. Consumed by the planner and pill UI. */
+export const $effectiveInventory = computed(
+  [$inventory, $virtualInventory],
+  (real, virtual) => mergeInventories(real, virtual),
+);
+
+/** Flattened effective totals — replaces `$inventoryTotals` as the planner input. */
+export const $effectiveInventoryTotals = computed(
+  $effectiveInventory,
+  (inv) => {
+    const totals = new Map<string, number>();
+    for (const [key, places] of inv) {
+      let total = 0;
+      for (const p of places) total += p.quantity;
+      totals.set(key, total);
+    }
+    return totals;
+  },
+);
+
+/**
+ * Snapshot the current real inventory and push its exact negative into the
+ * virtual layer, zeroing out `$effectiveInventory` for every currently-held
+ * item. Overwrites any prior virtual state.
+ */
+export function setVirtualFromScratch() {
+  const real = $inventory.get();
+  const snapshot = new Map<string, ItemPlace[]>();
+  for (const [key, places] of real) {
+    snapshot.set(
+      key,
+      places.map((p) => ({ name: p.name, quantity: -p.quantity })),
+    );
+  }
+  $virtualInventory.set(snapshot);
+}
+
+/**
+ * Remove one item from the "Already Have" section by cancelling each of its
+ * real places. Additive so a second click after the real inventory grows keeps
+ * the pill hidden.
+ */
+export function ignoreItemFromHave(key: string) {
+  const real = $inventory.get().get(key);
+  if (!real || real.length === 0) return;
+  const current = $virtualInventory.get();
+  const next = new Map(current);
+  const existing = next.get(key) ?? [];
+  const additions = real.map((p) => ({ name: p.name, quantity: -p.quantity }));
+  next.set(key, [...existing, ...additions]);
+  $virtualInventory.set(next);
+}
+
+export function clearVirtualInventory() {
+  $virtualInventory.set(new Map());
+}

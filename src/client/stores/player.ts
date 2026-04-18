@@ -28,7 +28,10 @@ export const $playerInfo = computedAsync($player, async (player) => {
   if (!player) return null;
 
   const page = await jita.listPlayers({ q: player });
-  return page.players.find((p) => p.username === player) ?? null;
+  const playerInfo = page.players.find((p) => p.username === player) ?? null;
+
+
+  return playerInfo;
 });
 
 export const $playerData = computedAsync(

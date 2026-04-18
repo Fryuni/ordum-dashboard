@@ -24,7 +24,7 @@ import { buildCraftPlanAsync } from "../workers/craftPlannerClient";
 import type { ItemReference } from "../../common/gamedata/definition";
 import { z } from "zod";
 import {
-  $inventoryTotals,
+  $effectiveInventoryTotals,
   setSourcesForClaim,
   clearSources,
 } from "./craftSource";
@@ -94,7 +94,7 @@ export const $canAdd = computed($selectedItem, (item) => item !== null);
 // ─── Craft Plan (async) ────────────────────────────────────────────────────────
 
 export const $craftPlan = computedAsync(
-  [$targets, $inventoryTotals, $playerCapabilities],
+  [$targets, $effectiveInventoryTotals, $playerCapabilities],
   (targets, inventory, capabilities) =>
     !targets.length
       ? null

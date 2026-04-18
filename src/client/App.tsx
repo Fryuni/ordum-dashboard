@@ -19,7 +19,7 @@
 import { useStore } from "@nanostores/preact";
 import { useCallback, useEffect, useRef, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
-import { useConvexAuth, useQuery } from "convex/react";
+import { useConvex, useConvexAuth, useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../../convex/_generated/api";
 import { $router } from "./stores/router";

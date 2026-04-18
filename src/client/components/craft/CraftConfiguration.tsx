@@ -18,7 +18,9 @@
  */
 import { useStore } from "@nanostores/preact";
 import { useCallback, useState } from "preact/hooks";
+import { useConvexAuth } from "convex/react";
 import { $targets, $shareableUrl, clearAll } from "../../stores/craft";
+import { $inventory, setVirtualFromScratch } from "../../stores/craftSource";
 import InventorySourcePicker from "./InventorySourcePicker";
 import ItemPicker from "./ItemPicker";
 import ItemList from "./ItemList";
@@ -28,6 +30,9 @@ export default function CraftConfiguration() {
   const shareableUrl = useStore($shareableUrl);
   const shareReady = shareableUrl.state === "ready";
   const [copied, setCopied] = useState(false);
+  const { isAuthenticated } = useConvexAuth();
+  const inventory = useStore($inventory);
+  const hasRealInventory = inventory.size > 0;
 
   const handleShare = useCallback(async () => {
     if (!shareReady) return;
@@ -45,6 +50,21 @@ export default function CraftConfiguration() {
 
       {targets.length > 0 && (
         <div class="form-actions">
+          {isAuthenticated && (
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onClick={setVirtualFromScratch}
+              disabled={!hasRealInventory}
+              title={
+                hasRealInventory
+                  ? "Snapshot your current inventory as ignored, so the planner treats everything as needed from scratch."
+                  : "Waiting for inventory to load…"
+              }
+            >
+              From Scratch
+            </button>
+          )}
           <button type="button" class="btn btn-secondary" onClick={clearAll}>
             Clear All
           </button>

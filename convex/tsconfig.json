@@ -3,6 +3,7 @@
     "target": "ESNext",
     "lib": ["ESNext"],
     "module": "ESNext",
+    "rootDir": "..",
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
     "noEmit": true,

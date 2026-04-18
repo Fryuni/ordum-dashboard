@@ -18,10 +18,14 @@
  */
 import { useState, useMemo, useEffect } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
+import { useConvexAuth } from "convex/react";
 import RawMaterials from "./RawMaterials";
 import CraftingSteps from "./CraftingSteps";
 import type { CraftPlan } from "../../../common/craft-planner";
-import { $inventory } from "../../stores/craftSource";
+import {
+  $effectiveInventory,
+  ignoreItemFromHave,
+} from "../../stores/craftSource";
 import { $playerCapabilities } from "../../stores/playerCapabilities";
 import { referenceKey } from "../../../common/gamedata/definition";
 import { nameWithRarity } from "../../../common/gamedata/helpers";
@@ -35,7 +39,8 @@ export default function PlanCard({
   plan,
   allDoneMessage = "✅ You already have everything needed!",
 }: Props) {
-  const inventory = useStore($inventory);
+  const inventory = useStore($effectiveInventory);
+  const { isAuthenticated } = useConvexAuth();
   const capabilitiesAsync = useStore($playerCapabilities);
   const capabilities =
     capabilitiesAsync.state === "ready" ? capabilitiesAsync.value : undefined;
@@ -153,9 +158,22 @@ export default function PlanCard({
               const key = referenceKey(item);
               const places = inventory.get(key);
               return (
-                <span class="have-chip" key={item.name}>
+                <span class="have-chip" key={key}>
                   {nameWithRarity(item)}{" "}
                   <strong>×{item.quantity.toFixed(0)}</strong>
+                  {isAuthenticated && (
+                    <button
+                      type="button"
+                      class="have-chip-remove"
+                      title="Ignore this item in the planner"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        ignoreItemFromHave(key);
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
                   {places && places.length > 0 && (
                     <div class="have-chip-tooltip">
                       <div class="sources-header">Found in</div>

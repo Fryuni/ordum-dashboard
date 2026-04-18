@@ -18,18 +18,41 @@
  */
 import { useStore } from "@nanostores/preact";
 import { $craftPlan, $targets } from "../../stores/craft";
+import {
+  $virtualInventory,
+  clearVirtualInventory,
+} from "../../stores/craftSource";
 import PlanCard from "./PlanCard";
 
 export default function CraftingPlan() {
   const craftPlan = useStore($craftPlan);
   const targets = useStore($targets);
+  const virtualInventory = useStore($virtualInventory);
 
   const hasTargets = targets.length > 0;
   const isLoading = craftPlan.state === "loading";
   const hasPlan = craftPlan.state === "ready" && craftPlan.value;
+  const ignoredCount = virtualInventory.size;
 
   return (
     <>
+      {ignoredCount > 0 && (
+        <div class="info-banner">
+          <span class="info-banner-icon">ℹ️</span>
+          <span class="info-banner-text">
+            Ignoring {ignoredCount} item{ignoredCount === 1 ? "" : "s"} from
+            your inventory.
+          </span>
+          <button
+            type="button"
+            class="info-banner-action"
+            onClick={clearVirtualInventory}
+          >
+            Reset
+          </button>
+        </div>
+      )}
+
       {hasTargets && isLoading && (
         <div class="loading-container">
           <div class="spinner-wrap">

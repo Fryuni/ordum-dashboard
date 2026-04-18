@@ -3,23 +3,9 @@
  * users to their in-game characters via the userGameAccounts table.
  */
 import { v } from "convex/values";
-import {
-  query,
-  mutation,
-  internalMutation,
-  type QueryCtx,
-  type MutationCtx,
-} from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { query, mutation, internalMutation } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
-
-async function requireAdmin(ctx: QueryCtx | MutationCtx): Promise<Id<"users">> {
-  const userId = await getAuthUserId(ctx);
-  if (!userId) throw new Error("Not authenticated");
-  const user = await ctx.db.get(userId);
-  if (!user?.isAdmin) throw new Error("Admin access required");
-  return userId;
-}
+import { requireAdmin } from "./lib/user";
 
 /**
  * List all users with their linked in-game characters.
@@ -174,7 +160,7 @@ export const bootstrapAdmin = internalMutation({
 export const setUserAdmin = mutation({
   args: { userId: v.id("users"), isAdmin: v.boolean() },
   handler: async (ctx, args) => {
-    const callerId = await requireAdmin(ctx);
+    const { _id: callerId } = await requireAdmin(ctx);
     // Prevent admins from accidentally demoting themselves while there are no
     // other admins left.
     if (callerId === args.userId && !args.isAdmin) {

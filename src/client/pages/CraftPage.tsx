@@ -16,10 +16,14 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
+import { useConvexAuth } from "convex/react";
 import CraftConfiguration from "../components/craft/CraftConfiguration";
 import CraftingPlan from "../components/craft/CraftingPlan";
+import SavedPlansPanel from "../components/craft/SavedPlansPanel";
 
 export default function CraftPage() {
+  const { isAuthenticated } = useConvexAuth();
+
   return (
     <>
       <div class="header">
@@ -30,8 +34,20 @@ export default function CraftPage() {
         </p>
       </div>
 
-      <CraftConfiguration />
-      <CraftingPlan />
+      {isAuthenticated ? (
+        <div class="craft-layout">
+          <div class="craft-layout-main">
+            <CraftConfiguration />
+            <CraftingPlan />
+          </div>
+          <SavedPlansPanel />
+        </div>
+      ) : (
+        <>
+          <CraftConfiguration />
+          <CraftingPlan />
+        </>
+      )}
     </>
   );
 }

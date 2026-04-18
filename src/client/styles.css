@@ -3301,3 +3301,204 @@ button.profile-icon.authenticated:hover {
 .item-picker-remove:hover {
   color: var(--red);
 }
+
+/* ─── Craft Planner: virtual inventory + saved plans ──────────────────────── */
+
+.info-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(108, 140, 255, 0.08);
+  border: 1px solid rgba(108, 140, 255, 0.25);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  color: var(--text);
+  font-size: 0.85rem;
+}
+.info-banner-icon {
+  flex-shrink: 0;
+  font-size: 1rem;
+}
+.info-banner-text {
+  flex: 1;
+  color: var(--text-muted);
+}
+.info-banner-action {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.info-banner-action:hover {
+  background: var(--bg-surface-2);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.have-chip-remove {
+  background: transparent;
+  border: none;
+  color: var(--green);
+  opacity: 0.45;
+  cursor: pointer;
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0 0 0 6px;
+  margin-left: 4px;
+  transition:
+    opacity 0.15s ease,
+    color 0.15s ease;
+}
+.have-chip-remove:hover {
+  opacity: 1;
+  color: var(--red);
+}
+
+.craft-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 20px;
+  align-items: start;
+}
+.craft-layout-main {
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .craft-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.saved-plans-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.saved-plans-heading {
+  font-size: 1rem;
+  margin: 0;
+  color: var(--text);
+}
+.saved-plans-subheading {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin: 0 0 8px 0;
+}
+.saved-plans-save {
+  display: flex;
+  gap: 8px;
+}
+.saved-plans-search {
+  display: flex;
+}
+.saved-plans-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  height: 34px;
+  color: var(--text);
+  font-size: 0.85rem;
+  outline: none;
+  padding: 0 12px;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+.saved-plans-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+.saved-plans-flash {
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+}
+.saved-plans-flash.ok {
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  color: var(--green);
+}
+.saved-plans-flash.error {
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  color: var(--red);
+}
+.saved-plans-section {
+  display: flex;
+  flex-direction: column;
+}
+.saved-plans-empty {
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  margin: 0;
+}
+.saved-plans-empty.saved-plans-error {
+  color: var(--red);
+}
+.saved-plans-hint {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin: 8px 0 0 0;
+}
+.saved-plans-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 360px;
+  overflow-y: auto;
+}
+.saved-plans-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.saved-plans-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.saved-plans-row-name {
+  font-size: 0.85rem;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.saved-plans-row-time {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+.saved-plans-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.btn-small {
+  height: 26px;
+  padding: 0 10px;
+  font-size: 0.75rem;
+  border-radius: 6px;
+}

@@ -24,6 +24,17 @@ export default defineSchema({
     playerEntityId: v.string(),
   }),
 
+  playerInfo: defineTable({
+    playerEntityId: v.string(),
+    skills: v.array(
+      v.object({
+        skill: v.string(),
+        level: v.number(),
+      }),
+    ),
+    equipment: v.array(v.string()),
+  }).index("by_playerId", ["playerEntityId"]),
+
   // ─── Storage Audit ──────────────────────────────────────────────────────────
   // Migrated from D1 storage_logs table
   storageLogs: defineTable({
@@ -205,6 +216,45 @@ export default defineSchema({
   })
     .index("by_status", ["status"])
     .index("by_userId_and_status", ["userId", "status"]),
+
+  // ─── Craft Planner ──────────────────────────────────────────────────────────
+
+  plannerConfigState: defineTable({
+    userId: v.id("users"),
+    playerEntityId: v.nullable(v.string()),
+  }).index("by_user", ["userId"]),
+
+  // User-saved craft plans (targets + virtual inventory adjustments)
+  craftPlans: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    targets: v.array(
+      v.object({
+        item_id: v.number(),
+        item_type: v.union(v.literal("Item"), v.literal("Cargo")),
+        quantity: v.number(),
+      }),
+    ),
+    virtualInventory: v.array(
+      v.object({
+        key: v.string(), // "ItemType:itemId" (e.g. "Item:12345")
+        places: v.array(
+          v.object({
+            name: v.string(),
+            quantity: v.number(), // signed; negatives cancel real stock
+          }),
+        ),
+      }),
+    ),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_userId_and_name", ["userId", "name"])
+    .searchIndex("by_name", {
+      searchField: "name",
+      filterFields: ["userId"],
+    }),
 
   // Active construction projects in a claim
   constructionProjects: defineTable({
