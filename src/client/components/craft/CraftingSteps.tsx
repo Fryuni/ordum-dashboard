@@ -18,14 +18,17 @@
  */
 import type { CraftStep as Step } from "../../../common/craft-planner";
 import type { PlayerCapabilities } from "../../../common/player-capabilities";
+import type { ItemPlace } from "../../../common/claim-inventory";
 import CraftStep from "./CraftStep";
 
 export default function CraftingSteps({
   steps,
   capabilities,
+  inventory,
 }: {
   steps: Step[];
   capabilities?: PlayerCapabilities;
+  inventory: ReadonlyMap<string, ItemPlace[]>;
 }) {
   if (steps.length === 0) return null;
 
@@ -38,6 +41,7 @@ export default function CraftingSteps({
             key={step.recipe_id}
             step={step}
             capabilities={capabilities}
+            inventory={inventory}
           />
         ))}
       </div>

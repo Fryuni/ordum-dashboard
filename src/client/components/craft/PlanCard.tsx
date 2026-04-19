@@ -305,7 +305,11 @@ export default function PlanCard({
       )}
 
       <RawMaterials materials={filteredRaw} capabilities={capabilities} />
-      <CraftingSteps steps={filteredSteps} capabilities={capabilities} />
+      <CraftingSteps
+        steps={filteredSteps}
+        capabilities={capabilities}
+        inventory={inventory}
+      />
 
       {isEmpty && <div class="all-done">{allDoneMessage}</div>}
 

@@ -18,15 +18,19 @@
  */
 import { memo } from "preact/compat";
 import type { CraftStep as Step } from "../../../common/craft-planner";
+import { referenceKey } from "../../../common/gamedata/definition";
 import { nameWithRarity } from "../../../common/gamedata/helpers";
 import type { PlayerCapabilities } from "../../../common/player-capabilities";
+import type { ItemPlace } from "../../../common/claim-inventory";
 
 function CraftStep({
   step,
   capabilities,
+  inventory,
 }: {
   step: Step;
   capabilities?: PlayerCapabilities;
+  inventory: ReadonlyMap<string, ItemPlace[]>;
 }) {
   const firstOutput = step.outputs[0];
   return !firstOutput ? (
@@ -112,6 +116,10 @@ function CraftStep({
                   ? "partial"
                   : "deficit";
             const planLabel = inp.is_raw ? "to gather" : "from earlier step";
+            const places =
+              fromInventory > 0
+                ? inventory.get(referenceKey(inp.item))
+                : undefined;
             return (
               <div class={`input-card ${state}`} key={inp.item.name}>
                 <span class="input-name">{nameWithRarity(inp.item)}</span>
@@ -126,6 +134,21 @@ function CraftStep({
                     </span>
                   )}
                 </div>
+                {places && places.length > 0 && (
+                  <div class="input-tooltip">
+                    <div class="sources-header">Found in</div>
+                    <ul class="sources-list">
+                      {places.map((p) => (
+                        <li key={p.name}>
+                          <span>{p.name}</span>
+                          <span class="source-qty">
+                            ×{p.quantity.toFixed(0)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             );
           })}

@@ -1679,6 +1679,46 @@ body {
   justify-content: space-between;
   align-items: center;
   font-size: 0.8rem;
+  position: relative;
+}
+.input-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 200;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  min-width: 160px;
+  max-width: 480px;
+  pointer-events: none;
+}
+.input-tooltip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--border);
+}
+.input-card:hover .input-tooltip {
+  display: block;
+}
+.input-tooltip .source-qty {
+  color: var(--green);
+  font-weight: 600;
+  margin-left: auto;
+  padding-left: 12px;
+}
+.input-tooltip .sources-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 .input-card.deficit {
   border-color: rgba(248, 113, 113, 0.3);
