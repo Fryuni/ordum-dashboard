@@ -75,7 +75,7 @@ const CAPABILITY_PENALTY = 100;
 /** Effort cost for an item with no recipe/extraction (e.g. NPC purchase). */
 const PURCHASE_EFFORT_PER_UNIT = 1000;
 
-const MAX_DEPTH = 500;
+const MAX_DEPTH = 1000;
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -323,7 +323,7 @@ function extractionEffortPerUnit(
 class BaselineCache {
   private cache = new Map<string, number>();
   private inflight = new Set<string>();
-  constructor(private capabilities: PlayerCapabilities | undefined) {}
+  constructor(private capabilities: PlayerCapabilities | undefined) { }
 
   effortPerUnit(itemKey: string): number {
     const cached = this.cache.get(itemKey);

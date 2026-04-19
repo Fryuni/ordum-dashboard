@@ -443,14 +443,16 @@ export const $availableSources = computed(
           group: "player",
         });
       }
-      for (const [claimId, label] of inv.bankLabels) {
-        sources.push({
-          key: `bank:${claimId}`,
-          label,
-          icon: "\uD83C\uDFE6",
-          group: "player",
+      Array.from(inv.bankLabels.entries())
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .forEach(([claimId, label]) => {
+          sources.push({
+            key: `bank:${claimId}`,
+            label,
+            icon: "\uD83C\uDFE6",
+            group: "player",
+          });
         });
-      }
       if (inv.houseStorage.size > 0) {
         sources.push({
           key: "house-storage",
@@ -462,14 +464,16 @@ export const $availableSources = computed(
     }
 
     // One checkbox per empire claim
-    for (const claim of claims) {
-      sources.push({
-        key: `claim:${claim.id}`,
-        label: claim.name,
-        icon: "\uD83C\uDFF0",
-        group: "claim",
+    claims
+      .toSorted((a, b) => a.name.localeCompare(b.name))
+      .forEach((claim) => {
+        sources.push({
+          key: `claim:${claim.id}`,
+          label: claim.name,
+          icon: "\uD83C\uDFF0",
+          group: "claim",
+        });
       });
-    }
 
     return sources;
   },
