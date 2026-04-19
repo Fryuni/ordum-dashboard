@@ -18,6 +18,7 @@
  */
 import { useState, useMemo, useEffect } from "preact/hooks";
 import { useStore } from "@nanostores/preact";
+import { persistentAtom } from "@nanostores/persistent";
 import { useConvexAuth } from "convex/react";
 import RawMaterials from "./RawMaterials";
 import CraftingSteps from "./CraftingSteps";
@@ -35,12 +36,22 @@ interface Props {
   allDoneMessage?: string;
 }
 
+const $alreadyHaveCollapsed = persistentAtom<boolean>(
+  "ui:alreadyHaveCollapsed",
+  false,
+  {
+    encode: (v) => (v ? "1" : "0"),
+    decode: (v) => v === "1",
+  },
+);
+
 export default function PlanCard({
   plan,
   allDoneMessage = "✅ You already have everything needed!",
 }: Props) {
   const inventory = useStore($effectiveInventory);
   const { isAuthenticated } = useConvexAuth();
+  const alreadyHaveCollapsed = useStore($alreadyHaveCollapsed);
   const capabilitiesAsync = useStore($playerCapabilities);
   const capabilities =
     capabilitiesAsync.state === "ready" ? capabilitiesAsync.value : undefined;
@@ -48,6 +59,9 @@ export default function PlanCard({
   const [debouncedName, setDebouncedName] = useState("");
   const [tierFilter, setTierFilter] = useState("");
   const [skillFilter, setSkillFilter] = useState("");
+  const [recipeTypeFilter, setRecipeTypeFilter] = useState<
+    "all" | "active" | "passive"
+  >("all");
   const [inInventoryOnly, setInInventoryOnly] = useState(false);
   const [canPerformOnly, setCanPerformOnly] = useState(false);
 
@@ -63,6 +77,7 @@ export default function PlanCard({
     debouncedName.trim().length > 0 ||
     tierFilter !== "" ||
     skillFilter !== "" ||
+    recipeTypeFilter !== "all" ||
     inInventoryOnly ||
     (canPerformOnly && canPerformSupported);
 
@@ -104,6 +119,9 @@ export default function PlanCard({
     // Raw materials always need gathering — by construction they can't be
     // fully satisfied by inventory, so this filter hides them entirely.
     if (inInventoryOnly) return [];
+    // Raw materials are gathered, not crafted — they have no passive/active
+    // classification, so any recipe-type filter hides them.
+    if (recipeTypeFilter !== "all") return [];
     return (plan.raw_materials ?? []).filter((r) => {
       if (nameQ && !r.name.toLowerCase().includes(nameQ)) return false;
       if (tierQ !== null && r.tier !== tierQ) return false;
@@ -120,6 +138,7 @@ export default function PlanCard({
     nameQ,
     tierQ,
     skillFilter,
+    recipeTypeFilter,
     inInventoryOnly,
     applyCanPerform,
     hasFilters,
@@ -145,6 +164,8 @@ export default function PlanCard({
         !s.skill_requirements.some((sr) => sr.skill === skillFilter)
       )
         return false;
+      if (recipeTypeFilter === "active" && s.passive) return false;
+      if (recipeTypeFilter === "passive" && !s.passive) return false;
       if (inInventoryOnly) {
         const allFromInventory = s.inputs.every((inp) => {
           const total = inp.quantity_per_craft * s.craft_count;
@@ -160,6 +181,7 @@ export default function PlanCard({
     nameQ,
     tierQ,
     skillFilter,
+    recipeTypeFilter,
     inInventoryOnly,
     applyCanPerform,
     hasFilters,
@@ -229,6 +251,28 @@ export default function PlanCard({
               </select>
             </div>
           )}
+          <div
+            class="plan-filter-group"
+            title="Active recipes are crafted by the player; passive recipes run in buildings (looms, smelters, farms)."
+          >
+            <span class="filter-icon">⚙️</span>
+            <select
+              class="plan-filter-select"
+              value={recipeTypeFilter}
+              onChange={(e) =>
+                setRecipeTypeFilter(
+                  (e.target as HTMLSelectElement).value as
+                    | "all"
+                    | "active"
+                    | "passive",
+                )
+              }
+            >
+              <option value="all">All recipes</option>
+              <option value="active">Active only</option>
+              <option value="passive">Passive only</option>
+            </select>
+          </div>
           <label
             class="plan-filter-toggle"
             title="Only show steps whose inputs are fully covered by your inventory"
@@ -261,48 +305,72 @@ export default function PlanCard({
       )}
 
       {filteredHave.length > 0 && (
-        <div class="already-have">
-          <h4>✅ Already Have</h4>
-          <div class="have-chips">
-            {filteredHave.map((item) => {
-              const key = referenceKey(item);
-              const places = inventory.get(key);
-              return (
-                <span class="have-chip" key={key}>
-                  {nameWithRarity(item)}{" "}
-                  <strong>×{item.quantity.toFixed(0)}</strong>
-                  {isAuthenticated && (
-                    <button
-                      type="button"
-                      class="have-chip-remove"
-                      title="Ignore this item in the planner"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        ignoreItemFromHave(key);
-                      }}
-                    >
-                      ✕
-                    </button>
-                  )}
-                  {places && places.length > 0 && (
-                    <div class="have-chip-tooltip">
-                      <div class="sources-header">Found in</div>
-                      <ul class="sources-list">
-                        {places.map((p) => (
-                          <li key={p.name}>
-                            <span>{p.name}</span>
-                            <span class="source-qty">
-                              ×{p.quantity.toFixed(0)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </span>
-              );
-            })}
-          </div>
+        <div
+          class={
+            alreadyHaveCollapsed ? "already-have collapsed" : "already-have"
+          }
+        >
+          <button
+            type="button"
+            class="already-have-toggle"
+            onClick={() => $alreadyHaveCollapsed.set(!alreadyHaveCollapsed)}
+            aria-expanded={!alreadyHaveCollapsed}
+            title={
+              alreadyHaveCollapsed
+                ? "Expand already-have items"
+                : "Collapse already-have items"
+            }
+          >
+            <span class="already-have-chevron">
+              {alreadyHaveCollapsed ? "▸" : "▾"}
+            </span>
+            <h4>
+              ✅ Already Have{" "}
+              <span class="already-have-count">({filteredHave.length})</span>
+            </h4>
+          </button>
+          {!alreadyHaveCollapsed && (
+            <div class="have-chips">
+              {filteredHave.map((item) => {
+                const key = referenceKey(item);
+                const places = inventory.get(key);
+                return (
+                  <span class="have-chip" key={key}>
+                    {nameWithRarity(item)}{" "}
+                    <strong>×{item.quantity.toFixed(0)}</strong>
+                    {isAuthenticated && (
+                      <button
+                        type="button"
+                        class="have-chip-remove"
+                        title="Ignore this item in the planner"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          ignoreItemFromHave(key);
+                        }}
+                      >
+                        ✕
+                      </button>
+                    )}
+                    {places && places.length > 0 && (
+                      <div class="have-chip-tooltip">
+                        <div class="sources-header">Found in</div>
+                        <ul class="sources-list">
+                          {places.map((p) => (
+                            <li key={p.name}>
+                              <span>{p.name}</span>
+                              <span class="source-qty">
+                                ×{p.quantity.toFixed(0)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

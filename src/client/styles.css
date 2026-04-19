@@ -1611,10 +1611,40 @@ body {
 .already-have {
   margin-bottom: 16px;
 }
+.already-have.collapsed {
+  margin-bottom: 8px;
+}
+.already-have-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0 0 8px;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.already-have.collapsed .already-have-toggle {
+  margin-bottom: 0;
+}
+.already-have-chevron {
+  color: var(--green);
+  font-size: 0.75rem;
+  line-height: 1;
+  width: 10px;
+  display: inline-flex;
+  justify-content: center;
+}
 .already-have h4 {
   font-size: 0.85rem;
-  margin-bottom: 8px;
+  margin: 0;
   color: var(--green);
+}
+.already-have-count {
+  color: var(--text-muted);
+  font-weight: normal;
 }
 .have-chips {
   display: flex;

@@ -115,6 +115,7 @@ export interface CraftStep {
   recipe_name: string;
   building_type: string;
   building_tier: number;
+  passive: boolean;
   skill_requirements: { skill: string; level: number }[];
   tool_requirements: { tool: string; level: number }[];
   inputs: StepInput[];
@@ -323,7 +324,7 @@ function extractionEffortPerUnit(
 class BaselineCache {
   private cache = new Map<string, number>();
   private inflight = new Set<string>();
-  constructor(private capabilities: PlayerCapabilities | undefined) { }
+  constructor(private capabilities: PlayerCapabilities | undefined) {}
 
   effortPerUnit(itemKey: string): number {
     const cached = this.cache.get(itemKey);
@@ -859,6 +860,7 @@ function linearize(
       recipe_name: s.recipe.name,
       building_type: s.recipe.buildingType,
       building_tier: s.recipe.requiredBuildingTier,
+      passive: s.recipe.passive,
       skill_requirements: s.recipe.requiredSkills,
       tool_requirements: s.recipe.requiredTool,
       inputs,
