@@ -75,7 +75,7 @@ const CAPABILITY_PENALTY = 100;
 /** Effort cost for an item with no recipe/extraction (e.g. NPC purchase). */
 const PURCHASE_EFFORT_PER_UNIT = 1000;
 
-const MAX_DEPTH = 1000;
+const MAX_DEPTH = 2000;
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
