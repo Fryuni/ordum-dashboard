@@ -85,8 +85,20 @@ body {
   display: flex;
   flex-direction: column;
   z-index: 100;
+  transition: width 0.18s ease;
+}
+.sidebar.collapsed {
+  width: 54px;
+}
+.brand-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--border);
 }
 .brand {
+  flex: 1;
   padding: 16px;
   font-size: 1.1rem;
   font-weight: 800;
@@ -95,8 +107,51 @@ body {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  border-bottom: 1px solid var(--border);
   text-align: center;
+}
+.sidebar.collapsed .brand {
+  letter-spacing: 0;
+}
+.sidebar-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.sidebar-toggle:hover {
+  color: var(--text-bright);
+  border-color: var(--accent);
+  background: var(--accent-glow);
+}
+.sidebar.collapsed .sidebar-toggle {
+  position: static;
+  transform: none;
+  margin: 10px auto;
+}
+.sidebar.collapsed .brand-row {
+  flex-direction: column;
+  padding: 10px 0 6px;
+}
+.sidebar.collapsed .brand {
+  padding: 0;
+  font-size: 0.9rem;
 }
 .nav {
   display: flex;
@@ -121,6 +176,21 @@ body {
 .nav a .icon {
   margin-right: 12px;
   font-size: 1.1rem;
+}
+.sidebar.collapsed .nav a,
+.sidebar.collapsed .discord-link {
+  justify-content: center;
+  padding: 8px 0;
+}
+.sidebar.collapsed .nav a .icon,
+.sidebar.collapsed .discord-link .icon {
+  margin-right: 0;
+}
+.sidebar.collapsed .nav-label {
+  display: none;
+}
+.sidebar.collapsed .nav-section-label {
+  display: none;
 }
 .nav a:hover {
   color: var(--text);
@@ -164,6 +234,13 @@ body {
   margin-left: 200px;
   padding: 16px 20px;
   width: calc(100% - 200px);
+  transition:
+    margin-left 0.18s ease,
+    width 0.18s ease;
+}
+.layout.sidebar-collapsed .main-content {
+  margin-left: 54px;
+  width: calc(100% - 54px);
 }
 .content-wrapper {
   max-width: 1400px;
@@ -3433,7 +3510,7 @@ button.profile-icon.authenticated:hover {
 
 .craft-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 20px;
   align-items: start;
 }
@@ -3447,6 +3524,7 @@ button.profile-icon.authenticated:hover {
 }
 
 .saved-plans-panel {
+  width: 320px;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -3456,6 +3534,52 @@ button.profile-icon.authenticated:hover {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  transition: width 0.18s ease;
+}
+.saved-plans-panel.collapsed {
+  width: 40px;
+  padding: 12px 6px;
+  align-items: center;
+  gap: 14px;
+}
+.saved-plans-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.saved-plans-toggle {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+}
+.saved-plans-toggle:hover {
+  color: var(--text-bright);
+  border-color: var(--accent);
+  background: var(--accent-glow);
+}
+.saved-plans-collapsed-label {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  user-select: none;
 }
 .saved-plans-heading {
   font-size: 1rem;

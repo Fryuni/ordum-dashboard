@@ -9,6 +9,7 @@
  * (at your option) any later version.
  */
 import { useStore } from "@nanostores/preact";
+import { persistentAtom } from "@nanostores/persistent";
 import { useEffect, useState } from "preact/hooks";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
@@ -24,6 +25,15 @@ import { $playerInfo } from "../../stores/player";
 
 const LIST_PAGE_SIZE = 100;
 
+const $savedPlansCollapsed = persistentAtom<boolean>(
+  "ui:savedPlansCollapsed",
+  false,
+  {
+    encode: (v) => (v ? "1" : "0"),
+    decode: (v) => v === "1",
+  },
+);
+
 function formatUpdatedAt(ms: number): string {
   const d = new Date(ms);
   return d.toLocaleDateString(undefined, {
@@ -37,6 +47,7 @@ export default function SavedPlansPanel() {
   const playerInfo = useStore($playerInfo);
   const targets = useStore($targets);
   const search = useStore($planSearchQuery);
+  const collapsed = useStore($savedPlansCollapsed);
   const myPlans = useQuery(api.craftPlans.listMine, {
     search: search.trim() || undefined,
   });
@@ -99,9 +110,37 @@ export default function SavedPlansPanel() {
   const plans: SavedPlan[] = myPlans ?? [];
   const presetList: PresetPlan[] = presets ?? [];
 
+  if (collapsed) {
+    return (
+      <aside class="saved-plans-panel collapsed">
+        <button
+          type="button"
+          class="saved-plans-toggle"
+          onClick={() => $savedPlansCollapsed.set(false)}
+          aria-label="Expand saved plans"
+          title="Expand saved plans"
+        >
+          «
+        </button>
+        <div class="saved-plans-collapsed-label">Saved Plans</div>
+      </aside>
+    );
+  }
+
   return (
     <aside class="saved-plans-panel">
-      <h3 class="saved-plans-heading">Saved Plans</h3>
+      <div class="saved-plans-header">
+        <h3 class="saved-plans-heading">Saved Plans</h3>
+        <button
+          type="button"
+          class="saved-plans-toggle"
+          onClick={() => $savedPlansCollapsed.set(true)}
+          aria-label="Collapse saved plans"
+          title="Collapse saved plans"
+        >
+          »
+        </button>
+      </div>
 
       <div class="saved-plans-save">
         <input
