@@ -19,6 +19,12 @@
 import { memo } from "preact/compat";
 import type { RawMaterial } from "../../../common/craft-planner";
 import type { PlayerCapabilities } from "../../../common/player-capabilities";
+import type { ItemType } from "../../../common/resubaka-client";
+
+const itemTypeToPath: Record<ItemType, string> = {
+  Item: "items",
+  Cargo: "cargo",
+};
 
 function RawMaterialCard({
   material: r,
@@ -42,7 +48,7 @@ function RawMaterialCard({
           </span>
           <span class="raw-title">{r.name}</span>
           <a
-            href={`https://bitjita.com/${r.item_type.toLowerCase()}/${r.item_id}`}
+            href={`https://bitjita.com/${itemTypeToPath[r.item_type]}/${r.item_id}`}
             target="_blank"
             rel="noopener noreferrer"
             class="bitjita-link"
