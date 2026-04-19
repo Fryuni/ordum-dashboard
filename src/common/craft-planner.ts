@@ -54,10 +54,10 @@ import {
 const RARITY_FACTOR: Record<string, number> = {
   Common: 1,
   Uncommon: 5,
-  Rare: 15,
-  Epic: 30,
-  Legendary: 50,
-  Mythic: 100,
+  Rare: 40,
+  Epic: 100,
+  Legendary: 150,
+  Mythic: 300,
 };
 
 const RARITY_RANK: Record<string, number> = {
@@ -388,6 +388,13 @@ interface TreeContext {
   baseline: BaselineCache;
   capabilities: PlayerCapabilities | undefined;
   depth: number;
+  /**
+   * Items currently being resolved on the recursion stack. Without this, a
+   * legitimate gameplay cycle like seeds↔plants (where each recipe takes the
+   * other as input) recurses forever until `MAX_DEPTH` fires, dumping the
+   * in-progress item and all its downstream consumers as raw materials.
+   */
+  visiting: Set<string>;
 }
 
 /**
@@ -463,7 +470,13 @@ function buildTree(
     }
   }
 
-  for (const rid of item.crafted_from) {
+  // Skip craft candidates when the item is already on the recursion stack —
+  // a gameplay cycle like seeds↔plants would otherwise pick itself as the
+  // winner on every re-entry and recurse until `MAX_DEPTH`. Extractions are
+  // still considered, and if none apply we fall through to `acquire`.
+  const inCycle = ctx.visiting.has(itemKey);
+
+  for (const rid of inCycle ? [] : item.crafted_from) {
     const recipe = recipesCodex.get(rid);
     if (!recipe) continue;
     let perUnit = ctx.baseline.recipePerUnit(recipe, itemKey);
@@ -549,13 +562,18 @@ function buildTree(
     const craftCount = Math.max(1, Math.ceil(missing / outputPerCraft));
 
     const inputs: PlanNode[] = [];
-    for (const input of recipe.inputs) {
-      const inputNeeded = input.quantity * craftCount;
-      const subNode = buildTree(referenceKey(input), inputNeeded, inventory, {
-        ...ctx,
-        depth: ctx.depth + 1,
-      });
-      inputs.push(subNode);
+    ctx.visiting.add(itemKey);
+    try {
+      for (const input of recipe.inputs) {
+        const inputNeeded = input.quantity * craftCount;
+        const subNode = buildTree(referenceKey(input), inputNeeded, inventory, {
+          ...ctx,
+          depth: ctx.depth + 1,
+        });
+        inputs.push(subNode);
+      }
+    } finally {
+      ctx.visiting.delete(itemKey);
     }
 
     for (const out of recipe.outputs) {
@@ -609,6 +627,7 @@ export function buildCraftPlan(
 ): CraftPlan {
   const baseline = new BaselineCache(capabilities);
   const workingInv = new Map(inventory);
+  const visiting = new Set<string>();
   const trees: PlanNode[] = [];
   for (const target of targets) {
     if (!Number.isFinite(target.quantity) || target.quantity <= 0) continue;
@@ -616,6 +635,7 @@ export function buildCraftPlan(
       baseline,
       capabilities,
       depth: 0,
+      visiting,
     });
     trees.push(tree);
   }
