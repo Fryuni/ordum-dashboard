@@ -47,13 +47,24 @@ export default function PlanCard({
   const [nameFilter, setNameFilter] = useState("");
   const [debouncedName, setDebouncedName] = useState("");
   const [tierFilter, setTierFilter] = useState("");
+  const [skillFilter, setSkillFilter] = useState("");
+  const [inInventoryOnly, setInInventoryOnly] = useState(false);
+  const [canPerformOnly, setCanPerformOnly] = useState(false);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedName(nameFilter), 150);
     return () => clearTimeout(t);
   }, [nameFilter]);
 
-  const hasFilters = debouncedName.trim().length > 0 || tierFilter !== "";
+  const canPerformSupported =
+    !!capabilities && (capabilities.hasSkillData || capabilities.hasToolData);
+
+  const hasFilters =
+    debouncedName.trim().length > 0 ||
+    tierFilter !== "" ||
+    skillFilter !== "" ||
+    inInventoryOnly ||
+    (canPerformOnly && canPerformSupported);
 
   // Collect all unique tiers from raw materials + step outputs
   const availableTiers = useMemo(() => {
@@ -72,17 +83,47 @@ export default function PlanCard({
     return [...tiers].sort((a, b) => a - b);
   }, [plan]);
 
+  // Collect all unique skill names from raw materials + crafting steps
+  const availableSkills = useMemo(() => {
+    const skills = new Set<string>();
+    for (const s of plan.steps ?? []) {
+      for (const sr of s.skill_requirements ?? []) skills.add(sr.skill);
+    }
+    for (const r of plan.raw_materials ?? []) {
+      for (const sr of r.skill_requirements ?? []) skills.add(sr.skill);
+    }
+    return [...skills].sort();
+  }, [plan]);
+
   const nameQ = nameFilter.toLowerCase().trim();
   const tierQ = tierFilter !== "" ? parseInt(tierFilter) : null;
+  const applyCanPerform = canPerformOnly && canPerformSupported;
 
   const filteredRaw = useMemo(() => {
     if (!hasFilters) return plan.raw_materials ?? [];
+    // Raw materials always need gathering — by construction they can't be
+    // fully satisfied by inventory, so this filter hides them entirely.
+    if (inInventoryOnly) return [];
     return (plan.raw_materials ?? []).filter((r) => {
       if (nameQ && !r.name.toLowerCase().includes(nameQ)) return false;
       if (tierQ !== null && r.tier !== tierQ) return false;
+      if (
+        skillFilter &&
+        !r.skill_requirements.some((s) => s.skill === skillFilter)
+      )
+        return false;
+      if (applyCanPerform && (r.missing_skill || r.missing_tool)) return false;
       return true;
     });
-  }, [plan.raw_materials, nameQ, tierQ, hasFilters]);
+  }, [
+    plan.raw_materials,
+    nameQ,
+    tierQ,
+    skillFilter,
+    inInventoryOnly,
+    applyCanPerform,
+    hasFilters,
+  ]);
 
   const filteredSteps = useMemo(() => {
     if (!hasFilters) return plan.steps ?? [];
@@ -92,17 +133,37 @@ export default function PlanCard({
         ...s.inputs.map((i) => i.item.name),
         ...s.outputs.map((o) => o.item.name),
       ];
-      const matchName =
-        !nameQ || names.some((n) => n.toLowerCase().includes(nameQ));
+      if (nameQ && !names.some((n) => n.toLowerCase().includes(nameQ)))
+        return false;
       const matchTier =
         tierQ === null ||
         s.building_tier === tierQ ||
-        s.outputs.some((i) => {
-          return i.item.tier === tierQ;
+        s.outputs.some((i) => i.item.tier === tierQ);
+      if (!matchTier) return false;
+      if (
+        skillFilter &&
+        !s.skill_requirements.some((sr) => sr.skill === skillFilter)
+      )
+        return false;
+      if (inInventoryOnly) {
+        const allFromInventory = s.inputs.every((inp) => {
+          const total = inp.quantity_per_craft * s.craft_count;
+          return (inp.available_from_inventory || 0) >= total;
         });
-      return matchName && matchTier;
+        if (!allFromInventory) return false;
+      }
+      if (applyCanPerform && (s.missing_skill || s.missing_tool)) return false;
+      return true;
     });
-  }, [plan.steps, plan.raw_materials, nameQ, tierQ, hasFilters]);
+  }, [
+    plan.steps,
+    nameQ,
+    tierQ,
+    skillFilter,
+    inInventoryOnly,
+    applyCanPerform,
+    hasFilters,
+  ]);
 
   const filteredHave = useMemo(() => {
     if (!hasFilters) return plan.already_have ?? [];
@@ -147,6 +208,53 @@ export default function PlanCard({
               ))}
             </select>
           </div>
+          {availableSkills.length > 0 && (
+            <div class="plan-filter-group">
+              <span class="filter-icon">⚡</span>
+              <select
+                class="plan-filter-select"
+                value={skillFilter}
+                onChange={(e) =>
+                  setSkillFilter((e.target as HTMLSelectElement).value)
+                }
+              >
+                <option value="">All skills</option>
+                {availableSkills.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+          <label
+            class="plan-filter-toggle"
+            title="Only show steps whose inputs are fully covered by your inventory"
+          >
+            <input
+              type="checkbox"
+              checked={inInventoryOnly}
+              onChange={(e) =>
+                setInInventoryOnly((e.target as HTMLInputElement).checked)
+              }
+            />
+            <span>📦 In inventory</span>
+          </label>
+          {canPerformSupported && (
+            <label
+              class="plan-filter-toggle"
+              title="Only show steps the selected player can perform (no skill or tool warnings)"
+            >
+              <input
+                type="checkbox"
+                checked={canPerformOnly}
+                onChange={(e) =>
+                  setCanPerformOnly((e.target as HTMLInputElement).checked)
+                }
+              />
+              <span>✅ Can perform</span>
+            </label>
+          )}
         </div>
       )}
 
