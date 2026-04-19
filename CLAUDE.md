@@ -55,11 +55,11 @@ Game data indexing, recipe resolution (7000+ items), topological sorting, invent
 
 ### Real-Time Subscriptions (`convexSub`)
 
-`src/client/stores/convexSub.ts` provides reactive Convex query subscriptions for nanostores. It wraps `convexClient.onUpdate()` with `loading/ready/failed` states and re-subscribes when dependency stores change. Use this for any query that should stay in sync with the DB.
+`src/client/stores/convexSub.ts` provides reactive Convex query subscriptions for nanostores. It wraps `convexClient.watchQuery()` with `loading/ready/failed` states and re-subscribes when dependency stores change. Use this for any query that should stay in sync with the DB.
 
-### Convex Client (Non-React)
+### Convex Client (Shared)
 
-`src/client/convex.ts` exports a `ConvexClient` (browser, non-React) singleton with `convexQuery()`, `convexMutation()`, and `convexAction()` helpers. The React tree uses `ConvexAuthProvider` from `@convex-dev/auth/react` for auth; stores use the singleton directly.
+`src/client/convex.ts` exports a single `ConvexReactClient` instance with `convexQuery()`, `convexMutation()`, and `convexAction()` helpers. The same instance is passed to `ConvexAuthProvider` in `client.tsx`, so auth tokens set by the provider flow through to calls made from nanostores — one client, one auth state.
 
 ### Convex Guidelines
 

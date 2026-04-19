@@ -20,6 +20,8 @@ import { persistentAtom } from "@nanostores/persistent";
 import { computedAsync } from "@nanostores/async";
 import { jita } from "../../common/api";
 import { $updateTimer } from "../util-store";
+import { convexMutation } from "../convex";
+import { api } from "../../../convex/_generated/api";
 
 // Player name — always visible regardless of source
 export const $player = persistentAtom<string>("playerName", "");
@@ -30,6 +32,9 @@ export const $playerInfo = computedAsync($player, async (player) => {
   const page = await jita.listPlayers({ q: player });
   const playerInfo = page.players.find((p) => p.username === player) ?? null;
 
+  await convexMutation(api.craftPlans.selectPlayer, {
+    playerEntityId: playerInfo?.entityId ?? null,
+  });
 
   return playerInfo;
 });

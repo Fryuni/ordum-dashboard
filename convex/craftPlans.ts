@@ -24,7 +24,6 @@ const LIST_PAGE_SIZE = 100;
 const targetValidator = v.object({
   item_id: v.number(),
   item_type: v.union(v.literal("Item"), v.literal("Cargo")),
-  name: v.string(),
   quantity: v.number(),
 });
 

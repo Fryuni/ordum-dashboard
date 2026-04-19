@@ -9,7 +9,7 @@
  * (at your option) any later version.
  */
 import { atom } from "nanostores";
-import type { FunctionReturnType } from "convex/server";
+import type { FunctionArgs, FunctionReturnType } from "convex/server";
 import { api } from "../../../convex/_generated/api";
 import { $targets } from "./craft";
 import { $virtualInventory, clearVirtualInventory } from "./craftSource";
@@ -55,12 +55,13 @@ function deserializeVirtualInventory(
 }
 
 /** Read the current craft state for passing to `api.craftPlans.savePlan`. */
-export function getCurrentPlanPayload(): {
-  targets: ReturnType<typeof $targets.get>;
-  virtualInventory: SavedPlanVirtualEntry[];
-} {
+export function getCurrentPlanPayload() {
   return {
-    targets: $targets.get(),
+    targets: $targets.get().map((item) => ({
+      item_type: item.item_type,
+      item_id: item.item_id,
+      quantity: item.quantity,
+    })),
     virtualInventory: serializeVirtualInventory($virtualInventory.get()),
   };
 }
