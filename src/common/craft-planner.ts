@@ -629,7 +629,7 @@ export function buildCraftPlan(
   const workingInv = new Map(inventory);
   const visiting = new Set<string>();
   const trees: PlanNode[] = [];
-  for (const target of targets) {
+  for (const target of targets.sort((a, b) => a.item_id - b.item_id)) {
     if (!Number.isFinite(target.quantity) || target.quantity <= 0) continue;
     const tree = buildTree(referenceKey(target), target.quantity, workingInv, {
       baseline,
