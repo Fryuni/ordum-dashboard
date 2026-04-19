@@ -19,11 +19,12 @@
 /**
  * Convex client singleton for use in nanostores and components.
  *
- * Uses ConvexClient (non-React) so it can be used from nanostores.
- * Auth is handled by ConvexAuthProvider in the React tree; this
- * singleton is for stores that don't need authenticated access.
+ * This is a ConvexReactClient so the same instance can be passed to
+ * ConvexAuthProvider in the React tree. That way auth tokens set by
+ * the provider flow through to queries, mutations, and actions made
+ * from nanostores — one client, one auth state.
  */
-import { ConvexClient } from "convex/browser";
+import { ConvexReactClient } from "convex/react";
 import type {
   FunctionReference,
   FunctionArgs,
@@ -36,7 +37,7 @@ if (!CONVEX_URL) {
   throw new Error("VITE_CONVEX_URL is not set");
 }
 
-export const convexClient = new ConvexClient(CONVEX_URL);
+export const convexClient = new ConvexReactClient(CONVEX_URL);
 
 /**
  * Call a Convex query (one-shot, no subscription).

@@ -70,23 +70,30 @@ export function convexSub<
       unsub?.();
       unsub = null;
 
+      $store.set({ state: "loading" });
+
       if (args === null) {
-        $store.set({ state: "loading" });
         return;
       }
 
-      $store.set({ state: "loading" });
-
-      unsub = convexClient.onUpdate(
-        queryFn,
-        args,
-        (result) => {
+      const watch = convexClient.watchQuery(queryFn, args);
+      const emit = () => {
+        try {
+          const result = watch.localQueryResult();
+          if (result === undefined) return;
           $store.set({ state: "ready", value: result as T, changing: false });
-        },
-        (error) => {
-          $store.set({ state: "failed", error, changing: false });
-        },
-      );
+        } catch (error) {
+          $store.set({
+            state: "failed",
+            error: error as Error,
+            changing: false,
+          });
+        }
+      };
+      unsub = watch.onUpdate(emit);
+      // Watch.onUpdate doesn't fire for an already-cached result — emit now
+      // so a re-subscription with known args resolves immediately.
+      emit();
     });
 
     return () => {
