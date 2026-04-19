@@ -153,13 +153,18 @@ export default function RawMaterials({
     <div class="raw-section">
       <h4>🌿 Raw Materials Needed</h4>
       <div class="raw-grid">
-        {materials.map((r) => (
-          <MemoRawMaterialCard
-            key={`${r.item_type}-${r.item_id}`}
-            material={r}
-            capabilities={capabilities}
-          />
-        ))}
+        {materials
+          .sort(
+            (a, b) =>
+              a.total_needed - a.available - (b.total_needed - b.available),
+          )
+          .map((r) => (
+            <MemoRawMaterialCard
+              key={`${r.item_type}-${r.item_id}`}
+              material={r}
+              capabilities={capabilities}
+            />
+          ))}
       </div>
     </div>
   );

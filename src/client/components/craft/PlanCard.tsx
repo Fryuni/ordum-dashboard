@@ -167,10 +167,12 @@ export default function PlanCard({
 
   const filteredHave = useMemo(() => {
     if (!hasFilters) return plan.already_have ?? [];
-    return (plan.already_have ?? []).filter((item) => {
-      if (nameQ && !item.name.toLowerCase().includes(nameQ)) return false;
-      return true;
-    });
+    return (plan.already_have ?? [])
+      .filter((item) => {
+        if (nameQ && !item.name.toLowerCase().includes(nameQ)) return false;
+        return true;
+      })
+      .sort((a, b) => a.name.localeCompare(b.name));
   }, [plan.already_have, nameQ, hasFilters]);
 
   const isEmpty = !plan.steps?.length && !plan.raw_materials?.length;
