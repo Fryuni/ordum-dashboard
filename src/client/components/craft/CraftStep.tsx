@@ -117,12 +117,12 @@ function CraftStep({
                 <span class="input-name">{nameWithRarity(inp.item)}</span>
                 <div class="input-qty-group">
                   <span class={`input-qty ${state}`}>
-                    {fromInventory} / {total}
-                    {shortfall > 0 ? ` (short ${shortfall})` : ""}
+                    {fromInventory.toFixed(0)} / {total.toFixed(0)}
+                    {shortfall > 0 ? ` (short ${shortfall.toFixed(0)})` : ""}
                   </span>
                   {fromPlan > 0 && (
                     <span class="input-breakdown">
-                      plus {fromPlan} {planLabel}
+                      plus {fromPlan.toFixed(0)} {planLabel}
                     </span>
                   )}
                 </div>
