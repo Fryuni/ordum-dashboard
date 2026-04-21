@@ -339,14 +339,24 @@ class BaselineCache {
       return 0;
     }
 
-    let best = Infinity;
-
+    // Extraction baseline uses the harmonic mean of adjusted per-unit
+    // efforts rather than `min(effort_i)`. A gatherer with no spatial
+    // information can't commit to a single resource node, so pretending
+    // they always land at the cheapest one overstates efficiency; the
+    // harmonic mean weights the mix by rate and bakes the rarity floor
+    // and capability penalty already folded into `extractionEffortPerUnit`.
+    // Infinite entries are skipped so they don't dominate the estimate.
+    let invSum = 0;
+    let count = 0;
     for (const eid of item.extracted_from) {
       const recipe = extractionsCodex.get(eid);
       if (!recipe) continue;
       const effort = extractionEffortPerUnit(item, recipe, this.capabilities);
-      if (effort < best) best = effort;
+      if (!isFinite(effort) || effort <= 0) continue;
+      invSum += 1 / effort;
+      count += 1;
     }
+    let best = count > 0 ? count / invSum : Infinity;
 
     for (const rid of item.crafted_from) {
       const recipe = recipesCodex.get(rid);
@@ -382,10 +392,202 @@ class BaselineCache {
   }
 }
 
+// ─── Recycler index: one-hop byproduct → target conversions ─────────────────
+
+/**
+ * A "recycler" is a craft recipe that converts a byproduct of an extraction
+ * into the target the extraction primarily produces (e.g. split a Rough
+ * Wood Trunk into 4 Rough Tree Bark when Chop Dead Tree co-produces both).
+ * We cache the *best* recycler per (target, byproduct) pair so joint-aware
+ * scoring and the post-build rebalance pass can look them up in O(1).
+ *
+ * Guards against cycles that would defeat the cost discipline:
+ *
+ * 1. One-hop only — the recycler must directly consume `byproductKey` and
+ *    directly output `targetKey`.
+ * 2. A recipe that also outputs `byproductKey` is rejected (trivial loop).
+ * 3. A recipe that also consumes `targetKey` is rejected (double-count).
+ * 4. Recycler data never feeds back into `BaselineCache.effortPerUnit` —
+ *    the baseline stays a pure scalar estimator. This is what keeps the
+ *    mutual recursion risk contained.
+ */
+interface RecyclerEntry {
+  recipe: CraftRecipe;
+  byproductKey: string;
+  byproductInputPerCraft: number;
+  targetOutputPerCraft: number;
+  /** Effort added by one craft, amortized per target produced. */
+  effortPerTarget: number;
+  /** Target units produced per 1 byproduct unit consumed. */
+  targetPerByproductUnit: number;
+  /** Effort added per 1 byproduct unit recycled (captures other-input + recipe effort). */
+  effortPerByproductUnit: number;
+}
+
+class RecyclerIndex {
+  private cache = new Map<string, RecyclerEntry | null>();
+  constructor(
+    private baseline: BaselineCache,
+    private capabilities: PlayerCapabilities | undefined,
+  ) {}
+
+  /** Return the best recycler recipe that turns `byproductKey` into `targetKey`, or null. */
+  bestFor(targetKey: string, byproductKey: string): RecyclerEntry | null {
+    const cacheKey = `${targetKey}<-${byproductKey}`;
+    const cached = this.cache.get(cacheKey);
+    if (cached !== undefined) return cached;
+
+    const byproduct = itemsCodex.get(byproductKey);
+    if (!byproduct) {
+      this.cache.set(cacheKey, null);
+      return null;
+    }
+
+    let best: RecyclerEntry | null = null;
+    for (const rid of byproduct.crafted_into) {
+      const recipe = recipesCodex.get(rid);
+      if (!recipe) continue;
+      const entry = this.evaluate(recipe, targetKey, byproductKey);
+      if (!entry) continue;
+      if (!best || entry.effortPerTarget < best.effortPerTarget) {
+        best = entry;
+      }
+    }
+
+    this.cache.set(cacheKey, best);
+    return best;
+  }
+
+  private evaluate(
+    recipe: CraftRecipe,
+    targetKey: string,
+    byproductKey: string,
+  ): RecyclerEntry | null {
+    // `effectiveOutputPerCraft` falls back to `1` when the target isn't in
+    // the recipe's outputs at all, so we need an explicit presence check
+    // before computing the effective count (which does account for rarity
+    // promotion when the target IS produced).
+    const outputsTarget = recipe.outputs.some(
+      (o) => referenceKey(o) === targetKey,
+    );
+    if (!outputsTarget) return null;
+    const targetOutputPerCraft = effectiveOutputPerCraft(recipe, targetKey);
+    if (targetOutputPerCraft <= 0) return null;
+
+    let byproductInputPerCraft = 0;
+    for (const input of recipe.inputs) {
+      const k = referenceKey(input);
+      if (k === byproductKey) byproductInputPerCraft += input.quantity;
+      if (k === targetKey) return null;
+    }
+    if (byproductInputPerCraft <= 0) return null;
+
+    for (const out of recipe.outputs) {
+      if (referenceKey(out) === byproductKey) return null;
+    }
+
+    let extraEffort = recipe.effort;
+    for (const input of recipe.inputs) {
+      const k = referenceKey(input);
+      if (k === byproductKey) continue;
+      const perUnit = this.baseline.effortPerUnit(k);
+      if (!isFinite(perUnit)) return null;
+      extraEffort += input.quantity * perUnit;
+    }
+    if (
+      !canMeetSkillRequirements(this.capabilities, recipe.requiredSkills) ||
+      !canMeetToolRequirements(this.capabilities, recipe.requiredTool)
+    ) {
+      extraEffort *= CAPABILITY_PENALTY;
+    }
+
+    return {
+      recipe,
+      byproductKey,
+      byproductInputPerCraft,
+      targetOutputPerCraft,
+      effortPerTarget: extraEffort / targetOutputPerCraft,
+      targetPerByproductUnit: targetOutputPerCraft / byproductInputPerCraft,
+      effortPerByproductUnit: extraEffort / byproductInputPerCraft,
+    };
+  }
+}
+
+/**
+ * Per-unit effort of producing `targetKey` via `recipe`, accounting for
+ * byproducts that can be one-hop converted back into `targetKey`. A strike
+ * that also spits out a recyclable byproduct is worth more than a strike
+ * with no side-production — this is what lets the planner prefer
+ * "Chop Dead Tree" over "Chop Rotten Log" when the target is bark.
+ *
+ * The formula accumulates effort and target counts across direct gathering
+ * and recycled byproducts, then divides. A `min(direct, joint)` clamp
+ * prevents an expensive recycler from *worsening* the extraction's score.
+ * A small tiebreaker rewards extractions that expose more recyclable
+ * byproducts, since those surplus products feed the post-build rebalance
+ * pass and avoid wasted co-production.
+ */
+function jointAwareExtractionPerUnit(
+  targetKey: string,
+  recipe: ExtractionRecipe,
+  baseline: BaselineCache,
+  capabilities: PlayerCapabilities | undefined,
+  recyclers: RecyclerIndex,
+): number {
+  const directRate = extractionRate(recipe, targetKey);
+  if (directRate <= 0) return Infinity;
+
+  const item = itemsCodex.get(targetKey);
+  if (!item) return Infinity;
+  const rf = rarityFactor(item);
+  const strikesPerUnit = Math.max(1 / directRate, rf);
+  const penalty =
+    canMeetSkillRequirements(capabilities, recipe.requiredSkills) &&
+    canMeetToolRequirements(capabilities, recipe.requiredTool)
+      ? 1
+      : CAPABILITY_PENALTY;
+
+  const effortPerStrike = rf * penalty;
+  const directTargetPerStrike = 1 / strikesPerUnit;
+  const directPerUnit = effortPerStrike / directTargetPerStrike;
+
+  let extraTargetPerStrike = 0;
+  let extraEffortPerStrike = 0;
+  let recyclerCount = 0;
+  for (const out of recipe.outputs) {
+    const outKey = referenceKey(out);
+    if (outKey === targetKey) continue;
+    const best = recyclers.bestFor(targetKey, outKey);
+    if (!best) continue;
+    recyclerCount += 1;
+    extraTargetPerStrike += out.quantity * best.targetPerByproductUnit;
+    extraEffortPerStrike += out.quantity * best.effortPerByproductUnit;
+  }
+
+  if (recyclerCount === 0) return directPerUnit;
+
+  const totalTargetPerStrike = directTargetPerStrike + extraTargetPerStrike;
+  const totalEffortPerStrike = effortPerStrike + extraEffortPerStrike;
+  if (totalTargetPerStrike <= 0) return directPerUnit;
+
+  const jointPerUnit = totalEffortPerStrike / totalTargetPerStrike;
+  // An expensive recycler must not *penalize* a co-producing extraction vs a
+  // direct-only one — the player can always opt to waste the byproduct.
+  const clamped = Math.min(directPerUnit, jointPerUnit);
+  // Stable tiebreaker: prefer extractions that surface more recyclable
+  // byproducts. The nudge is tiny (`1e-9` × count) so it never reorders
+  // economically distinct candidates — it only separates otherwise-tied
+  // direct-equivalent scores (e.g. Chop Dead Tree vs Chop Rotten Log for
+  // bark, where both yield 0.945 bark/strike but only Dead Tree co-produces
+  // recyclable trunks for the rebalance pass to harvest).
+  return clamped - 1e-9 * recyclerCount;
+}
+
 // ─── Tree building ────────────────────────────────────────────────────────────
 
 interface TreeContext {
   baseline: BaselineCache;
+  recyclers: RecyclerIndex;
   capabilities: PlayerCapabilities | undefined;
   depth: number;
   /**
@@ -462,9 +664,15 @@ function buildTree(
   for (const eid of item.extracted_from) {
     const recipe = extractionsCodex.get(eid);
     if (!recipe) continue;
-    const effort = extractionEffortPerUnit(item, recipe, ctx.capabilities);
-    if (!isFinite(effort)) continue;
-    const total = effort * missing;
+    const perUnit = jointAwareExtractionPerUnit(
+      itemKey,
+      recipe,
+      ctx.baseline,
+      ctx.capabilities,
+      ctx.recyclers,
+    );
+    if (!isFinite(perUnit)) continue;
+    const total = perUnit * missing;
     if (!bestCandidate || total < bestCandidate.effort) {
       bestCandidate = { kind: "extract", eid, effort: total };
     }
@@ -626,6 +834,7 @@ export function buildCraftPlan(
   capabilities?: PlayerCapabilities,
 ): CraftPlan {
   const baseline = new BaselineCache(capabilities);
+  const recyclers = new RecyclerIndex(baseline, capabilities);
   const workingInv = new Map(inventory);
   const visiting = new Set<string>();
   const trees: PlanNode[] = [];
@@ -633,13 +842,14 @@ export function buildCraftPlan(
     if (!Number.isFinite(target.quantity) || target.quantity <= 0) continue;
     const tree = buildTree(referenceKey(target), target.quantity, workingInv, {
       baseline,
+      recyclers,
       capabilities,
       depth: 0,
       visiting,
     });
     trees.push(tree);
   }
-  return linearize(trees, inventory, capabilities);
+  return linearize(trees, inventory, capabilities, recyclers);
 }
 
 // ─── Linearization (tree → steps + raws + already_have) ──────────────────────
@@ -655,6 +865,7 @@ function linearize(
   trees: PlanNode[],
   originalInventory: ReadonlyMap<string, number>,
   capabilities: PlayerCapabilities | undefined,
+  recyclers: RecyclerIndex,
 ): CraftPlan {
   // Phase 1: aggregate CraftNodes by recipe id, and record the extraction
   // chosen for each raw item (so UI knows the verb/skills).
@@ -669,6 +880,21 @@ function linearize(
       missingTool: boolean;
     }
   >();
+
+  /**
+   * Every extract node that resolves a given target. The rebalance pass
+   * uses this to find byproducts it can convert back into the target via
+   * a recycler craft recipe. We keep all usages (not just the first) so
+   * different extractions contributing to the same item both get inspected.
+   */
+  interface ExtractUsage {
+    recipe: ExtractionRecipe;
+    strikes: number;
+    byproducts: Map<string, number>;
+    missingSkill: boolean;
+    missingTool: boolean;
+  }
+  const extractUsages = new Map<string, ExtractUsage[]>();
 
   function walk(node: PlanNode): void {
     switch (node.kind) {
@@ -687,6 +913,26 @@ function linearize(
             missingTool: node.missing_tool,
           });
         }
+
+        const byproducts = new Map<string, number>();
+        for (const out of node.recipe.outputs) {
+          const outKey = referenceKey(out);
+          if (outKey === key) continue;
+          byproducts.set(
+            outKey,
+            (byproducts.get(outKey) ?? 0) + out.quantity * node.strikes,
+          );
+        }
+        const list = extractUsages.get(key);
+        const usage: ExtractUsage = {
+          recipe: node.recipe,
+          strikes: node.strikes,
+          byproducts,
+          missingSkill: node.missing_skill,
+          missingTool: node.missing_tool,
+        };
+        if (list) list.push(usage);
+        else extractUsages.set(key, [usage]);
         return;
       }
       case "acquire": {
@@ -727,6 +973,160 @@ function linearize(
 
   for (const tree of trees) walk(tree);
 
+  // ── Rebalance pass (Change 3): recycle extraction byproducts ──
+  //
+  // When an extraction co-produces an item that a craft recipe can turn
+  // back into the extraction's primary target (bark/trunk is the canonical
+  // case), inject synthesized craft steps so those byproducts don't get
+  // silently wasted. Pool for each target:
+  //
+  // - byproducts tracked in `extractUsages` for that target
+  // - anything the player already has in `originalInventory`
+  //   (minus what `buildTree` already committed)
+  //
+  // We compose a pool across all (recycler recipe × available byproduct)
+  // combinations, sort by effort-per-target ascending, and greedily fill
+  // shortfall with whole crafts. Whole-craft granularity keeps step counts
+  // clean and matches how `plan.steps` is presented.
+
+  const targetsForRebalance = new Set<string>();
+  for (const tree of trees)
+    targetsForRebalance.add(referenceKey(rootDemand(tree).item));
+
+  const rebalanceByproductConsumed = new Map<string, number>();
+
+  for (const targetKey of targetsForRebalance) {
+    const usages = extractUsages.get(targetKey);
+    if (!usages || usages.length === 0) continue;
+
+    type Segment = {
+      recycler: RecyclerEntry;
+      availableBypQty: number;
+      available: number;
+      missingSkill: boolean;
+      missingTool: boolean;
+    };
+    const byproductPools = new Map<
+      string,
+      { total: number; missingSkill: boolean; missingTool: boolean }
+    >();
+    for (const usage of usages) {
+      for (const [bypKey, qty] of usage.byproducts) {
+        const existing = byproductPools.get(bypKey);
+        if (existing) {
+          existing.total += qty;
+          existing.missingSkill ||= usage.missingSkill;
+          existing.missingTool ||= usage.missingTool;
+        } else {
+          byproductPools.set(bypKey, {
+            total: qty,
+            missingSkill: usage.missingSkill,
+            missingTool: usage.missingTool,
+          });
+        }
+      }
+    }
+
+    const segments: Segment[] = [];
+    for (const [bypKey, pool] of byproductPools) {
+      const recycler = recyclers.bestFor(targetKey, bypKey);
+      if (!recycler) continue;
+      const inventoryBypRaw = originalInventory.get(bypKey) ?? 0;
+      const inventoryByp = Math.max(
+        0,
+        inventoryBypRaw - (rebalanceByproductConsumed.get(bypKey) ?? 0),
+      );
+      const availableBypQty = pool.total + inventoryByp;
+      if (availableBypQty < recycler.byproductInputPerCraft) continue;
+      segments.push({
+        recycler,
+        availableBypQty,
+        available: availableBypQty,
+        missingSkill: pool.missingSkill,
+        missingTool: pool.missingTool,
+      });
+    }
+    if (segments.length === 0) continue;
+
+    segments.sort(
+      (a, b) => a.recycler.effortPerTarget - b.recycler.effortPerTarget,
+    );
+
+    let producedSoFar = 0;
+    for (const s of steps.values()) {
+      for (const out of s.recipe.outputs) {
+        if (referenceKey(out) !== targetKey) continue;
+        producedSoFar += out.quantity * s.craftCount;
+      }
+    }
+    const targetQty = (() => {
+      let q = 0;
+      for (const tree of trees) {
+        const rd = rootDemand(tree);
+        if (referenceKey(rd.item) === targetKey) q += rd.quantity;
+      }
+      return q;
+    })();
+    let shortfall = targetQty - producedSoFar;
+    if (shortfall <= 0) continue;
+
+    for (const seg of segments) {
+      if (shortfall <= 0) break;
+      const { recycler } = seg;
+      const maxCraftsByAvail = Math.floor(
+        seg.available / recycler.byproductInputPerCraft,
+      );
+      const maxCraftsByDemand = Math.max(
+        1,
+        Math.ceil(shortfall / recycler.targetOutputPerCraft),
+      );
+      const crafts = Math.min(maxCraftsByAvail, maxCraftsByDemand);
+      if (crafts <= 0) continue;
+
+      const existing = steps.get(recycler.recipe.id);
+      if (existing) {
+        existing.craftCount += crafts;
+        existing.missingSkill ||= seg.missingSkill;
+        existing.missingTool ||= seg.missingTool;
+      } else {
+        steps.set(recycler.recipe.id, {
+          recipe: recycler.recipe,
+          craftCount: crafts,
+          missingSkill: seg.missingSkill,
+          missingTool: seg.missingTool,
+        });
+      }
+      const consumed = crafts * recycler.byproductInputPerCraft;
+      rebalanceByproductConsumed.set(
+        recycler.byproductKey,
+        (rebalanceByproductConsumed.get(recycler.byproductKey) ?? 0) + consumed,
+      );
+      seg.available -= consumed;
+      shortfall -= crafts * recycler.targetOutputPerCraft;
+    }
+  }
+
+  // Extraction byproducts offset step demand only for byproducts the
+  // rebalance actually consumed. Generic "X is a side-effect of Y's
+  // extraction so X is free" accounting is out of scope here — it would
+  // mask intentional gathering for items that happen to be side-products
+  // of the plan's extractions (e.g. tree sap extraction yields bark as a
+  // side output, but in an Astralite plan we still want bark tracked as a
+  // raw because the tree sap strikes weren't scaled with bark demand in
+  // mind).
+  const extractionByproductSupply = new Map<string, number>();
+  for (const usages of extractUsages.values()) {
+    for (const usage of usages) {
+      for (const [bypKey, qty] of usage.byproducts) {
+        if (!rebalanceByproductConsumed.has(bypKey)) continue;
+        extractionByproductSupply.set(
+          bypKey,
+          (extractionByproductSupply.get(bypKey) ?? 0) + qty,
+        );
+      }
+    }
+  }
+
   // Phase 2: demand and production analysis.
   // Target-level demand: each tree's root item contributes its request; we
   // read this directly from the tree root's quantity fields.
@@ -754,6 +1154,13 @@ function linearize(
         (stepProduction.get(k) ?? 0) + Math.ceil(out.quantity * s.craftCount),
       );
     }
+  }
+
+  for (const [bypKey, supplied] of extractionByproductSupply) {
+    stepProduction.set(
+      bypKey,
+      (stepProduction.get(bypKey) ?? 0) + Math.ceil(supplied),
+    );
   }
 
   // An item is a RAW if total demand exceeds what the plan produces PLUS
@@ -817,9 +1224,9 @@ function linearize(
       name: item.name,
       tier: item.tier,
       tag: item.tag || "",
-      total_needed: demand,
+      total_needed: netNeeded,
       likely_effort: likelyEffort,
-      available: Math.min(inv, demand),
+      available: Math.min(inv, netNeeded),
       source,
       skill_requirements: chosen?.recipe?.requiredSkills ?? [],
       tool_requirements: chosen?.recipe?.requiredTool ?? [],
@@ -845,6 +1252,12 @@ function linearize(
     const current = consumption.get(k) ?? 0;
     const deficit = Math.max(0, raw.total_needed - current);
     consumption.set(k, current + deficit);
+  }
+  for (const [bypKey, supplied] of extractionByproductSupply) {
+    consumption.set(
+      bypKey,
+      (consumption.get(bypKey) ?? 0) + Math.ceil(supplied),
+    );
   }
 
   const rawSteps: CraftStep[] = [];

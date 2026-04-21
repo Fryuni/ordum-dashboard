@@ -30,6 +30,7 @@ import {
   buildCraftPlan,
   type CraftPlan,
   type CraftTarget,
+  type PlanNode,
 } from "./craft-planner";
 import { itemsCodex, recipesCodex } from "./gamedata/codex";
 import {
@@ -53,6 +54,13 @@ const FIXTURES = {
   flintAxe: lookupByName("Flint Axe"),
   knappedFlint: lookupByName("Knapped Flint"),
   stick: lookupByName("Stick"),
+
+  // Bark/trunk joint-output case: Rough Tree Bark (Item) and Rough Wood
+  // Trunk (Cargo) are the canonical motivating example — "Chop Dead Tree"
+  // co-produces both, and "Split into Rough Tree Bark" converts 1 trunk
+  // into 4 bark at 40 effort.
+  roughTreeBark: lookupByName("Rough Tree Bark"),
+  roughWoodTrunk: lookupByName("Rough Wood Trunk"),
 
   // Depth-2 chain: Simple Charcoal ← Simple Wood Log ← Simple Wood Trunk (raw).
   // "Split into Simple Wood Log" outputs 6 logs per craft, so crafting a
@@ -119,6 +127,13 @@ function simulatePlan(
   const errors: string[] = [];
   const inv = new Map(inventory);
 
+  // Extraction co-products — the target the tree set out to gather is
+  // still tracked via `raw_materials`, but any byproducts (e.g. Rough Wood
+  // Trunks co-produced by "Chop Dead Tree" when gathering Rough Tree Bark)
+  // are invisible to the raws list. Replay the tree's extract nodes so the
+  // simulator's inventory reflects what actually hits the player's bag.
+  walkTreesForExtracts(plan.trees, inv);
+
   for (const raw of plan.raw_materials) {
     const k = key(raw);
     const current = inv.get(k) ?? 0;
@@ -166,6 +181,54 @@ function simulatePlan(
   }
 
   return { ok: errors.length === 0, errors, finalInventory: inv };
+}
+
+function walkTreesForExtracts(
+  trees: PlanNode[],
+  inv: Map<string, number>,
+): void {
+  function visit(node: PlanNode): void {
+    switch (node.kind) {
+      case "have":
+      case "acquire":
+        return;
+      case "extract": {
+        for (const out of node.recipe.outputs) {
+          const k = referenceKey(out);
+          const qty = Math.ceil(out.quantity * node.strikes);
+          inv.set(k, (inv.get(k) ?? 0) + qty);
+        }
+        return;
+      }
+      case "craft":
+        for (const child of node.inputs) visit(child);
+        return;
+      case "composite":
+        visit(node.sub);
+        return;
+    }
+  }
+  for (const tree of trees) visit(tree);
+}
+
+function walkTreesForExtractKeys(trees: PlanNode[], keys: Set<string>): void {
+  function visit(node: PlanNode): void {
+    switch (node.kind) {
+      case "have":
+      case "acquire":
+        return;
+      case "extract":
+        for (const out of node.recipe.outputs) keys.add(referenceKey(out));
+        return;
+      case "craft":
+        for (const child of node.inputs) visit(child);
+        return;
+      case "composite":
+        visit(node.sub);
+        return;
+    }
+  }
+  for (const tree of trees) visit(tree);
 }
 
 const RARITY_RANK: Record<string, number> = {
@@ -491,17 +554,27 @@ function assertPlanStructure(
   }
 
   // 3. Provenance: for every step input, the item is either in inventory,
-  //    a raw material, or produced by some step. This catches topology bugs
-  //    (e.g. a step consuming something that nothing in the plan produces).
+  //    a raw material, produced by some step, or produced as an extract
+  //    output (primary or byproduct) somewhere in `plan.trees`. The last
+  //    case covers synthesized recycler steps (e.g. Split into Rough Tree
+  //    Bark) whose byproduct input is co-produced by a sibling extraction.
   const rawKeys = new Set(plan.raw_materials.map(key));
   const producedKeys = new Set<string>();
   for (const step of plan.steps) {
     for (const out of step.outputs) producedKeys.add(key(out.item));
   }
+  const extractOutputKeys = new Set<string>();
+  walkTreesForExtractKeys(plan.trees, extractOutputKeys);
   for (const step of plan.steps) {
     for (const input of step.inputs) {
       const k = key(input.item);
-      if (inventory.has(k) || rawKeys.has(k) || producedKeys.has(k)) continue;
+      if (
+        inventory.has(k) ||
+        rawKeys.has(k) ||
+        producedKeys.has(k) ||
+        extractOutputKeys.has(k)
+      )
+        continue;
       throw new Error(
         `step "${step.recipe_name}" input ${input.item.name} has no source in the plan`,
       );
@@ -712,6 +785,62 @@ describe("buildCraftPlan: plan.trees (tree preservation)", () => {
     expect(root.kind).toBe("craft");
     expect(Number.isInteger(root.craftCount)).toBe(true);
     expect(root.craftCount!).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("buildCraftPlan: joint-output extractions and recyclers", () => {
+  test("100× Rough Tree Bark uses Split into Rough Tree Bark from co-produced trunks", () => {
+    const targets = [asTarget(FIXTURES.roughTreeBark, 100)];
+    const plan = buildCraftPlan(targets, new Map());
+
+    const stepNames = plan.steps.map((s) => s.recipe_name);
+    expect(stepNames).toContain("Split into Rough Tree Bark");
+
+    const barkRaw = plan.raw_materials.find(
+      (r) => r.name === "Rough Tree Bark",
+    );
+    expect(barkRaw).toBeDefined();
+    expect(barkRaw!.total_needed).toBeLessThan(100);
+
+    const trunkRaw = plan.raw_materials.find(
+      (r) => r.name === "Rough Wood Trunk",
+    );
+    expect(trunkRaw).toBeUndefined();
+
+    assertValidPlan(targets, new Map(), plan);
+  });
+
+  test("100× Rough Tree Bark does not satisfy the target entirely from trunk crafting", () => {
+    const targets = [asTarget(FIXTURES.roughTreeBark, 100)];
+    const plan = buildCraftPlan(targets, new Map());
+
+    const barkRaw = plan.raw_materials.find(
+      (r) => r.name === "Rough Tree Bark",
+    );
+    expect(barkRaw).toBeDefined();
+    expect(barkRaw!.total_needed).toBeGreaterThan(50);
+  });
+
+  test("trunks in inventory feed Split into Rough Tree Bark before new extraction", () => {
+    const inv = new Map([[key(FIXTURES.roughWoodTrunk), 20]]);
+    const targets = [asTarget(FIXTURES.roughTreeBark, 100)];
+    const plan = buildCraftPlan(targets, inv);
+
+    const split = plan.steps.find(
+      (s) => s.recipe_name === "Split into Rough Tree Bark",
+    );
+    expect(split).toBeDefined();
+    expect(split!.craft_count).toBeGreaterThanOrEqual(20);
+
+    assertValidPlan(targets, inv, plan);
+  });
+
+  test("Beginner's Study Journal still avoids Stone Diagrams under harmonic baseline", () => {
+    const targets = [asTarget(FIXTURES.beginnersStudyJournal, 1)];
+    const plan = buildCraftPlan(targets, new Map());
+    const raws = plan.raw_materials.map((r) => r.name);
+    expect(raws).toContain("Beginner's Stone Carvings");
+    expect(raws).not.toContain("Beginner's Stone Diagrams");
   });
 });
 
