@@ -2293,6 +2293,20 @@ body {
   opacity: 1;
 }
 
+.bitjita-market-link {
+  margin-left: 0.25rem;
+}
+
+.bitjita-market-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  font-size: 14px;
+  line-height: 1;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    Storage Audit
    ═══════════════════════════════════════════════════════════════════════════ */

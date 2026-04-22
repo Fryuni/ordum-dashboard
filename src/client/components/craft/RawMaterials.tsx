@@ -26,6 +26,11 @@ const itemTypeToPath: Record<ItemType, string> = {
   Cargo: "cargo",
 };
 
+const itemTypeToMarketPath: Record<ItemType, string> = {
+  Item: "item",
+  Cargo: "cargo",
+};
+
 function RawMaterialCard({
   material: r,
   capabilities,
@@ -59,6 +64,17 @@ function RawMaterialCard({
               alt="BitJita"
               class="bitjita-icon"
             />
+          </a>
+          <a
+            href={`https://bitjita.com/market/${itemTypeToMarketPath[r.item_type]}/${r.item_id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="bitjita-link bitjita-market-link"
+            title="View on BitJita Market"
+          >
+            <span class="bitjita-market-icon" aria-hidden="true">
+              💰
+            </span>
           </a>
         </div>
         <span class="raw-source">{r.source || "Gather"}</span>

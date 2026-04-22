@@ -22,6 +22,17 @@ import { referenceKey } from "../../../common/gamedata/definition";
 import { nameWithRarity } from "../../../common/gamedata/helpers";
 import type { PlayerCapabilities } from "../../../common/player-capabilities";
 import type { ItemPlace } from "../../../common/claim-inventory";
+import type { ItemType } from "../../../common/resubaka-client";
+
+const itemTypeToPath: Record<ItemType, string> = {
+  Item: "items",
+  Cargo: "cargo",
+};
+
+const itemTypeToMarketPath: Record<ItemType, string> = {
+  Item: "item",
+  Cargo: "cargo",
+};
 
 function CraftStep({
   step,
@@ -46,6 +57,30 @@ function CraftStep({
       <div class="timeline-card">
         <div class="step-header">
           <span class="step-title">{step.recipe_name}</span>
+          <a
+            href={`https://bitjita.com/${itemTypeToPath[firstOutput.item.item_type]}/${firstOutput.item.item_id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="bitjita-link"
+            title="View on BitJita"
+          >
+            <img
+              src="https://bitjita.com/bitjitalogo.webp"
+              alt="BitJita"
+              class="bitjita-icon"
+            />
+          </a>
+          <a
+            href={`https://bitjita.com/market/${itemTypeToMarketPath[firstOutput.item.item_type]}/${firstOutput.item.item_id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="bitjita-link bitjita-market-link"
+            title="View on BitJita Market"
+          >
+            <span class="bitjita-market-icon" aria-hidden="true">
+              💰
+            </span>
+          </a>
           <span class="step-qty">
             ×{step.craft_count} craft{step.craft_count > 1 ? "s" : ""} →{" "}
             {(step.craft_count * firstOutput.quantity_per_craft).toFixed(0)}{" "}
