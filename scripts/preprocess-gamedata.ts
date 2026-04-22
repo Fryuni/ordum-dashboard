@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with Ordum Dashboard. If not, see <https://www.gnu.org/licenses/>.
  */
+import assert from "node:assert";
 import {
   referenceKey,
   type CraftRecipe,
@@ -25,7 +26,6 @@ import {
   type ItemStack,
 } from "../src/common/gamedata/definition";
 import * as path from "node:path";
-import * as devalue from "devalue";
 
 const rootDir = path.dirname(import.meta.dirname);
 const gamedataDir = path.join(rootDir, "gamedata");
@@ -57,6 +57,7 @@ function removeFalsy<T extends Record<any, any>>(
 
 const items = new Map<string, ItemEntry>();
 const recipes = new Map<number, CraftRecipe>();
+const unpacking = new Map<string, { recipeId: number; outputAmount: number }>();
 const extractions = new Map<number, ExtractionRecipe>();
 
 const itemListItems = new Map<string, number>();
@@ -198,14 +199,25 @@ const toolTypes = new Map<number, string>(
   ),
 );
 
-/** Recipe name patterns to skip (packaging/unpackaging creates cycles) */
+/** Recipe name patterns to skip (packaging/unpackaging creates useless cycles) */
 function shouldSkipRecipe(recipe: { name: string }): boolean {
   const name = recipe.name.toLowerCase();
-  return name.startsWith("unpack ") || name.startsWith("recraft ");
+  return name.startsWith("package ");
 }
 
+/** Recipe name for the special unpacking recipes used just for storage and transportation. */
+function isUnpackingRecipe(recipe: { name: string }): boolean {
+  const name = recipe.name.toLowerCase();
+  return name.startsWith("unpack ");
+}
+
+let skippedCount = 0;
+
 for (const rawRecipe of await readDescFile("crafting_recipe")) {
-  if (shouldSkipRecipe(rawRecipe)) continue;
+  if (shouldSkipRecipe(rawRecipe)) {
+    skippedCount++;
+    continue;
+  }
   const inputs = resolveItemStack(rawRecipe.consumed_item_stacks);
   const outputs = resolveItemStack(rawRecipe.crafted_item_stacks);
   const nameParts = [...outputs, ...inputs].map(
@@ -214,6 +226,7 @@ for (const rawRecipe of await readDescFile("crafting_recipe")) {
   const name = (rawRecipe.name as string).replace(/\{(\d+)\}/g, (_, index) => {
     return nameParts[Number.parseInt(index, 10)] || `#${index}`;
   });
+
   const recipe: CraftRecipe = {
     id: rawRecipe.id,
     name,
@@ -238,6 +251,17 @@ for (const rawRecipe of await readDescFile("crafting_recipe")) {
     ),
   };
 
+  if (isUnpackingRecipe(rawRecipe)) {
+    assert(inputs.length === 1, "Unpacking recipes have one input");
+    assert(outputs.length === 1, "Unpacking recipes have one output");
+    const output = outputs[0]!;
+    unpacking.set(referenceKey(output), {
+      recipeId: recipe.id,
+      outputAmount: output.quantity,
+    });
+    recipe.unpacking = true;
+  }
+
   recipes.set(recipe.id, recipe);
   inputs.forEach((input) => {
     items.get(referenceKey(input))!.crafted_into.push(recipe.id);
@@ -246,6 +270,8 @@ for (const rawRecipe of await readDescFile("crafting_recipe")) {
     items.get(referenceKey(output))!.crafted_from.push(recipe.id);
   });
 }
+
+console.log(`Skipped ${skippedCount} recipes`);
 
 const resources = new Map<number, string>(
   (await readDescFile("resource")).map(
@@ -319,149 +345,111 @@ for (const tool of rawToolsData) {
 console.log(`${items.size} items`);
 console.log(`${itemLists.size} item lists`);
 console.log(`${recipes.size} craft recipes`);
+console.log(`${unpacking.size} unpacking recipes`);
 console.log(`${extractions.size} extraction recipes`);
 console.log(`${toolItems.size} tool items`);
 
-// ─── Precompute recipe selections per tier ────────────────────────────────────
+// ─── Resolve transitive recipe levels ─────────────────────────────────────────
 
-const RARITY_RANK: Record<string, number> = {
-  Common: 0,
-  Uncommon: 1,
-  Rare: 2,
-  Epic: 3,
-  Legendary: 4,
-  Mythic: 5,
+const resolvedRecipes = new Set<number>();
+
+type EffectiveRequirements = {
+  effectiveRequiredSkills: Array<{ skill: string; level: number }>;
+  effectiveRequiredTool: Array<{ tool: string; level: number }>;
 };
 
-function computeRecipeTier(recipe: CraftRecipe): number {
-  let tier = recipe.requiredBuildingTier;
-  for (const s of recipe.requiredSkills)
-    tier = Math.max(tier, Math.floor(s.level / 10));
-  for (const t of recipe.requiredTool) tier = Math.max(tier, t.level);
-  return tier;
+const itemRequirements = new Map<string, EffectiveRequirements>();
+
+function resolveRecipeRequirements(recipe: CraftRecipe) {
+  if (resolvedRecipes.has(recipe.id)) return;
+
+  recipe.effectiveRequiredSkills = recipe.requiredSkills.map((s) => ({ ...s }));
+  recipe.effectiveRequiredTool = recipe.requiredTool.map((s) => ({ ...s }));
+
+  resolvedRecipes.add(recipe.id);
+
+  for (const item of recipe.inputs) {
+    const req = resolveItemRequirements(item);
+    for (const newReq of req.effectiveRequiredSkills) {
+      const existing = recipe.effectiveRequiredSkills.find(
+        (r) => r.skill === newReq.skill,
+      );
+      if (existing) {
+        existing.level = Math.max(existing.level, newReq.level);
+      } else {
+        recipe.effectiveRequiredSkills.push({ ...newReq });
+      }
+    }
+    for (const newReq of req.effectiveRequiredTool) {
+      const existing = recipe.effectiveRequiredTool.find(
+        (r) => r.tool === newReq.tool,
+      );
+      if (existing) {
+        existing.level = Math.max(existing.level, newReq.level);
+      } else {
+        recipe.effectiveRequiredTool.push({ ...newReq });
+      }
+    }
+  }
 }
 
-function localEffectiveOutput(recipe: CraftRecipe, targetKey: string): number {
-  const targetItem = items.get(targetKey);
-  if (!targetItem) {
-    return (
-      recipe.outputs.find((s) => referenceKey(s) === targetKey)?.quantity || 1
+function resolveItemRequirements(ref: ItemReference): EffectiveRequirements {
+  const cached = itemRequirements.get(referenceKey(ref));
+  if (cached) return cached;
+
+  const item = items.get(referenceKey(ref))!;
+
+  const skills = [
+    ...item.crafted_from.flatMap((r) => {
+      const recipe = recipes.get(r)!;
+      if (recipe.unpacking) return [];
+      resolveRecipeRequirements(recipe);
+      return recipe.effectiveRequiredSkills;
+    }),
+    ...item.extracted_from.flatMap((r) => extractions.get(r)!.requiredSkills),
+  ];
+  const tools = [
+    ...item.crafted_from.flatMap((r) => {
+      const recipe = recipes.get(r)!;
+      if (recipe.unpacking) return [];
+      resolveRecipeRequirements(recipe);
+      return recipe.effectiveRequiredTool;
+    }),
+    ...item.extracted_from.flatMap((r) => extractions.get(r)!.requiredTool),
+  ];
+
+  const state: EffectiveRequirements = {
+    effectiveRequiredSkills: [],
+    effectiveRequiredTool: [],
+  };
+
+  for (const newReq of skills) {
+    const existing = state.effectiveRequiredSkills.find(
+      (r) => r.skill === newReq.skill,
     );
-  }
-  const targetRank = RARITY_RANK[targetItem.rarity] ?? -1;
-  let total = 0;
-  let found = false;
-  for (const output of recipe.outputs) {
-    const outItem = items.get(referenceKey(output));
-    if (
-      outItem &&
-      outItem.name === targetItem.name &&
-      (RARITY_RANK[outItem.rarity] ?? -1) >= targetRank
-    ) {
-      total += output.quantity;
-      if (referenceKey(output) === targetKey) found = true;
+    if (existing) {
+      existing.level = Math.min(existing.level, newReq.level);
+    } else {
+      state.effectiveRequiredSkills.push({ ...newReq });
     }
   }
-  if (!found || total <= 0) {
-    return (
-      recipe.outputs.find((s) => referenceKey(s) === targetKey)?.quantity || 1
+  for (const newReq of tools) {
+    const existing = state.effectiveRequiredTool.find(
+      (r) => r.tool === newReq.tool,
     );
+    if (existing) {
+      existing.level = Math.min(existing.level, newReq.level);
+    } else {
+      state.effectiveRequiredTool.push({ ...newReq });
+    }
   }
-  return total;
+
+  return state;
 }
 
-function chainEffort(
-  itemKey: string,
-  playerTier: number,
-  memo: Map<string, number>,
-): number {
-  const cached = memo.get(itemKey);
-  if (cached !== undefined) return cached;
-
-  const item = items.get(itemKey);
-  if (!item) {
-    memo.set(itemKey, 0);
-    return 0;
-  }
-
-  if (item.crafted_from.length === 0) {
-    let effort = 1;
-    for (const rid of item.extracted_from) {
-      const ext = extractions.get(rid);
-      if (!ext) continue;
-      let extTier = 0;
-      for (const s of ext.requiredSkills)
-        extTier = Math.max(extTier, Math.floor(s.level / 10));
-      for (const t of ext.requiredTool) extTier = Math.max(extTier, t.level);
-      if (extTier > playerTier) {
-        effort = 100;
-        break;
-      }
-    }
-    memo.set(itemKey, effort);
-    return effort;
-  }
-
-  // Guard against cycles
-  memo.set(itemKey, Infinity);
-
-  let best = Infinity;
-  for (const recipeId of item.crafted_from) {
-    const recipe = recipes.get(recipeId)!;
-    const recipeTier = computeRecipeTier(recipe);
-    const penalty = recipeTier > playerTier ? 100 : 1;
-    let effort = recipe.effort * penalty;
-    const outputPerCraft = localEffectiveOutput(recipe, itemKey);
-    for (const input of recipe.inputs) {
-      effort +=
-        (input.quantity / outputPerCraft) *
-        chainEffort(referenceKey(input), playerTier, memo);
-    }
-    best = Math.min(best, effort);
-  }
-
-  memo.set(itemKey, best);
-  return best;
+for (const recipe of recipes.values()) {
+  resolveRecipeRequirements(recipe);
 }
-
-// For each multi-recipe item, select the cheapest recipe at each tier 0-10.
-const recipeSelections = new Map<string, number[]>();
-let multiCount = 0;
-
-for (const [itemKey, item] of items.entries()) {
-  if (item.crafted_from.length <= 1) continue;
-  multiCount++;
-
-  const selections: number[] = [];
-  for (let tier = 0; tier <= 10; tier++) {
-    const memo = new Map<string, number>();
-    let bestId = item.crafted_from[0]!;
-    let bestEffort = Infinity;
-    for (const recipeId of item.crafted_from) {
-      const recipe = recipes.get(recipeId)!;
-      const recipeTier = computeRecipeTier(recipe);
-      const penalty = recipeTier > tier ? 100 : 1;
-      let effort = recipe.effort * penalty;
-      const outputPerCraft = localEffectiveOutput(recipe, itemKey);
-      for (const input of recipe.inputs) {
-        effort +=
-          (input.quantity / outputPerCraft) *
-          chainEffort(referenceKey(input), tier, memo);
-      }
-      if (effort < bestEffort) {
-        bestEffort = effort;
-        bestId = recipeId;
-      }
-    }
-    selections.push(bestId);
-  }
-
-  recipeSelections.set(itemKey, selections);
-}
-
-console.log(
-  `${multiCount} multi-recipe items → ${recipeSelections.size} recipe selections`,
-);
 
 // ─── Write codex ──────────────────────────────────────────────────────────────
 
@@ -469,9 +457,9 @@ await Bun.file(encodedCodexFile).write(
   JSON.stringify({
     items: Array.from(items.entries()),
     recipes: Array.from(recipes.entries()),
+    unpacking: Array.from(unpacking.entries()),
     extractions: Array.from(extractions.entries()),
     toolItems: Array.from(toolItems.entries()),
-    recipeSelections: Array.from(recipeSelections.entries()),
   }),
 );
 
@@ -483,7 +471,7 @@ import codex from "./codex.json";
 export const itemsCodex: Map<string, ItemEntry> = new Map((codex as any).items);
 export const recipesCodex: Map<number, CraftRecipe> = new Map((codex as any).recipes);
 export const extractionsCodex: Map<number, ExtractionRecipe> = new Map((codex as any).extractions);
+export const unpackingRecipes: Map<string, { recipeId: number, outputAmount: number }> = new Map((codex as any).unpacking);
 export const toolItemsCodex: Map<number, ToolItemEntry> = new Map((codex as any).toolItems ?? []);
-export const recipeSelectionsCodex: Map<string, number[]> = new Map((codex as any).recipeSelections ?? []);
 `.trim(),
 );

@@ -46,6 +46,7 @@ export interface CraftRecipe {
   name: string;
   effort: number;
   passive: boolean;
+  unpacking?: boolean;
   buildingType: string;
   requiredBuildingTier: number;
   requiredSkills: Array<{
@@ -56,6 +57,8 @@ export interface CraftRecipe {
     tool: string;
     level: number;
   }>;
+  effectiveRequiredSkills: Array<{ skill: string; level: number }>;
+  effectiveRequiredTool: Array<{ tool: string; level: number }>;
   inputs: ItemStack[];
   outputs: ItemStack[];
 }

@@ -31,9 +31,10 @@ export const recipesCodex: Map<number, CraftRecipe> = new Map(
 export const extractionsCodex: Map<number, ExtractionRecipe> = new Map(
   (codex as any).extractions,
 );
+export const unpackingRecipes: Map<
+  string,
+  { recipeId: number; outputAmount: number }
+> = new Map((codex as any).unpacking);
 export const toolItemsCodex: Map<number, ToolItemEntry> = new Map(
   (codex as any).toolItems ?? [],
-);
-export const recipeSelectionsCodex: Map<string, number[]> = new Map(
-  (codex as any).recipeSelections ?? [],
 );

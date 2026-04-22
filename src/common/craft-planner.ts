@@ -30,7 +30,12 @@
  */
 
 import { topologicalSort } from "./topological-sort";
-import { extractionsCodex, itemsCodex, recipesCodex } from "./gamedata/codex";
+import {
+  extractionsCodex,
+  itemsCodex,
+  recipesCodex,
+  unpackingRecipes,
+} from "./gamedata/codex";
 import {
   referenceKey,
   type CraftRecipe,
@@ -205,8 +210,7 @@ export interface AcquireTreeNode {
 export interface CompositeNode {
   kind: "composite";
   item: ItemEntry;
-  fromInventory: number;
-  sub: PlanNode;
+  sub: PlanNode[];
   effort: number;
 }
 
@@ -628,12 +632,58 @@ function buildTree(
   const have = Math.min(amount, Math.max(0, onHand));
   if (have > 0) inventory.set(itemKey, onHand - have);
 
-  if (have >= amount) {
-    const resupply = resupplyCostPerUnit(item, ctx.baseline) * amount;
-    return { kind: "have", item, quantity: amount, effort: resupply };
+  let haveNode: PlanNode | null =
+    have > 0
+      ? ({
+          kind: "have",
+          item,
+          quantity: have,
+          effort: resupplyCostPerUnit(item, ctx.baseline) * have,
+        } satisfies HaveNode)
+      : null;
+
+  let missing = amount - have;
+
+  const unpacking = unpackingRecipes.get(itemKey);
+  if (unpacking) {
+    const unpackRecipe = recipesCodex.get(unpacking.recipeId)!;
+    const packedItem = unpackRecipe.inputs[0]!; // Unpacking recipes have a single input
+    const packedOnHand = inventory.get(referenceKey(packedItem)) ?? 0;
+    const needed = Math.ceil(missing / unpacking.outputAmount);
+    const havePacked = Math.min(packedOnHand, needed);
+
+    if (havePacked > 0) {
+      const equivalent = havePacked * unpacking.outputAmount;
+      inventory.set(referenceKey(packedItem), packedOnHand - havePacked);
+
+      const unpackNode: CraftTreeNode = {
+        kind: "craft",
+        item,
+        recipe: unpackRecipe,
+        craftCount: havePacked,
+        quantity: equivalent,
+        inputs: [
+          {
+            kind: "have",
+            item: itemsCodex.get(referenceKey(packedItem))!,
+            effort: 0,
+            quantity: havePacked,
+          } satisfies HaveNode,
+        ],
+        effort: 0,
+        missing_skill: false,
+        missing_tool: false,
+      };
+
+      haveNode = composeNode(item, haveNode, unpackNode);
+      missing -= equivalent;
+      inventory.set(itemKey, Math.max(0, -missing));
+    }
   }
 
-  const missing = amount - have;
+  if (haveNode && missing <= 0) {
+    return haveNode;
+  }
 
   if (ctx.depth > MAX_DEPTH) {
     const node: AcquireTreeNode = {
@@ -642,7 +692,7 @@ function buildTree(
       quantity: missing,
       effort: missing * PURCHASE_EFFORT_PER_UNIT,
     };
-    return have > 0 ? wrapPartial(item, have, node) : node;
+    return composeNode(item, haveNode, node);
   }
 
   // ── Phase 1: pick the cheapest acquisition path via BaselineCache ──
@@ -655,11 +705,27 @@ function buildTree(
   // Inventory discount: if a recipe's direct input is already on hand,
   // that shaves off its gathering cost, potentially flipping the winner.
 
-  type Candidate =
-    | { kind: "extract"; eid: number; effort: number }
-    | { kind: "craft"; rid: number; effort: number };
+  type Candidate = {
+    kind: "extract" | "craft";
+    id: number;
+    effort: number;
+    missingSkill: boolean;
+    missingTool: boolean;
+  };
 
   let bestCandidate: Candidate | null = null;
+
+  function better(a: Candidate | null, b: Candidate): Candidate {
+    if (a === null) return b;
+    const canA = !a.missingSkill && !a.missingTool;
+    const canB = !b.missingSkill && !b.missingTool;
+
+    if (canA && !canB) return a;
+    if (canB && !canA) return b;
+
+    if (b.effort < a.effort) return b;
+    return a;
+  }
 
   for (const eid of item.extracted_from) {
     const recipe = extractionsCodex.get(eid);
@@ -671,11 +737,23 @@ function buildTree(
       ctx.capabilities,
       ctx.recyclers,
     );
+    const missingSkill = !canMeetSkillRequirements(
+      ctx.capabilities,
+      recipe.requiredSkills,
+    );
+    const missingTool = !canMeetToolRequirements(
+      ctx.capabilities,
+      recipe.requiredTool,
+    );
     if (!isFinite(perUnit)) continue;
     const total = perUnit * missing;
-    if (!bestCandidate || total < bestCandidate.effort) {
-      bestCandidate = { kind: "extract", eid, effort: total };
-    }
+    bestCandidate = better(bestCandidate, {
+      kind: "extract",
+      id: eid,
+      effort: total,
+      missingSkill,
+      missingTool,
+    });
   }
 
   // Skip craft candidates when the item is already on the recursion stack —
@@ -686,7 +764,7 @@ function buildTree(
 
   for (const rid of inCycle ? [] : item.crafted_from) {
     const recipe = recipesCodex.get(rid);
-    if (!recipe) continue;
+    if (!recipe || recipe.unpacking) continue;
     let perUnit = ctx.baseline.recipePerUnit(recipe, itemKey);
     if (!isFinite(perUnit)) continue;
 
@@ -709,10 +787,23 @@ function buildTree(
       }
     }
 
+    const missingSkill = !canMeetSkillRequirements(
+      ctx.capabilities,
+      recipe.effectiveRequiredSkills,
+    );
+    const missingTool = !canMeetToolRequirements(
+      ctx.capabilities,
+      recipe.effectiveRequiredTool,
+    );
+
     const total = perUnit * missing;
-    if (!bestCandidate || total < bestCandidate.effort) {
-      bestCandidate = { kind: "craft", rid, effort: total };
-    }
+    bestCandidate = better(bestCandidate, {
+      kind: "craft",
+      id: rid,
+      effort: total,
+      missingSkill,
+      missingTool,
+    });
   }
 
   if (!bestCandidate) {
@@ -722,7 +813,7 @@ function buildTree(
       quantity: missing,
       effort: missing * PURCHASE_EFFORT_PER_UNIT,
     };
-    return have > 0 ? wrapPartial(item, have, node) : node;
+    return composeNode(item, haveNode, node);
   }
 
   // ── Phase 2: build the tree for the winning candidate only ──
@@ -730,18 +821,11 @@ function buildTree(
   let resultNode: PlanNode;
 
   if (bestCandidate.kind === "extract") {
-    const recipe = extractionsCodex.get(bestCandidate.eid)!;
+    const recipe = extractionsCodex.get(bestCandidate.id)!;
     const rate = extractionRate(recipe, itemKey);
     const rf = rarityFactor(item);
+    const { missingSkill, missingTool } = bestCandidate;
     const strikes = Math.max(missing / rate, missing * rf);
-    const missingSkill = !canMeetSkillRequirements(
-      ctx.capabilities,
-      recipe.requiredSkills,
-    );
-    const missingTool = !canMeetToolRequirements(
-      ctx.capabilities,
-      recipe.requiredTool,
-    );
     let effort = strikes * rf;
     if (missingSkill || missingTool) effort *= CAPABILITY_PENALTY;
 
@@ -765,7 +849,7 @@ function buildTree(
       missing_tool: missingTool,
     };
   } else {
-    const recipe = recipesCodex.get(bestCandidate.rid)!;
+    const recipe = recipesCodex.get(bestCandidate.id)!;
     const outputPerCraft = effectiveOutputPerCraft(recipe, itemKey);
     const craftCount = Math.max(1, Math.ceil(missing / outputPerCraft));
 
@@ -815,15 +899,22 @@ function buildTree(
     };
   }
 
-  return have > 0 ? wrapPartial(item, have, resultNode) : resultNode;
+  return have > 0 ? composeNode(item, haveNode, resultNode) : resultNode;
 }
 
-function wrapPartial(
+function composeNode(
   item: ItemEntry,
-  fromInventory: number,
-  sub: PlanNode,
+  ...sub: Array<PlanNode | null>
 ): CompositeNode {
-  return { kind: "composite", item, fromInventory, sub, effort: sub.effort };
+  const subs = sub
+    .filter((s) => s !== null)
+    .flatMap((s) => (s.kind === "composite" ? s.sub : [s]));
+  return {
+    kind: "composite",
+    item,
+    sub: subs,
+    effort: subs.reduce((acc, s) => acc + s.effort, 0),
+  };
 }
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
@@ -966,7 +1057,9 @@ function linearize(
         return;
       }
       case "composite":
-        walk(node.sub);
+        for (const sub of node.sub) {
+          walk(sub);
+        }
         return;
     }
   }
@@ -1344,7 +1437,10 @@ function rootDemand(node: PlanNode): { item: ItemEntry; quantity: number } {
     case "composite":
       return {
         item: node.item,
-        quantity: node.fromInventory + rootDemand(node.sub).quantity,
+        quantity: node.sub.reduce(
+          (acc, sub) => acc + rootDemand(sub).quantity,
+          0,
+        ),
       };
   }
 }
