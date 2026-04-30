@@ -1,3 +1,7 @@
+> [!WARNING]
+> Since GitHub and Microsoft has proved time and time again that they have no intent of honoring their role of a Service Provider, the one of providing the service, all my repos have been [migrated to GitLab](https://gitlab.com/Fryuni/ordum-dashboard) while being mirrored to my private clone as it is today.
+> The original repo here on GitHub is archived and won't receive any updates.
+
 # Ordum Dashboard
 
 A web dashboard for the **Ordum** empire in [Bitcraft](https://bitcraftonline.com/), providing resource tracking, settlement planning, and crafting tools.
